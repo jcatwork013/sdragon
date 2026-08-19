@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+<title>SDrakon — Proto-Dragon Realm</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1b1233">
+<meta name="description" content="Match-3 nuôi rồng: chọn trứng, ấp nở, ghép đá quý và huấn luyện rồng của bạn.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="SDrakon">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+
+<!-- Font nằm trong fonts/ (OFL, có dấu tiếng Việt) — game không gọi ra mạng lần nào -->
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <div id="stage">
+    <canvas id="game" width="1280" height="720"></canvas>
+    <div id="boot">
+      <div class="boot-inner">
+        <div class="boot-title">SDrakon</div>
+        <div class="boot-sub">Proto-Dragon Realm</div>
+        <div class="boot-bar"><i></i></div>
+        <div class="boot-hint" id="bootHint">đang nung lò rồng…</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="rotate">
+    <div>
+      <div style="font-size:56px;line-height:1.4">📱↻</div>
+      Xoay ngang thiết bị để chơi<br>
+      <span style="font-size:15px;opacity:.6">Rotate your device to play</span>
+    </div>
+  </div>
+
+  <button id="install" hidden>Cài đặt ứng dụng</button>
+
+  <script type="module" src="js/main.js"></script>
+  <script>
+  // ── Service worker: chơi ngoại tuyến. Bỏ qua khi mở bằng file:// hoặc trong Electron.
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+  }
+
+  // ── Nút cài đặt: chỉ hiện khi trình duyệt thật sự cho cài
+  let deferred = null;
+  const btn = document.getElementById('install');
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); deferred = e; btn.hidden = false; });
+  btn.addEventListener('click', async () => {
+    btn.hidden = true;
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice;
+    deferred = null;
+  });
+  addEventListener('appinstalled', () => { btn.hidden = true; deferred = null; });
+
+  // ── Trên di động: chạm lần đầu thì vào toàn màn hình + khoá xoay ngang
+  const goFullscreen = async () => {
+    if (!matchMedia('(pointer:coarse)').matches) return;
+    try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch {}
+    try { await screen.orientation.lock('landscape'); } catch {}
+  };
+  addEventListener('pointerdown', goFullscreen, { once: true });
+
+  // chặn thao tác cuộn/zoom của trình duyệt nuốt mất input của game
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+  </script>
+</body>
+</html>

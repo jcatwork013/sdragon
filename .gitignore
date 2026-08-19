@@ -1,0 +1,31 @@
+# ── phụ thuộc & sản phẩm dựng ────────────────────────────────────────────
+node_modules/
+dist/
+package-lock.json
+
+# sinh bởi `npm run www`, không cần theo dõi
+www/
+
+# ── Android (Capacitor) ──────────────────────────────────────────────────
+android/.gradle/
+android/build/
+android/app/build/
+android/.idea/
+android/capacitor-cordova-android-plugins/
+
+# chứa đường dẫn Android SDK riêng của từng máy
+android/local.properties
+
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# ── ảnh chụp của công cụ dev ─────────────────────────────────────────────
+dev/shots/
+
+# ── hệ điều hành / trình soạn thảo ───────────────────────────────────────
+.DS_Store
+*.log
+.vscode/
+.idea/

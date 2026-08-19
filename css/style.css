@@ -1,0 +1,68 @@
+/* ── Font đóng gói sẵn: chạy hoàn toàn offline, không gọi ra mạng ────────────
+   Cả 3 font đều giấy phép OFL (dùng thương mại được) và CÓ dấu tiếng Việt.
+   Bản quyền + giấy phép đầy đủ nằm ở fonts/OFL-*.txt                        */
+@font-face{font-family:"Baloo 2";src:url("../fonts/baloo2.ttf") format("truetype");
+  font-weight:600 800;font-display:swap;}
+@font-face{font-family:"Be Vietnam Pro";src:url("../fonts/bvp600.ttf") format("truetype");
+  font-weight:400 700;font-display:swap;}
+@font-face{font-family:"Be Vietnam Pro";src:url("../fonts/bvp800.ttf") format("truetype");
+  font-weight:800;font-display:swap;}
+@font-face{font-family:"Bungee";src:url("../fonts/bungee.ttf") format("truetype");
+  font-weight:400;font-display:swap;}
+
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%;overflow:hidden;background:#0b0716;-webkit-tap-highlight-color:transparent}
+body{
+  display:flex;align-items:center;justify-content:center;
+  font-family:"Baloo 2","Be Vietnam Pro",system-ui,sans-serif;
+  background:
+    radial-gradient(1200px 700px at 50% -10%,#3a2a6b 0%,#1b1233 45%,#0b0716 100%);
+  touch-action:none;user-select:none;
+}
+#stage{position:relative;line-height:0;box-shadow:0 30px 90px rgba(0,0,0,.75),0 0 0 2px rgba(255,255,255,.06)}
+canvas#game{display:block;image-rendering:auto;border-radius:6px;cursor:pointer}
+canvas#game.grabbing{cursor:grabbing}
+
+/* ---- boot overlay ---- */
+#boot{
+  position:absolute;inset:0;display:grid;place-items:center;border-radius:6px;
+  background:radial-gradient(600px 400px at 50% 40%,#2a1c52,#0d0820 80%);
+  transition:opacity .5s ease,visibility .5s;z-index:5;
+}
+#boot.hide{opacity:0;visibility:hidden}
+.boot-inner{text-align:center;line-height:1.1}
+.boot-title{
+  font-family:"Bungee","Baloo 2",sans-serif;font-size:58px;letter-spacing:2px;color:#fff;
+  text-shadow:0 0 18px #8f6bff,0 4px 0 #3a2170,0 8px 24px rgba(0,0,0,.6);
+}
+.boot-sub{font-size:22px;color:#ff5470;text-shadow:0 2px 0 #6a0f24,0 0 14px rgba(255,84,112,.6);margin-top:2px}
+.boot-bar{width:260px;height:10px;margin:22px auto 10px;border-radius:6px;background:#150e2e;border:2px solid #000;overflow:hidden}
+.boot-bar i{display:block;height:100%;width:0;border-radius:4px;background:linear-gradient(90deg,#3ddc84,#2f9bff);animation:fill 1.6s ease-out forwards}
+@keyframes fill{to{width:100%}}
+.boot-hint{font-family:"Bungee","Be Vietnam Pro",monospace;font-size:11px;color:#9b8ec9;letter-spacing:1px}
+
+/* ---- rotate hint (mobile portrait) ---- */
+#rotate{
+  position:fixed;inset:0;display:none;place-items:center;text-align:center;padding:24px;
+  background:#0b0716;color:#fff;font-size:22px;z-index:20;
+}
+@media (max-aspect-ratio:1/1) and (pointer:coarse){
+  #rotate{display:grid}
+  #stage{display:none}
+}
+
+/* ---- nút cài đặt PWA ---- */
+#install{
+  position:fixed;right:14px;bottom:14px;z-index:30;
+  padding:11px 20px;border:0;border-radius:12px;cursor:pointer;
+  font-family:"Baloo 2","Be Vietnam Pro",sans-serif;font-size:16px;font-weight:800;color:#fff;
+  background:linear-gradient(180deg,#8ef08a,#3fbf4a);
+  box-shadow:0 4px 0 #1d6b24,0 8px 20px rgba(0,0,0,.45);
+}
+#install:active{transform:translateY(3px);box-shadow:0 1px 0 #1d6b24,0 4px 12px rgba(0,0,0,.45)}
+
+/* ---- chừa lề tai thỏ khi chạy toàn màn hình trên điện thoại ---- */
+@supports(padding:max(0px)){
+  body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
+}
+#rotate{font-family:"Baloo 2","Be Vietnam Pro",sans-serif;line-height:1.5}

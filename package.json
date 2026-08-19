@@ -1,0 +1,111 @@
+{
+  "name": "sdrakon",
+  "version": "1.0.0",
+  "description": "SDrakon — Proto-Dragon Realm · match-3 nuôi rồng, Canvas 2D + Web Audio, không phụ thuộc thư viện ngoài",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "shots": "node dev/screenshot.mjs",
+    "balance": "node dev/balance.mjs 30 2.0 4",
+    "desktop": "electron .",
+    "build:mac": "electron-builder --mac",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "build:all": "npm run apk && npx electron-builder --win nsis --win portable --x64 && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg --arm64 --x64 && npm run verify",
+    "icons": "node dev/icons.mjs",
+    "version": "node dev/version.mjs",
+    "www": "node dev/www.mjs",
+    "android": "npm run www && npx cap sync android",
+    "apk": "npm run www && npx cap sync android && cd android && JAVA_HOME=$HOME/.jdks/temurin-21/Contents/Home ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew assembleDebug",
+    "verify": "bash dev/verify-builds.sh"
+  },
+  "devDependencies": {
+    "@capacitor/android": "^8.5.0",
+    "@capacitor/cli": "^8.5.0",
+    "@capacitor/core": "^8.5.0",
+    "@napi-rs/canvas": "^0.1.100",
+    "electron": "^33.4.11",
+    "electron-builder": "^25.1.8"
+  },
+  "main": "desktop/main.cjs",
+  "build": {
+    "appId": "com.sdrakon.game",
+    "productName": "SDrakon",
+    "copyright": "SDrakon — Proto-Dragon Realm",
+    "directories": {
+      "output": "dist",
+      "buildResources": "icons"
+    },
+    "files": [
+      "index.html",
+      "manifest.webmanifest",
+      "sw.js",
+      "css/**/*",
+      "js/**/*",
+      "fonts/**/*",
+      "icons/**/*",
+      "desktop/**/*",
+      "!dev/**/*",
+      "!dist/**/*",
+      "!**/*.map"
+    ],
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.puzzle-games",
+      "icon": "icons/icon-1024.png",
+      "darkModeSupport": true
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icons/icon-512.png"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "shortcutName": "SDrakon"
+    },
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Game",
+      "icon": "icons/icon-512.png"
+    }
+  }
+}

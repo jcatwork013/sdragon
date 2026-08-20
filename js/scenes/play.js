@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rand, randInt, rgba, shade, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT, resultBanner } from '../ui/widgets.js';
+import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT, resultBanner, frostCard } from '../ui/widgets.js';
 import { Board } from '../game/board.js';
 import { GEMS, SP, TOKEN } from '../game/gems.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
@@ -611,33 +611,85 @@ export default {
     if (this.over) this.drawOver(G, ctx);
   },
 
-  // ── thẻ rồng bên trái (đúng bố cục Figma) ────────────────────────────────
+  // ── thẻ nhân vật bên trái ────────────────────────────────────────────────
+  // Kiểu "ảnh cảnh + tấm kính mờ đè lên": cảnh chạy tràn hết thẻ, chữ nằm trên
+  // tấm kính sáng ở đáy. Nhờ vậy chữ luôn đọc được dù cảnh sáng hay tối, mà
+  // vẫn thấy được cảnh phía sau — thay cho khung trắng bo góc phẳng lì cũ.
   drawDragonCard(G, ctx) {
-    const x = CARDX, y = 122, w = 250, h = 400;
+    const x = CARDX, y = 122, w = 250, h = 400, R = 26;
+    const T = this.t;
     ctx.save();
-    ctx.shadowColor = 'rgba(0,0,0,.45)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
-    roundRect(ctx, x, y, w, h, 26); ctx.fillStyle = '#fff'; ctx.fill();
+    ctx.shadowColor = 'rgba(20,10,40,.55)'; ctx.shadowBlur = 26; ctx.shadowOffsetY = 10;
+    roundRect(ctx, x, y, w, h, R); ctx.fillStyle = '#fff'; ctx.fill();
     ctx.shadowColor = 'transparent';
-    ctx.save(); roundRect(ctx, x + 6, y + 6, w - 12, h - 12, 20); ctx.clip();
+
+    ctx.save(); roundRect(ctx, x + 5, y + 5, w - 10, h - 10, R - 6); ctx.clip();
+    // trời
     const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, '#bfe4ff'); g.addColorStop(.55, '#dff0ff'); g.addColorStop(1, '#f5e6c8');
+    g.addColorStop(0, '#8fc6f5'); g.addColorStop(.34, '#cfe9ff');
+    g.addColorStop(.62, '#ffe3c0'); g.addColorStop(1, '#f7d9a8');
     ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
-    // đồi nhỏ trong thẻ
-    ctx.fillStyle = 'rgba(150,190,140,.55)';
-    ctx.beginPath(); ctx.ellipse(x + w * .3, y + h * .92, w * .6, h * .18, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(120,170,110,.75)';
-    ctx.beginPath(); ctx.ellipse(x + w * .75, y + h * .97, w * .55, h * .15, 0, 0, TAU); ctx.fill();
-    G.hero.draw(ctx, x + w * .50, y + h * .76, 168, 1);
+    // nắng
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    const sg = ctx.createRadialGradient(x + w * .74, y + h * .18, 0, x + w * .74, y + h * .18, w * .62);
+    sg.addColorStop(0, 'rgba(255,244,210,.75)'); sg.addColorStop(1, 'rgba(255,230,180,0)');
+    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x + w * .74, y + h * .18, w * .62, 0, TAU); ctx.fill();
     ctx.restore();
-    ctx.strokeStyle = 'rgba(120,160,200,.8)'; ctx.lineWidth = 3;
-    roundRect(ctx, x + 6, y + 6, w - 12, h - 12, 20); ctx.stroke();
+    // mây
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    for (const [cx0, cy0, cw] of [[.22, .14, .20], [.62, .26, .15], [.40, .09, .12]]) {
+      ctx.beginPath();
+      ctx.ellipse(x + w * cx0, y + h * cy0, w * cw, h * cw * .34, 0, 0, TAU); ctx.fill();
+      ctx.beginPath();
+      ctx.ellipse(x + w * (cx0 + cw * .6), y + h * (cy0 + .012), w * cw * .68, h * cw * .26, 0, 0, TAU); ctx.fill();
+    }
+    // đồi nhiều tầng
+    for (const [yy, cxk, col] of [[.50, .70, 'rgba(150,195,140,.60)'],
+                                  [.60, .28, 'rgba(120,175,110,.85)'],
+                                  [.70, .55, '#79ae62']]) {
+      ctx.fillStyle = col;
+      ctx.beginPath();
+      ctx.ellipse(x + w * cxk, y + h * (yy + .30), w * .85, h * .27, 0, 0, TAU); ctx.fill();
+    }
+    // cỏ dưới chân
+    ctx.strokeStyle = 'rgba(58,102,46,.75)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    for (let i = 0; i < 16; i++) {
+      const gx = x + 10 + i * (w - 20) / 15, gh = 10 + (i % 4) * 6;
+      const sw = Math.sin(T * 1.5 + i) * 3;
+      ctx.beginPath(); ctx.moveTo(gx, y + h * .78);
+      ctx.quadraticCurveTo(gx + sw * .5, y + h * .78 - gh * .6, gx + sw, y + h * .78 - gh); ctx.stroke();
+    }
+    // Bề ngang nhân vật ≈ 1.9×S và lệch hẳn về sau, nên thẻ rộng 250 chỉ chứa
+    // nổi S≈130. Để 158 như trước là cụt cả càng lẫn đầu ở hai mép.
+    G.hero.draw(ctx, x + w * .58, y + h * .60, 100, 1);
+
+    // ── TẤM KÍNH MỜ ở đáy ───────────────────────────────────────────────
+    const px = x + 12, pw = w - 24, ph = 92, py = y + h - ph - 12;
+    frostCard(ctx, px, py, pw, ph, 18);
     ctx.restore();
 
     const breed = BREEDS.find(b => b.id === G.save.breed) || BREEDS[0];
-    strokeText(ctx, tx(breed, 'name'), x + w / 2, y + 34,
-      { font: FONT.disp(24), fill: '#fff', stroke: '#2b4a6b', lw: 6, baseline: 'middle' });
-    strokeText(ctx, tx(stageFor(G.save.xp), 'name'), x + w / 2, y + 62,
-      { font: FONT.disp(18), fill: '#ffe9b0', stroke: '#4a2a10', lw: 5, baseline: 'middle' });
+    const st = stageFor(G.save.xp);
+    strokeText(ctx, tx(breed, 'name'), x + w / 2, py + 24,
+      { font: FONT.disp(25), fill: '#fff', stroke: '#2b4a6b', lw: 6, baseline: 'middle' });
+    strokeText(ctx, tx(st, 'name'), x + w / 2, py + 48,
+      { font: FONT.ui(13, 800), fill: '#12324e', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    // thanh sinh lực nhỏ trên kính
+    const bx = px + 16, bw = pw - 32, by = py + 64;
+    roundRect(ctx, bx, by, bw, 12, 6);
+    ctx.fillStyle = 'rgba(20,30,50,.35)'; ctx.fill();
+    ctx.save(); roundRect(ctx, bx + 1.5, by + 1.5, bw - 3, 9, 4.5); ctx.clip();
+    const hv = clamp(this.hp / this.maxHp, 0, 1);
+    const hg = ctx.createLinearGradient(bx, 0, bx + bw, 0);
+    hg.addColorStop(0, '#ff5f7a'); hg.addColorStop(1, '#ff9aa8');
+    ctx.fillStyle = hg; ctx.fillRect(bx + 1.5, by + 1.5, (bw - 3) * hv, 9);
+    ctx.restore();
+    roundRect(ctx, bx, by, bw, 12, 6);
+    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.4; ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 3;
+    roundRect(ctx, x + 5, y + 5, w - 10, h - 10, R - 6); ctx.stroke();
+    ctx.restore();
   },
 
   // ── dải kỹ năng dọc ───────────────────────────────────────────────────────

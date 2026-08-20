@@ -72,14 +72,16 @@ export function glassPanel(ctx, x, y, w, h, r = 20, o = {}) {
 
 /** Ô vuông băng bóng — hộp đựng icon trong thanh chỉ số. */
 export function iceTile(ctx, x, y, w, h, r = 12) {
+  roundRect(ctx, x, y + 4, w, h, r);
+  ctx.fillStyle = C.iceRim; ctx.fill();                 // bệ dày
   roundRect(ctx, x, y, w, h, r);
   const g = ctx.createLinearGradient(0, y, 0, y + h);
   g.addColorStop(0, C.iceLite); g.addColorStop(.45, C.ice); g.addColorStop(1, C.iceMid);
   ctx.fillStyle = g; ctx.fill();
   ctx.strokeStyle = C.iceDark; ctx.lineWidth = 2.5; ctx.stroke();
   ctx.save(); roundRect(ctx, x, y, w, h, r); ctx.clip();
-  ctx.fillStyle = 'rgba(255,255,255,.55)';
-  ctx.beginPath(); ctx.ellipse(x + w * .34, y + h * .2, w * .3, h * .14, 0, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(255,255,255,.62)';
+  roundRect(ctx, x + w * .12, y + h * .10, w * .76, h * .26, h * .13); ctx.fill();
   ctx.globalAlpha = .5;
   ctx.beginPath(); ctx.arc(x + w * .8, y + h * .78, w * .09, 0, TAU); ctx.fill();
   ctx.restore();
@@ -92,8 +94,12 @@ export function statBar(ctx, x, y, w, h, value, iconFn, o = {}) {
   ctx.save(); ctx.translate(x + box / 2, y + box / 2); iconFn(ctx, box * .58); ctx.restore();
 
   const bx = x + box - 4, bw = w - box + 4, r = h / 2;
+  roundRect(ctx, bx, y + h * .12 + 4, bw, h * .76, r);
+  ctx.fillStyle = C.iceRim; ctx.fill();                 // bệ dày
   roundRect(ctx, bx, y + h * .12, bw, h * .76, r);
-  ctx.fillStyle = C.barBg; ctx.fill();
+  const bgg = ctx.createLinearGradient(0, y, 0, y + h);
+  bgg.addColorStop(0, shade(C.barBg, -.14)); bgg.addColorStop(1, shade(C.barBg, .16));
+  ctx.fillStyle = bgg; ctx.fill();
   ctx.strokeStyle = C.iceDark; ctx.lineWidth = 2.5; ctx.stroke();
 
   const v = clamp(value, 0, 1);
@@ -105,8 +111,10 @@ export function statBar(ctx, x, y, w, h, value, iconFn, o = {}) {
     g.addColorStop(0, o.fillA || C.barA); g.addColorStop(.55, o.fillB || C.barB); g.addColorStop(1, o.fillB || C.barB);
     roundRect(ctx, bx, y + h * .12, fw, h * .76, r);
     ctx.fillStyle = g; ctx.fill();
-    ctx.fillStyle = 'rgba(255,255,255,.45)';
-    roundRect(ctx, bx + 4, y + h * .2, fw - 8, h * .22, h * .11); ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    roundRect(ctx, bx + 5, y + h * .19, Math.max(0, fw - 10), h * .20, h * .10); ctx.fill();
+    ctx.fillStyle = 'rgba(120,60,0,.18)';
+    roundRect(ctx, bx + 5, y + h * .66, Math.max(0, fw - 10), h * .14, h * .07); ctx.fill();
     ctx.restore();
   }
   if (o.label) {
@@ -459,6 +467,49 @@ export const icon = {
     ctx.strokeStyle = '#6b7096'; ctx.lineWidth = s * .06; ctx.stroke();
   },
 };
+
+/**
+ * Tấm kính mờ SÁNG đặt đè lên ảnh nền — khác glassPanel (kính tối dùng cho
+ * overlay). Canvas 2D không có backdrop-filter, nên "mờ" ở đây là giả lập:
+ * một lớp trắng trong mỏng + gờ sáng ở mép trên + viền mảnh. Mắt đọc ra ngay
+ * là kính, miễn là bên dưới có ảnh để lộ qua.
+ */
+export function frostCard(ctx, x, y, w, h, r = 20, o = {}) {
+  ctx.save();
+  roundRect(ctx, x, y, w, h, r);
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, o.top || 'rgba(255,255,255,.42)');
+  g.addColorStop(.55, o.mid || 'rgba(255,255,255,.22)');
+  g.addColorStop(1, o.bot || 'rgba(255,255,255,.30)');
+  ctx.fillStyle = g; ctx.fill();
+  // gờ sáng mép trên — chỗ ánh sáng bắt vào cạnh kính
+  ctx.save(); roundRect(ctx, x, y, w, h, r); ctx.clip();
+  const hi = ctx.createLinearGradient(0, y, 0, y + h * .30);
+  hi.addColorStop(0, 'rgba(255,255,255,.55)'); hi.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = hi; ctx.fillRect(x, y, w, h * .30);
+  ctx.restore();
+  ctx.strokeStyle = o.rim || 'rgba(255,255,255,.60)'; ctx.lineWidth = o.lw ?? 1.6;
+  roundRect(ctx, x + .8, y + .8, w - 1.6, h - 1.6, r - 1); ctx.stroke();
+  ctx.restore();
+}
+
+/** Viên thuốc bo tròn có gờ bóng — dùng cho nhãn nhỏ trong HUD. */
+export function pillTag(ctx, x, y, w, h, o = {}) {
+  const r = h / 2;
+  ctx.save();
+  roundRect(ctx, x, y + 3, w, h, r);
+  ctx.fillStyle = o.dark || 'rgba(20,12,40,.45)'; ctx.fill();       // bệ dày
+  roundRect(ctx, x, y, w, h, r);
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, o.lite || '#ffe9a8'); g.addColorStop(1, o.base || '#f5a51e');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = o.rim || 'rgba(90,50,0,.65)'; ctx.lineWidth = o.lw ?? 2.4; ctx.stroke();
+  ctx.save(); roundRect(ctx, x, y, w, h, r); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  roundRect(ctx, x + r * .5, y + h * .14, w - r, h * .30, h * .16); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
 
 // ── BẢNG KẾT QUẢ MÀN ────────────────────────────────────────────────────────
 

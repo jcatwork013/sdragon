@@ -5,9 +5,36 @@ import { Hit, textBtn, roundBtn, card, glassPanel, icon, C, FONT } from '../ui/w
 import { EPISODES, ALL_LEVELS, REGIONS } from '../data/levels.js';
 import { bleed } from '../core/layout.js';
 
-const NODE_DX = 148, NODE_R = 34;
+const NODE_DX = 148, NODE_R = 36;
 const nodeX = (i) => 170 + i * NODE_DX;
 const nodeY = (i) => 400 + Math.sin(i * .78) * 118 + Math.sin(i * .31) * 34;
+
+/**
+ * Lấy mẫu điểm + hướng tiếp tuyến dọc đường mòn.
+ *
+ * Vẽ đường bằng vài lệnh stroke chồng nhau thì chỉ ra được một sợi dây. Muốn
+ * nó thành CON ĐƯỜNG LÁT ĐÁ thì phải biết hướng đi tại từng điểm để xoay từng
+ * phiến đá theo — nên cần bộ mẫu này. Vị trí nút cố định nên tính một lần.
+ */
+function trailSamples(count, per = 7) {
+  const out = [];
+  for (let i = 1; i < count; i++) {
+    const x0 = nodeX(i - 1), y0 = nodeY(i - 1);
+    const x1 = nodeX(i), y1 = nodeY(i);
+    const cx = (x0 + x1) / 2, cy = y0;                 // khớp với quadraticCurveTo bên dưới
+    for (let k = 0; k < per; k++) {
+      const u = k / per, iu = 1 - u;
+      out.push({
+        x: iu * iu * x0 + 2 * iu * u * cx + u * u * x1,
+        y: iu * iu * y0 + 2 * iu * u * cy + u * u * y1,
+        a: Math.atan2(2 * iu * (cy - y0) + 2 * u * (y1 - cy),
+                      2 * iu * (cx - x0) + 2 * u * (x1 - cx)),
+      });
+    }
+  }
+  out.push({ x: nodeX(count - 1), y: nodeY(count - 1), a: 0 });
+  return out;
+}
 
 export default {
   name: 'map',
@@ -23,6 +50,14 @@ export default {
       x: i * 78 + R() * 60, dy: (R() - .5) * 150, k: (R() * 4) | 0, s: .7 + R() * .7, ph: R() * TAU,
     }));
     this.flies = Array.from({ length: 14 }, () => ({ x: R() * 3000, y: R() * 300 + 200, ph: R() * TAU, s: .6 + R() * .6 }));
+    // bướm bay dọc lối đi — chuyển động lớn, bắt mắt hơn đom đóm ban ngày
+    this.flutters = Array.from({ length: 9 }, () => ({
+      x: R() * 6600, y: R() * 260 + 180, ph: R() * TAU, s: .7 + R() * .6,
+      col: ['#ffd76b', '#ff9ec4', '#a8e0ff', '#c9a8ff'][(R() * 4) | 0],
+    }));
+    this.samples = trailSamples(ALL_LEVELS.length);
+    // cỏ tiền cảnh: dải sát mép dưới, trôi nhanh hơn nền → có chiều sâu
+    this.fg = Array.from({ length: 90 }, () => ({ x: R() * 7200, h: 26 + R() * 46, ph: R() * TAU, s: .6 + R() * .8 }));
     this.scroll = clamp(nodeX(G.save.unlocked - 1) - G.W * .45, 0, this.maxScroll);
     this.hits = [
       new Hit('nest', 24, G.H - 92, 190, 60, { act: () => G.go('nest') }),
@@ -140,7 +175,11 @@ export default {
       ctx.restore();
     }
 
-    // ── đường mòn lát đá ──────────────────────────────────────────────
+    // ── DẢI ĐẤT + ĐƯỜNG MÒN LÁT ĐÁ ────────────────────────────────────
+    // Trước đây chỉ là 5 lệnh stroke chồng nhau → ra một sợi dây thừng vắt
+    // ngang nền. Giờ dựng ba tầng: dải đất sáng ôm lấy đường (tách đường khỏi
+    // nền), thân đường có mép tối và mặt sáng, rồi PHIẾN ĐÁ LÁT xoay theo
+    // đúng hướng đi — cái cuối mới là thứ khiến mắt đọc ra "con đường".
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     const trail = () => {
@@ -150,17 +189,42 @@ export default {
         ctx.quadraticCurveTo((px + cx) / 2, py, cx, cy);
       }
     };
-    trail(); ctx.strokeStyle = 'rgba(28,16,48,.45)'; ctx.lineWidth = 34; ctx.stroke();
-    trail(); ctx.strokeStyle = '#8a7048'; ctx.lineWidth = 28; ctx.stroke();
-    trail(); ctx.strokeStyle = '#c8ab7c'; ctx.lineWidth = 22; ctx.stroke();
-    trail();
-    ctx.strokeStyle = '#e6d3ab'; ctx.lineWidth = 18;
-    ctx.setLineDash([30, 14]); ctx.lineDashOffset = -this.t * 12; ctx.stroke();
-    ctx.setLineDash([]);
-    trail();
-    ctx.strokeStyle = 'rgba(255,255,255,.28)'; ctx.lineWidth = 5;
-    ctx.setLineDash([30, 14]); ctx.lineDashOffset = -this.t * 12 + 4; ctx.stroke();
-    ctx.setLineDash([]);
+    // dải đất cỏ hai bên đường
+    trail(); ctx.strokeStyle = 'rgba(126,178,92,.34)'; ctx.lineWidth = 128; ctx.stroke();
+    trail(); ctx.strokeStyle = 'rgba(150,196,110,.40)'; ctx.lineWidth = 92;  ctx.stroke();
+    // bóng đổ của đường lên dải đất
+    ctx.save();
+    ctx.translate(0, 7);
+    trail(); ctx.strokeStyle = 'rgba(24,14,40,.34)'; ctx.lineWidth = 46; ctx.stroke();
+    ctx.restore();
+    // mép đường + mặt đường
+    trail(); ctx.strokeStyle = '#6d5330'; ctx.lineWidth = 44; ctx.stroke();
+    trail(); ctx.strokeStyle = '#a8895a'; ctx.lineWidth = 36; ctx.stroke();
+    trail(); ctx.strokeStyle = '#c8ab7c'; ctx.lineWidth = 30; ctx.stroke();
+    // vệt sáng men mép trên — cho mặt đường có độ cong
+    ctx.save();
+    ctx.translate(0, -6);
+    trail(); ctx.strokeStyle = 'rgba(255,240,205,.30)'; ctx.lineWidth = 13; ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+
+    // phiến đá lát — xoay theo tiếp tuyến, cỡ so le cho khỏi đều tăm tắp
+    ctx.save();
+    for (let i = 0; i < this.samples.length; i += 2) {
+      const sp = this.samples[i];
+      if (sp.x < this.scroll - 60 || sp.x > this.scroll + W + 60) continue;
+      const k = i % 4 === 0 ? 1 : .84;
+      ctx.save();
+      ctx.translate(sp.x, sp.y); ctx.rotate(sp.a);
+      roundRect(ctx, -11 * k, -12 * k, 22 * k, 24 * k, 7 * k);
+      ctx.fillStyle = 'rgba(90,68,38,.30)'; ctx.fill();
+      roundRect(ctx, -11 * k, -14 * k, 22 * k, 24 * k, 7 * k);
+      const pg = ctx.createLinearGradient(0, -14 * k, 0, 10 * k);
+      pg.addColorStop(0, '#f0dfbc'); pg.addColorStop(1, '#cdb082');
+      ctx.fillStyle = pg; ctx.fill();
+      ctx.strokeStyle = 'rgba(96,72,40,.45)'; ctx.lineWidth = 1.6; ctx.stroke();
+      ctx.restore();
+    }
     ctx.restore();
 
     // ── cột mốc chương: biển gỗ cắm bên đường ─────────────────────────
@@ -210,44 +274,70 @@ export default {
       ctx.translate(x, y);
       ctx.scale(pop, pop);
 
-      // bóng đổ dưới nút
-      ctx.fillStyle = 'rgba(20,12,40,.38)';
-      ctx.beginPath(); ctx.ellipse(0, NODE_R * .86, NODE_R * .82, NODE_R * .24, 0, 0, TAU); ctx.fill();
+      // bóng đổ trên mặt đường
+      ctx.fillStyle = 'rgba(20,12,40,.34)';
+      ctx.beginPath(); ctx.ellipse(0, NODE_R * .98, NODE_R * .88, NODE_R * .26, 0, 0, TAU); ctx.fill();
 
-      // vành ngoài kiểu đồng xu
-      ctx.beginPath(); ctx.arc(0, 0, NODE_R + 4, 0, TAU);
+      // quầng sáng đập nhịp quanh màn đang mở
+      if (cur) {
+        ctx.save();
+        ctx.globalCompositeOperation = 'lighter';
+        const hk = .55 + .45 * Math.sin(this.t * 3);
+        const hg2 = ctx.createRadialGradient(0, 0, NODE_R * .8, 0, 0, NODE_R * 2.1);
+        hg2.addColorStop(0, `rgba(255,226,130,${.34 * hk})`);
+        hg2.addColorStop(1, 'rgba(255,210,90,0)');
+        ctx.fillStyle = hg2;
+        ctx.beginPath(); ctx.arc(0, 0, NODE_R * 2.1, 0, TAU); ctx.fill();
+        ctx.restore();
+      }
+
+      // Bảng màu theo trạng thái. Khoá thì xám đá, chưa sao thì xanh lá (mời
+      // chơi), có sao thì xanh dương, đủ 3 sao thì vàng kim.
+      const PAL = !open ? ['#8f93aa', '#5a5f79', '#2b2e40']
+                : st >= 3 ? ['#ffe98a', '#f0a41c', '#8a4c02']
+                : st > 0  ? ['#bfe6ff', '#3080c8', '#123f6b']
+                          : ['#a9f79f', '#2f9c36', '#0f4a17'];
+
+      // BỆ: bản sao tối lệch xuống — chính chỗ này làm huy hiệu ra khối dày,
+      // thay vì một cái đĩa dán phẳng lên đường.
+      ctx.beginPath(); ctx.arc(0, 9, NODE_R + 5, 0, TAU);
+      ctx.fillStyle = PAL[2]; ctx.fill();
+
+      // vành ngoài
+      ctx.beginPath(); ctx.arc(0, 0, NODE_R + 5, 0, TAU);
       ctx.fillStyle = open ? '#2a1c46' : '#232636'; ctx.fill();
 
-      // mặt nút
+      // mặt huy hiệu
       ctx.beginPath(); ctx.arc(0, 0, NODE_R, 0, TAU);
       const g = ctx.createLinearGradient(0, -NODE_R, 0, NODE_R);
-      if (!open) { g.addColorStop(0, '#767a96'); g.addColorStop(1, '#3d4159'); }
-      else if (st >= 3) { g.addColorStop(0, '#ffe98a'); g.addColorStop(1, '#ef8f18'); }
-      else if (st > 0) { g.addColorStop(0, '#bfe6ff'); g.addColorStop(1, '#3080c8'); }
-      else { g.addColorStop(0, '#9ff59a'); g.addColorStop(1, '#28902f'); }
+      g.addColorStop(0, PAL[0]); g.addColorStop(.55, PAL[1]); g.addColorStop(1, PAL[2]);
       ctx.fillStyle = g; ctx.fill();
-      ctx.strokeStyle = open ? '#17203a' : '#1b1d2c'; ctx.lineWidth = 3.5; ctx.stroke();
-      // chớp sáng
+
       ctx.save();
       ctx.beginPath(); ctx.arc(0, 0, NODE_R, 0, TAU); ctx.clip();
-      ctx.fillStyle = 'rgba(255,255,255,.5)';
-      ctx.beginPath(); ctx.ellipse(-NODE_R * .22, -NODE_R * .5, NODE_R * .52, NODE_R * .22, 0, 0, TAU); ctx.fill();
+      // vành vát sáng ôm mép trên
+      ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.arc(0, 2, NODE_R - 3, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+      // chớp sáng
+      ctx.fillStyle = 'rgba(255,255,255,.52)';
+      ctx.beginPath(); ctx.ellipse(-NODE_R * .20, -NODE_R * .52, NODE_R * .50, NODE_R * .21, -.12, 0, TAU); ctx.fill();
       ctx.restore();
+      ctx.strokeStyle = open ? '#17203a' : '#1b1d2c'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.arc(0, 0, NODE_R, 0, TAU); ctx.stroke();
 
       if (open) {
-        // đế số cho chữ nổi trên nền sáng
-        ctx.beginPath(); ctx.arc(0, 1, NODE_R * .58, 0, TAU);
-        ctx.fillStyle = 'rgba(18,12,36,.30)'; ctx.fill();
-        strokeText(ctx, String(lv.index), 0, 2,
-          { font: FONT.disp(25), fill: '#fff', stroke: '#17203a', lw: 5, baseline: 'middle' });
+        strokeText(ctx, String(lv.index), 0, 3,
+          { font: FONT.disp(30), fill: '#fff', stroke: PAL[2], lw: 6, baseline: 'middle', shadow: 'rgba(0,0,0,.35)', sy: 3 });
       } else {
-        icon.lock(ctx, 40);
+        icon.lock(ctx, 42);
       }
 
       // huy hiệu chế độ Bắn Đá
       if (open && lv.mode === 'shoot') {
         ctx.save();
         ctx.translate(NODE_R * .74, NODE_R * .74);
+        ctx.beginPath(); ctx.arc(0, 2, 13, 0, TAU);
+        ctx.fillStyle = '#120a20'; ctx.fill();
         ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU);
         ctx.fillStyle = '#2b1740'; ctx.fill();
         ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 2.5; ctx.stroke();
@@ -258,14 +348,23 @@ export default {
         ctx.restore();
       }
 
-      // sao — xếp thành vòng cung nhỏ trên đỉnh nút
+      // sao — vòng cung trên đỉnh, sao ăn được thì to và nhún theo nhịp
       if (open) for (let k = 0; k < 3; k++) {
-        // cung sao hẹp lại để không lấn sang nút kế bên
-        const a2 = -Math.PI / 2 + (k - 1) * .40;
+        const a2 = -Math.PI / 2 + (k - 1) * .42;
+        const got = k < st;
+        const lift = got ? Math.sin(this.t * 2.4 + k * .7) * 2 : 0;
         ctx.save();
-        ctx.translate(Math.cos(a2) * (NODE_R + 14), Math.sin(a2) * (NODE_R + 14));
-        ctx.rotate((k - 1) * .28);
-        k < st ? icon.star(ctx, 20) : icon.starEmpty(ctx, 18);
+        ctx.translate(Math.cos(a2) * (NODE_R + 17), Math.sin(a2) * (NODE_R + 17) + lift);
+        ctx.rotate((k - 1) * .30);
+        if (got) {
+          ctx.save();
+          ctx.globalCompositeOperation = 'lighter';
+          const sg = ctx.createRadialGradient(0, 0, 0, 0, 0, 20);
+          sg.addColorStop(0, 'rgba(255,220,120,.55)'); sg.addColorStop(1, 'rgba(255,200,80,0)');
+          ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(0, 0, 20, 0, TAU); ctx.fill();
+          ctx.restore();
+          icon.star(ctx, 27);
+        } else icon.starEmpty(ctx, 22);
         ctx.restore();
       }
 

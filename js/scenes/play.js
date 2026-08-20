@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rand, randInt, rgba, shade, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT } from '../ui/widgets.js';
+import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT, resultBanner } from '../ui/widgets.js';
 import { Board } from '../game/board.js';
 import { GEMS, SP, TOKEN } from '../game/gems.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
@@ -1034,37 +1034,32 @@ export default {
     ctx.save();
     ctx.translate(W / 2, H / 2 - 40); ctx.scale(s, s); ctx.translate(-W / 2, -(H / 2 - 40));
     glassPanel(ctx, W / 2 - 300, 140, 600, 300, 28,
-      this.over.win ? { top: 'rgba(30,60,44,.95)', bot: 'rgba(12,26,20,.97)', rim: 'rgba(120,240,150,.5)' }
-                    : { top: 'rgba(60,20,36,.95)', bot: 'rgba(24,8,16,.97)', rim: 'rgba(240,90,120,.45)' });
+      // Nền phải TỐI và trung tính thì tia sáng vàng mới ra vàng. Nền xanh lá
+      // cũ cộng tia vàng ra màu ô liu, nhìn như sọc bẩn chứ không phải hào quang.
+      this.over.win ? { top: 'rgba(28,32,62,.96)', bot: 'rgba(11,13,30,.97)', rim: 'rgba(120,240,150,.55)' }
+                    : { top: 'rgba(52,20,28,.96)', bot: 'rgba(20,7,13,.97)', rim: 'rgba(255,120,80,.55)' });
 
-    strokeText(ctx, this.over.win ? t('cleared') : t('failed'), W / 2, 200,
-      { font: FONT.disp(48), fill: this.over.win ? '#8ef08a' : '#ff7a90', stroke: '#12060f', lw: 9, baseline: 'middle' });
-
-    // 3 ngôi sao
-    for (let i = 0; i < 3; i++) {
-      const on = i < this.starsEarned;
-      const pop = on ? ease.outBack(clamp((this.overT - .35 - i * .22) / .35, 0, 1)) : 1;
-      ctx.save();
-      ctx.translate(W / 2 + (i - 1) * 82, 268);
-      ctx.scale(pop, pop); ctx.rotate(on ? Math.sin(this.overT * 3 + i) * .06 : 0);
-      on ? icon.star(ctx, 74) : icon.starEmpty(ctx, 66);
-      ctx.restore();
-    }
-
-    strokeText(ctx, `${t('finalScore')}: ${this.score.toLocaleString()}`, W / 2, 336,
+    resultBanner(ctx, {
+      cx: W / 2, top: 140, w: 600, h: 300,
+      win: this.over.win, t: this.t,
+      title: this.over.win ? t('cleared') : t('failed'),
+      sub: `${t('level')} ${G.level?.index ?? ''}`.trim(),
+      stars: this.starsEarned, anim: this.overT,
+    });
+    strokeText(ctx, `${t('finalScore')}: ${this.score.toLocaleString()}`, W / 2, 368,
       { font: FONT.disp(28), fill: '#fff', stroke: '#12060f', lw: 6, baseline: 'middle' });
     if (this.over.win)
     {
       const line = `+${this.gold} ${t('gold')}     +${this.xpGain} EXP`;
-      strokeText(ctx, line, W / 2, 382,
+      strokeText(ctx, line, W / 2, 406,
         { font: FONT.disp(24), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
     }
     else
     {
-      strokeText(ctx, this.over.why, W / 2, 372,
+      strokeText(ctx, this.over.why, W / 2, 398,
         { font: FONT.ui(19, 600), fill: '#ffc0cf', stroke: null, lw: 0, baseline: 'middle', shadow: null });
       if (this.penaltyGold || this.penaltyXp)
-        strokeText(ctx, t('penalty', { g: this.penaltyGold || 0, x: this.penaltyXp || 0 }), W / 2, 404,
+        strokeText(ctx, t('penalty', { g: this.penaltyGold || 0, x: this.penaltyXp || 0 }), W / 2, 428,
           { font: FONT.disp(22), fill: '#ff7a90', stroke: '#3a0008', lw: 5, baseline: 'middle' });
     }
     ctx.restore();

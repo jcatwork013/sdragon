@@ -460,6 +460,128 @@ export const icon = {
   },
 };
 
+// ── BẢNG KẾT QUẢ MÀN ────────────────────────────────────────────────────────
+
+/**
+ * Tia sáng toả tròn, quay chậm — nền của bảng "HOÀN THÀNH".
+ * Vẽ bằng `lighter` nên phải CLIP vào khung bảng, không thì sáng tràn ra ngoài.
+ */
+export function sunburst(ctx, cx, cy, r, t, col, n = 18, alpha = .42) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(t * .10);
+  ctx.globalCompositeOperation = 'lighter';
+  const w = TAU / n * .44;
+  for (let i = 0; i < n; i++) {
+    const a = i / n * TAU;
+    const g = ctx.createRadialGradient(0, 0, r * .08, 0, 0, r);
+    g.addColorStop(0, rgba(col, alpha));
+    g.addColorStop(.45, rgba(col, alpha * .55));
+    g.addColorStop(1, rgba(col, 0));
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, r, a - w, a + w); ctx.closePath(); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/**
+ * Ngôi sao mập kiểu game casual — to, viền dày bo tròn, mặt có vát sáng.
+ *
+ * Mẹo bo góc: KHÔNG dựng đường bo thủ công cho 10 đỉnh. Cứ vẽ sao 10 đỉnh
+ * bình thường rồi stroke một nét RẤT dày với lineJoin='round' — nét đó tự bào
+ * tròn mọi góc, vừa ra viền vừa ra hình. Rẻ hơn và không bao giờ lệch.
+ */
+export function bigStar(ctx, s, o = {}) {
+  const R = s * .5, r = R * .48;
+  const on = o.on !== false;
+  const path = () => {
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r : R;
+      i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath();
+  };
+  ctx.save();
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  if (!on) {
+    // Ô sao chưa ăn được: vẫn phải ĐỌC RA là một ngôi sao cùng cỡ, không thì
+    // nhìn như sao bé hơn và người chơi tưởng mình được 2 sao rưỡi.
+    path();
+    ctx.strokeStyle = 'rgba(255,255,255,.30)'; ctx.lineWidth = s * .20; ctx.stroke();
+    ctx.fillStyle = 'rgba(20,14,40,.55)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = s * .045; ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  // bóng đổ
+  ctx.save(); ctx.translate(0, s * .05);
+  path(); ctx.strokeStyle = 'rgba(90,44,0,.35)'; ctx.lineWidth = s * .22; ctx.stroke();
+  ctx.fillStyle = 'rgba(90,44,0,.35)'; ctx.fill();
+  ctx.restore();
+  // viền dày bo tròn
+  path();
+  ctx.strokeStyle = o.ink || '#8a4a00'; ctx.lineWidth = s * .20; ctx.stroke();
+  // mặt sao
+  const g = ctx.createLinearGradient(0, -R, 0, R);
+  g.addColorStop(0, o.lite || '#fff0a8');
+  g.addColorStop(.45, o.base || '#ffc22e');
+  g.addColorStop(1, o.dark || '#f08a10');
+  ctx.fillStyle = g; ctx.fill();
+  // vát sáng mép trên + bóng trong ở đáy
+  ctx.save();
+  path(); ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.beginPath(); ctx.ellipse(-R * .18, -R * .46, R * .42, R * .18, -.18, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(150,70,0,.28)';
+  ctx.beginPath(); ctx.ellipse(R * .10, R * .58, R * .60, R * .26, .12, 0, TAU); ctx.fill();
+  ctx.restore();
+  ctx.restore();
+}
+
+/**
+ * Đầu bảng kết quả: tia sáng + nhãn màn + dòng chữ lớn + 3 ngôi sao.
+ * Dùng chung cho cả màn Ghép Đá lẫn Bắn Đá — trước đây hai bên chép tay
+ * gần y hệt nhau, sửa một bên là lệch.
+ */
+export function resultBanner(ctx, o) {
+  const { cx, top, w, h, win, t, title, sub, stars = 0, anim = 1 } = o;
+  const RAY = win ? '#ffd23f' : '#ff7a3a';
+  ctx.save();
+  roundRect(ctx, cx - w / 2, top, w, h, 28); ctx.clip();
+  sunburst(ctx, cx, top + h * .40, w * .62, t, RAY, 18, win ? .40 : .30);
+  ctx.restore();
+
+  if (sub) strokeText(ctx, sub, cx, top + 34,
+    { font: FONT.ui(16, 800), fill: win ? '#ffe9a8' : '#ffc9b4', stroke: '#2a1200', lw: 4, baseline: 'middle' });
+
+  // dòng chữ lớn — tô bằng gradient dọc rồi bọc hai lớp viền cho thật dày
+  ctx.save();
+  ctx.font = FONT.disp(46); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round'; ctx.miterLimit = 2;
+  const ty = top + 80;
+  ctx.strokeStyle = win ? '#5a2a00' : '#5c0d00'; ctx.lineWidth = 14; ctx.strokeText(title, cx, ty);
+  ctx.strokeStyle = win ? '#a85e00' : '#a32200'; ctx.lineWidth = 8;  ctx.strokeText(title, cx, ty);
+  const tg = ctx.createLinearGradient(0, ty - 28, 0, ty + 26);
+  if (win) { tg.addColorStop(0, '#fff8d0'); tg.addColorStop(.5, '#ffd23f'); tg.addColorStop(1, '#ffa412'); }
+  else     { tg.addColorStop(0, '#ffe2d2'); tg.addColorStop(.5, '#ff8a5a'); tg.addColorStop(1, '#e8422a'); }
+  ctx.fillStyle = tg; ctx.fillText(title, cx, ty);
+  ctx.restore();
+
+  // 3 ngôi sao — sao giữa to hơn và nhô cao, đúng nhịp mắt quen thuộc
+  for (let i = 0; i < 3; i++) {
+    const on = i < stars;
+    const pop = on ? ease.outBack(clamp((anim - .35 - i * .22) / .35, 0, 1)) : 1;
+    const mid = i === 1;
+    ctx.save();
+    ctx.translate(cx + (i - 1) * 86, top + 152 - (mid ? 12 : 0));
+    ctx.scale(pop, pop);
+    if (on) ctx.rotate(Math.sin(t * 3 + i) * .05);
+    bigStar(ctx, mid ? 94 : 82, { on });
+    ctx.restore();
+  }
+}
+
 // ── NGUYÊN LIỆU CHẾ TẠO ─────────────────────────────────────────────────────
 // Sáu thứ nhặt được sau mỗi màn. Trước đây mỗi thứ chỉ là một chấm tròn tô màu
 // nên người chơi phải đọc chữ mới biết là gì; giờ mỗi thứ có hình riêng, liếc

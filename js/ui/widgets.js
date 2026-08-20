@@ -511,6 +511,64 @@ export function pillTag(ctx, x, y, w, h, o = {}) {
   ctx.restore();
 }
 
+// ── CỜ ──────────────────────────────────────────────────────────────────────
+// Vẽ tại gốc toạ độ, khổ w×h. Bo góc + viền để nhìn ra là lá cờ chứ không phải
+// mảng màu, và có gờ sáng cho khớp ngôn ngữ hình khối của phần còn lại.
+function flagFrame(ctx, w, h, paint) {
+  ctx.save();
+  roundRect(ctx, -w / 2, -h / 2 + 3, w, h, 7);
+  ctx.fillStyle = 'rgba(10,6,22,.45)'; ctx.fill();          // bệ dày
+  ctx.save();
+  roundRect(ctx, -w / 2, -h / 2, w, h, 7); ctx.clip();
+  paint();
+  ctx.fillStyle = 'rgba(255,255,255,.20)';
+  ctx.fillRect(-w / 2, -h / 2, w, h * .34);
+  ctx.restore();
+  roundRect(ctx, -w / 2, -h / 2, w, h, 7);
+  ctx.strokeStyle = 'rgba(255,255,255,.85)'; ctx.lineWidth = 2.4; ctx.stroke();
+  ctx.restore();
+}
+
+export function flagVN(ctx, w, h) {
+  flagFrame(ctx, w, h, () => {
+    ctx.fillStyle = '#da251d'; ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.fillStyle = '#ffcd00';
+    const R = h * .34;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? R * .40 : R;
+      i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+    }
+    ctx.closePath(); ctx.fill();
+  });
+}
+
+export function flagEN(ctx, w, h) {
+  flagFrame(ctx, w, h, () => {
+    const x0 = -w / 2, y0 = -h / 2;
+    ctx.fillStyle = '#012169'; ctx.fillRect(x0, y0, w, h);
+    ctx.save();
+    ctx.beginPath(); ctx.rect(x0, y0, w, h); ctx.clip();
+    ctx.lineCap = 'butt';
+    // hai đường chéo: nét trắng dày rồi nét đỏ mảnh chồng lên
+    for (const [col, lw] of [['#fff', h * .30], ['#c8102e', h * .16]]) {
+      ctx.strokeStyle = col; ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0); ctx.lineTo(x0 + w, y0 + h);
+      ctx.moveTo(x0 + w, y0); ctx.lineTo(x0, y0 + h);
+      ctx.stroke();
+    }
+    // chữ thập giữa
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = h * .34;
+    ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0 + w, 0);
+    ctx.moveTo(0, y0); ctx.lineTo(0, y0 + h); ctx.stroke();
+    ctx.strokeStyle = '#c8102e'; ctx.lineWidth = h * .20;
+    ctx.beginPath(); ctx.moveTo(x0, 0); ctx.lineTo(x0 + w, 0);
+    ctx.moveTo(0, y0); ctx.lineTo(0, y0 + h); ctx.stroke();
+    ctx.restore();
+  });
+}
+
 // ── BẢNG KẾT QUẢ MÀN ────────────────────────────────────────────────────────
 
 /**

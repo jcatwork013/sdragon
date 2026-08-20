@@ -48,7 +48,7 @@ export default {
       new Hit('play',  cx - 150, 470, 300, 66, { act: () => hasSave ? G.go('map') : G.go('egg') }),
       new Hit('new',   cx - 150, 552, 300, 52, { act: () => G.confirmNew(), hidden: !hasSave }),
       new Hit('help',  G.W - 218, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'title'); } }),
-      new Hit('lang',  G.W - 152, 26, 52, 52, { circle: true, act: () => { toggleLang(); G.sfx('button'); } }),
+      new Hit('lang',  G.W - 152, 26, 52, 52, { circle: true, act: () => G.askLang() }),
       new Hit('music', G.W -  86, 26, 52, 52, { circle: true, act: () => { G.toggleMute(); } }),
     ];
     G.audio.play(G.songs.title);

@@ -43,6 +43,7 @@ const DICT = {
 
     // bản đồ
     mapTitle: 'Hành trình', world: 'Bản đồ lớn', region: 'Mảnh {n}/10',
+    langPick: 'Chọn ngôn ngữ', close: 'Đóng',
     regionLocked: 'Mảnh này sẽ mở ở bản sau — theo dõi ROADMAP nhé!',
     pokeHint: 'Chạm vào dế xem nó nói gì', episode: 'Chương', level: 'Màn',
     locked: 'Chưa mở', play: 'Chơi', nest: 'Tổ rồng', comingSoon: 'Ra mắt tuần sau',
@@ -138,6 +139,7 @@ const DICT = {
     might: 'Might', spirit: 'Spirit', fortune: 'Fortune', breath: 'Breath',
 
     mapTitle: 'Journey', world: 'World map', region: 'Region {n}/10',
+    langPick: 'Choose language', close: 'Close',
     regionLocked: 'This region opens in a later release — watch the ROADMAP!',
     pokeHint: 'Tap the cricket and see what it says', episode: 'Episode', level: 'Level',
     locked: 'Locked', play: 'Play', nest: 'Nest', comingSoon: 'Next week',

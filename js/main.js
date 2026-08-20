@@ -10,6 +10,8 @@ import { getLang, setLang, toggleLang, onLangChange, t } from './core/i18n.js';
 import { Chiptune } from './audio/chiptune.js';
 import { SONGS, trackForLevel } from './audio/songs.js';
 import { FX } from './game/fx.js';
+import { Hit, glassPanel, textBtn, flagVN, flagEN, FONT } from './ui/widgets.js';
+import { strokeText, roundRect } from './core/util.js';
 import { World } from './render/background.js';
 import { buildGemSprites } from './game/gems.js';
 import { buildOrbSprites } from './game/bubble.js';
@@ -120,6 +122,25 @@ const G = {
     if (!m) G.audio.sfx('button');
   },
   toggleLang() { toggleLang(); G.audio.sfx('button'); },
+
+  /**
+   * Hộp chọn ngôn ngữ có cờ. Đặt ở tầng TOÀN CỤC chứ không nằm trong scene:
+   * nút đổi ngôn ngữ có mặt ở nhiều màn, nhét hộp vào từng scene là chép tay
+   * ba bốn bản rồi lệch nhau.
+   */
+  askLang() {
+    G.audio.sfx('button');
+    const bw = 460, bh = 286, x = (G.W - bw) / 2, y = (G.H - bh) / 2;
+    const pick = (code) => { setLang(code); G.audio.sfx('button'); G.modal = null; };
+    G.modal = {
+      x, y, w: bw, h: bh, t: 0,
+      hits: [
+        new Hit('vi', x + 34, y + 84, 180, 108, { act: () => pick('vi') }),
+        new Hit('en', x + bw - 214, y + 84, 180, 108, { act: () => pick('en') }),
+        new Hit('close', x + bw / 2 - 70, y + bh - 62, 140, 46, { act: () => { G.audio.sfx('button'); G.modal = null; } }),
+      ],
+    };
+  },
   confirmNew() {
     if (G.confirmPending > 0) {
       G.confirmPending = 0;
@@ -194,7 +215,8 @@ const pt = (e) => {
           (e.clientY - r.top) / r.height * CH - OY];
 };
 let activeHit = null, captured = null;
-const hitsOf = () => (G.scene?.hits || []).filter(h => !h.hidden && !h.disabled);
+// Có hộp thì chỉ hộp nhận chạm — không thì bấm xuyên qua trúng nút của scene.
+const hitsOf = () => (G.modal ? G.modal.hits : (G.scene?.hits || [])).filter(h => !h.hidden && !h.disabled);
 const hitAt = (x, y) => hitsOf().find(h => h.contains(x, y));
 
 function firstGesture() {
@@ -211,6 +233,7 @@ canvas.addEventListener('pointerdown', (e) => {
   const [x, y] = pt(e);
   activeHit = hitAt(x, y);
   if (activeHit) { captured = 'hit'; activeHit.down = true; }
+  else if (G.modal) { captured = 'modal'; }
   else { captured = 'scene'; G.scene?.down?.(G, x, y); }
 });
 canvas.addEventListener('pointermove', (e) => {
@@ -218,7 +241,7 @@ canvas.addEventListener('pointermove', (e) => {
   G.mouse = [x, y];
   // hover: gọi ở MỌI lần di chuột, kể cả khi không giữ nút — dùng cho việc
   // ngắm ở màn Bắn Đá (rê chuột là mũi tên đi theo, không phải giữ chuột).
-  G.scene?.hover?.(G, x, y);
+  if (!G.modal) G.scene?.hover?.(G, x, y);
   if (captured === 'scene') G.scene?.move?.(G, x, y);
 });
 const endPointer = (e) => {
@@ -236,8 +259,9 @@ canvas.addEventListener('wheel', (e) => { e.preventDefault(); G.scene?.wheel?.(G
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 window.addEventListener('keydown', (e) => {
   firstGesture();
+  if (G.modal) { if (e.key === 'Escape') G.modal = null; return; }
   if (e.key === 'm') G.toggleMute();
-  if (e.key === 'l') G.toggleLang();
+  if (e.key === 'l') G.askLang();
   if (e.key === 'f') showFps = !showFps;   // F = bật/tắt đồng hồ FPS
   G.scene?.key?.(G, e);
 });
@@ -285,6 +309,8 @@ function frame(now) {
   if (G.scene?.name !== 'play') G.fx.draw(ctx);      // màn chơi tự vẽ hạt đúng lớp
   ctx.restore();
 
+  if (G.modal) drawModal();
+
   if (showFps) {
     ctx.save();
     ctx.font = '700 15px "Be Vietnam Pro",monospace';
@@ -294,6 +320,45 @@ function frame(now) {
     ctx.restore();
   }
 }
+
+/** Vẽ hộp chọn ngôn ngữ. */
+function drawModal() {
+  const M = G.modal;
+  M.t = Math.min(1, M.t + STEP * 4);
+  const k = M.t < 1 ? 1 - Math.pow(1 - M.t, 3) : 1;
+  ctx.save();
+  ctx.fillStyle = `rgba(8,4,18,${.66 * k})`;
+  ctx.fillRect(-OX - 40, -OY - 40, CW + 80, CH + 80);
+  ctx.translate(M.x + M.w / 2, M.y + M.h / 2);
+  ctx.scale(.86 + .14 * k, .86 + .14 * k);
+  ctx.translate(-(M.x + M.w / 2), -(M.y + M.h / 2));
+  glassPanel(ctx, M.x, M.y, M.w, M.h, 26);
+  strokeText(ctx, t('langPick'), M.x + M.w / 2, M.y + 44,
+    { font: FONT.disp(26), fill: '#fff', stroke: '#2b1740', lw: 6, baseline: 'middle' });
+
+  const cur = getLang();
+  for (const h of M.hits) {
+    if (h.id === 'close') {
+      textBtn(ctx, h.x, h.y, h.w, h.h, t('close'),
+        { press: h.press, hover: h.hover, colour: '#5b5f74', dark: '#33374a', lite: '#9aa0b6', font: FONT.disp(19) });
+      continue;
+    }
+    const on = cur === h.id;
+    roundRect(ctx, h.x, h.y, h.w, h.h, 16);
+    ctx.fillStyle = on ? 'rgba(70,150,90,.35)' : 'rgba(255,255,255,.07)'; ctx.fill();
+    ctx.strokeStyle = on ? '#8ef08a' : 'rgba(255,255,255,.30)';
+    ctx.lineWidth = on ? 3.5 : 2; ctx.stroke();
+    ctx.save();
+    ctx.translate(h.x + h.w / 2, h.y + 40 + h.press * 3);
+    (h.id === 'vi' ? flagVN : flagEN)(ctx, 96, 62);
+    ctx.restore();
+    strokeText(ctx, h.id === 'vi' ? 'Tiếng Việt' : 'English', h.x + h.w / 2, h.y + 88,
+      { font: FONT.disp(20), fill: on ? '#8ef08a' : '#efe8ff', stroke: '#1a0f30', lw: 4, baseline: 'middle' });
+  }
+  ctx.restore();
+}
+
+G.drawModal = drawModal;   // để công cụ chụp ảnh dev vẽ được lớp này
 
 // ── khởi động ───────────────────────────────────────────────────────────────
 (async function boot() {

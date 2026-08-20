@@ -65,7 +65,7 @@ export default {
       new Hit('arena', 228, G.H - 92, 190, 60, { act: () => { G.sfx('button'); G.go('duel', { after: () => G.go('map') }); } }),
       new Hit('world', G.W - 284, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('world', { after: () => G.go('map') }); } }),
       new Hit('help', G.W - 218, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'map'); } }),
-      new Hit('lang', G.W - 152, 26, 52, 52, { circle: true, act: () => { G.toggleLang(); } }),
+      new Hit('lang', G.W - 152, 26, 52, 52, { circle: true, act: () => G.askLang() }),
       new Hit('music', G.W - 86, 26, 52, 52, { circle: true, act: () => G.toggleMute() }),
     ];
     const ep0 = EPISODES[0];

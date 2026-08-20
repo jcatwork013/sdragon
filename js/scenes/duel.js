@@ -27,7 +27,10 @@ export default {
     this.hp = this.me.hp; this.maxHp = this.me.hp;
     this.foe = makeFoe(G.save, arg.bias || 1);
     this.foeArt = new Enemy(this.foe.def.art, 1);
-    this.foeArt.def = { ...ENEMIES[this.foe.def.art], ...this.foe.def };
+    // Trộn bảng DARK đè lên bảng ENEMIES sẽ ghi đè luôn cả `id` — mà hàm vẽ
+    // lại rẽ nhánh theo `id`. Hậu quả: MỌI đối thủ hắc ám đều ra con kiến,
+    // kể cả Nhện Goá Phụ hay Bọ Ngựa Xám. Giữ lại id của LOÀI để vẽ đúng hình.
+    this.foeArt.def = { ...ENEMIES[this.foe.def.art], ...this.foe.def, id: this.foe.def.art };
     this.foeArt.maxHp = this.foe.max; this.foeArt.hp = this.foe.hp;
 
     this.round = 0; this.charge = 0; this.streak = 0;

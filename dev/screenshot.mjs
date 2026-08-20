@@ -55,6 +55,8 @@ process.on('uncaughtException', e => { console.error('UNCAUGHT:', e.stack.split(
 const ROOT = new URL('../js/', import.meta.url).href;
 const { SHOP: SHOPI } = await import(ROOT + 'data/gear.js');
 const { EPISODES: EPS, REGIONS: REG } = await import(ROOT + 'data/levels.js');
+const { DARK: DARKI } = await import(ROOT + 'data/duel.js');
+const { Enemy: ENE, ENEMIES: ENEMIESI } = await import(ROOT + 'game/enemy.js');
 await import(ROOT + 'main.js');
 await new Promise(r => setTimeout(r, 120));            // chờ boot() xong
 const G = globalThis.window.SDRAKON || globalThis.SDRAKON;
@@ -131,8 +133,12 @@ run('20 · Đánh địch',  70, 'sc20_battle.png', () => { G.save.unlocked=20; 
 run('21 · Trúng đòn',   4, 'sc21_hit.png',   () => { const s2=G.scene; s2.hitFlash=.42; s2.hp=s2.maxHp*.34; s2.score=3100; });
 run('22 · Lời thoại',  50, 'sc22_beat.png', () => { G.save.unlocked=20; G.startLevel(16, true); G.scene.say(G,'webbed'); });
 run('24 · Đấu tay đôi', 40, 'sc24_duel.png', () => {
+  // ép ra Nhện Goá Phụ để soi đúng hình loài, không phụ thuộc bốc ngẫu nhiên
   G.save.breed='ember'; G.save.xp=5200; G.save.stats={might:4,spirit:3,fortune:2,breath:1};
   G.hero.xp=5200; G.go('duel', { after: () => {} });
+  const s2=G.scene, D=DARKI.find(d=>d.id==='widow');
+  s2.foe.def=D; s2.foeArt=new ENE('spider',1);
+  s2.foeArt.def={...ENEMIESI.spider, ...D, id:'spider'};
 });
 run('24b · Màn VS',      48, 'sc24b_duelvs.png', () => { G.scene.phase = 'intro'; G.scene.introT = 0; });
 run('24c · Khoe chiêu',  12, 'sc24c_duelmove.png', () => { G.scene.phase = 'pick'; G.scene.introT = 9; G.scene.play(G, 'huc'); });

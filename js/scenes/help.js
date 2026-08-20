@@ -161,7 +161,7 @@ export default {
       { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
     const specs = [
       [SP.LINE_H, 0, t('htSpec4')], [SP.CROSS, 2, t('htSpecL')],
-      [SP.BOMB, 4, t('htSpec5')],   [null, 1, t('htSpecCombo')],
+      [SP.BOMB, 4, t('htSpec5')],   [null, 1, t('htSquare')],
     ];
     specs.forEach(([sp, gem, txt], i) => {
       const y = 168 + i * 74;
@@ -179,7 +179,7 @@ export default {
       { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
     const hud = [
       [icon.crown, t('htCrown')], [icon.heart, t('htHeart')],
-      [icon.pouch, t('htPouch')], [null, t('htMovesD')],
+      [icon.flame, t('htRage')],  [null, t('htMovesD')],
     ];
     hud.forEach(([ic, txt], i) => {
       const y = 168 + i * 74;

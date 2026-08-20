@@ -30,7 +30,7 @@
   },
   "main": "desktop/main.cjs",
   "build": {
-    "appId": "com.9bricks.cricko",
+    "appId": "com.ninebricks.cricko",
     "productName": "Cricko",
     "copyright": "CRICKO — Miền Cỏ Cháy · 9bricks",
     "directories": {

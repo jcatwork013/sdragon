@@ -48,6 +48,16 @@ sw = sw.replace(/const SHELL = \[[\s\S]*?\n\];/,
   'const SHELL = [\n' + shell.map(f => `  '${f}',`).join('\n') + '\n];');
 fs.writeFileSync(swPath, sw);
 
+// ── Bảng tải về trong README ────────────────────────────────────────────
+// Sửa tay chỗ này là kiểu gì cũng có lần quên, rồi README chỉ sang file không
+// tồn tại. Thay mọi số phiên bản trong TÊN FILE, không cần biết bản trước là mấy.
+const readme = path.join(root, 'README.md');
+if (fs.existsSync(readme)) {
+  const before = fs.readFileSync(readme, 'utf8');
+  const after = before.replace(/(SDrakon[ -](?:Setup )?)\d+\.\d+\.\d+/g, `$1${V}`);
+  if (after !== before) { fs.writeFileSync(readme, after); console.log('  · README.md → tên file bản ' + V); }
+}
+
 // ── Đồng bộ phiên bản sang dự án Android (nếu đã tạo) ────────────────────
 const gradle = path.join(root, 'android/app/build.gradle');
 if (fs.existsSync(gradle)) {

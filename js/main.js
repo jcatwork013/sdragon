@@ -30,16 +30,41 @@ import duelScene  from './scenes/duel.js';
 import worldScene from './scenes/world.js';
 
 // Khung logic tính từ tỉ lệ màn hình thật (xem js/core/layout.js).
-let { W, H } = computeLogical(window.innerWidth, window.innerHeight);
+//   W,H      = DẢI GIAO DIỆN, mọi scene dựng bố cục trên đây (cao luôn 720)
+//   CW,CH    = KHUNG VẼ, đúng tỉ lệ máy → canvas phủ kín màn hình, hết viền đen
+//   OX,OY    = vị trí dải trong khung vẽ
+let { W, H, CW, CH, ox: OX, oy: OY } = computeLogical(window.innerWidth, window.innerHeight);
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
 
+// ── lề an toàn (tai thỏ · lỗ camera · thanh vuốt) ──────────────────────────
+// Đọc bằng một thẻ dò ẩn thay vì đệm thẳng vào <body>: đệm body sẽ thu nhỏ cả
+// canvas và để lộ nền trang ở mép; còn ở đây ta chỉ đẩy DẢI GIAO DIỆN vào
+// trong, tranh nền vẫn tràn ra tận mép máy.
+let safePad = { t: 0, r: 0, b: 0, l: 0 };
+let safeProbe = null;
+function readSafeArea() {
+  try {
+    if (typeof document === 'undefined' || !document.body || typeof getComputedStyle !== 'function') return;
+    if (!safeProbe) {
+      safeProbe = document.createElement('div');
+      if (!safeProbe || !safeProbe.style) { safeProbe = null; return; }
+      safeProbe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;pointer-events:none;' +
+        'padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)';
+      document.body.appendChild(safeProbe);
+    }
+    const cs = getComputedStyle(safeProbe);
+    const n = (v) => Math.max(0, parseFloat(v) || 0);
+    safePad = { t: n(cs.paddingTop), r: n(cs.paddingRight), b: n(cs.paddingBottom), l: n(cs.paddingLeft) };
+  } catch { safePad = { t: 0, r: 0, b: 0, l: 0 }; }
+}
+
 const G = {
-  W, H, canvas, ctx,
+  W, H, CW, CH, OX, OY, canvas, ctx,
   audio: new Chiptune(),
   songs: SONGS,
   fx: new FX(),
-  world: new World(W, H),
+  world: new World(W, H, OX, OY, CW, CH),
   save: Store.load(),
   scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene },
   scene: null,
@@ -115,27 +140,41 @@ onLangChange(() => { /* mọi chuỗi đọc qua t() nên khung hình sau tự c
 
 // ── co giãn khung hình theo cửa sổ + DPR ────────────────────────────────────
 function resize() {
-  // Đổi tỉ lệ thiết bị (xoay máy, mở/gập màn hình, đổi cỡ cửa sổ) → tính lại
-  // khung logic rồi dựng lại màn đang chơi để bố cục bám đúng mép mới.
-  const next = computeLogical(window.innerWidth, window.innerHeight);
-  const changed = Math.abs(next.W - W) > 12;
-  if (changed) { W = next.W; H = next.H; G.W = W; G.H = H; }
+  // Đổi tỉ lệ thiết bị (xoay máy, mở/gập màn hình, chia đôi màn, đổi cỡ cửa
+  // sổ) → tính lại khung rồi dựng lại màn đang chơi để bố cục bám mép mới.
+  readSafeArea();
+  const winW = window.innerWidth || 1280, winH = window.innerHeight || 720;
+
+  // Lề an toàn tính bằng điểm ảnh CSS, còn khung vẽ tính bằng đơn vị logic.
+  // Cần biết 1 đơn vị logic bằng bao nhiêu điểm ảnh CSS mới quy đổi được — mà
+  // muốn biết thì lại phải có khung vẽ trước. Nên đo hai lượt: lượt đầu bỏ qua
+  // lề, lấy tỉ lệ; lượt sau tính lại có lề. Sai số lượt đầu không đáng kể.
+  const probe = computeLogical(winW, winH);
+  const probeScale = Math.min(winW / probe.CW, winH / probe.CH);
+  const next = computeLogical(winW, winH, safePad, probeScale);
+
+  const changed = Math.abs(next.W - W) > 12 || Math.abs(next.CW - CW) > 12 || Math.abs(next.CH - CH) > 12;
+  W = next.W; H = next.H; CW = next.CW; CH = next.CH; OX = next.ox; OY = next.oy;
+  G.W = W; G.H = H; G.CW = CW; G.CH = CH; G.OX = OX; G.OY = OY;
 
   // Trần 1.5 thay vì 2: giảm ~44% số điểm ảnh phải tô, mắt thường gần như
   // không thấy khác biệt trên game vẽ vector, nhưng máy mát hơn hẳn.
   const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-  const pad = 8;
-  const s = Math.min((window.innerWidth - pad) / W, (window.innerHeight - pad) / H);
-  canvas.style.width = Math.round(W * s) + 'px';
-  canvas.style.height = Math.round(H * s) + 'px';
-  canvas.width = Math.round(W * dpr);
-  canvas.height = Math.round(H * dpr);
+  // Cảm ứng thì dán sát mép (yêu cầu: luôn toàn màn hình). Chuột thì chừa 8px
+  // cho thấy viền đổ bóng của khung, trông gọn hơn trong cửa sổ.
+  const coarse = typeof matchMedia === 'function' && matchMedia('(pointer:coarse)').matches;
+  const pad = coarse ? 0 : 8;
+  const s = Math.min((winW - pad) / CW, (winH - pad) / CH);
+  canvas.style.width = Math.round(CW * s) + 'px';
+  canvas.style.height = Math.round(CH * s) + 'px';
+  canvas.width = Math.round(CW * dpr);
+  canvas.height = Math.round(CH * dpr);
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingQuality = 'high';
   G.scale = s;
 
   if (changed && G.scene) {
-    G.world = new World(W, H);                 // nền phải vẽ lại đúng bề ngang
+    G.world = new World(W, H, OX, OY, CW, CH);   // nền phải phủ đúng khung mới
     const sc = G.scene, arg = G._sceneArg;
     sc.hits = [];
     sc.enter(G, arg);
@@ -146,7 +185,9 @@ window.addEventListener('resize', resize);
 // ── nhập liệu ───────────────────────────────────────────────────────────────
 const pt = (e) => {
   const r = canvas.getBoundingClientRect();
-  return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H];
+  // Trừ OX/OY vì scene sống trong DẢI, không phải trong khung vẽ.
+  return [(e.clientX - r.left) / r.width * CW - OX,
+          (e.clientY - r.top) / r.height * CH - OY];
 };
 let activeHit = null, captured = null;
 const hitsOf = () => (G.scene?.hits || []).filter(h => !h.hidden && !h.disabled);
@@ -231,7 +272,8 @@ function frame(now) {
 
   ctx.save();
   ctx.translate(G.fx.shakeX, G.fx.shakeY);
-  ctx.fillStyle = '#0b0716'; ctx.fillRect(-40, -40, W + 80, H + 80);
+  ctx.fillStyle = '#0b0716'; ctx.fillRect(-40, -40, CW + 80, CH + 80);
+  ctx.translate(OX, OY);                              // vào hệ toạ độ của dải
   G.scene?.draw?.(G, ctx);
   if (G.scene?.name !== 'play') G.fx.draw(ctx);      // màn chơi tự vẽ hạt đúng lớp
   ctx.restore();

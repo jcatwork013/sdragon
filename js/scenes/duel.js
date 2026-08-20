@@ -9,6 +9,7 @@ import { MOVES, beats, makeFoe, heroPower } from '../data/duel.js';
 import { Enemy, ENEMIES } from '../game/enemy.js';
 import { BREEDS, stageFor } from '../data/characters.js';
 import { rollMats, addMats, MATS } from '../data/gear.js';
+import { bleed } from '../core/layout.js';
 
 const HX = 330, FX = 950, GY = 330;          // vị trí ta / địch / mặt đất
 
@@ -168,7 +169,7 @@ export default {
   draw(G, ctx) {
     const { W, H } = G;
     G.world.draw(ctx);
-    ctx.fillStyle = 'rgba(10,6,20,.52)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(10,6,20,.52)'; ctx.fillRect(...bleed(G));
 
     strokeText(ctx, t('duelTitle'), W / 2, 44,
       { font: FONT.disp(34), fill: '#ff9aa8', stroke: '#3a0010', lw: 8, baseline: 'middle' });
@@ -260,7 +261,7 @@ export default {
     if (this.flash > 0) {
       ctx.save(); ctx.globalAlpha = this.flash * .45;
       ctx.fillStyle = this.lungeFoe > this.lungeMe ? '#ff2040' : '#ffffff';
-      ctx.fillRect(0, 0, W, H); ctx.restore();
+      ctx.fillRect(...bleed(G)); ctx.restore();
     }
     G.fx.draw(ctx);
     if (this.over) this.drawOver(G, ctx);
@@ -297,7 +298,7 @@ export default {
   drawOver(G, ctx) {
     const { W, H } = G;
     const k = clamp(this.overT / .5, 0, 1);
-    ctx.fillStyle = `rgba(8,4,18,${.75 * k})`; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = `rgba(8,4,18,${.75 * k})`; ctx.fillRect(...bleed(G));
     const s = ease.outBack(k);
     ctx.save();
     ctx.translate(W / 2, H / 2 - 30); ctx.scale(s, s); ctx.translate(-W / 2, -(H / 2 - 30));

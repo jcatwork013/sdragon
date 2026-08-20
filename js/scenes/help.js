@@ -6,6 +6,7 @@ import { Board } from '../game/board.js';
 import { GEMS, SP, drawGem } from '../game/gems.js';
 import { ORB, drawOrb, buildOrbSprites } from '../game/bubble.js';
 import { FX } from '../game/fx.js';
+import { bleed } from '../core/layout.js';
 
 const PAGES = 3;
 const DCELL = 58, DCOLS = 5, DROWS = 3;
@@ -75,7 +76,7 @@ export default {
     const { W, H } = G;
     const sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, '#221545'); sky.addColorStop(1, '#0e0822');
-    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = sky; ctx.fillRect(...bleed(G));
 
     strokeText(ctx, t('howTo'), W / 2, 54,
       { font: FONT.disp(40), fill: '#fff', stroke: '#3a1d6e', lw: 8, baseline: 'middle' });

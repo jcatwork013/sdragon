@@ -7,6 +7,7 @@ import { t, tx, getLang } from '../core/i18n.js';
 import { Hit, textBtn, glassPanel, FONT, C } from '../ui/widgets.js';
 import { Cricket, drawEgg } from '../game/cricket.js';
 import { BREEDS } from '../data/characters.js';
+import { bleed } from '../core/layout.js';
 
 const CPS = 42;                        // ký tự mỗi giây
 
@@ -103,7 +104,7 @@ export default {
     // ── bầu trời theo cảm xúc ───────────────────────────────────────────────
     const sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, A.sky[0]); sky.addColorStop(.5, A.sky[1]); sky.addColorStop(1, A.sky[2]);
-    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = sky; ctx.fillRect(...bleed(G));
 
     PAINT[A.scene]?.call(this, G, ctx, W, H, T);
 
@@ -251,7 +252,7 @@ const PAINT = {
   marsh(G, ctx, W, H, T) {
     hillPath(ctx, W, H * 1.05, H * .50, 24, 13); ctx.fillStyle = '#2c3a2a'; ctx.fill();
     ctx.fillStyle = 'rgba(20,30,26,.85)'; ctx.fillRect(0, H * .58, W, H * .42);
-    if (Math.sin(T * 2.3) > .93) { ctx.fillStyle = 'rgba(220,215,255,.30)'; ctx.fillRect(0, 0, W, H); }
+    if (Math.sin(T * 2.3) > .93) { ctx.fillStyle = 'rgba(220,215,255,.30)'; ctx.fillRect(...bleed(G)); }
     // bóng bọ ngựa khổng lồ
     ctx.save();
     ctx.translate(W * .70, H * .42); ctx.scale(1.35, 1.35);

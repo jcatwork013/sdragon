@@ -9,7 +9,7 @@ import { BREEDS, STAGES, stageFor } from '../data/characters.js';
 import { pickBeat, SPEAKERS, GOAL_NOUN } from '../data/beats.js';
 import { rollMats, addMats, MATS } from '../data/gear.js';
 import { Enemy, ATK } from '../game/enemy.js';
-import { playLayout } from '../core/layout.js';
+import { playLayout, bleed } from '../core/layout.js';
 
 const ENEMY_Y = 82;
 const COLS = 10;
@@ -320,7 +320,7 @@ export default {
   draw(G, ctx) {
     const { W, H } = G, L = G.level, S = G.save;
     G.world.draw(ctx);
-    ctx.fillStyle = 'rgba(16,9,34,.30)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(16,9,34,.30)'; ctx.fillRect(...bleed(G));
 
     if (!COMPACT) this.drawHeroCard(G, ctx);
 
@@ -387,7 +387,7 @@ export default {
       ctx.globalAlpha = clamp(this.hitFlash / .45, 0, 1) * .55;
       const vg = ctx.createRadialGradient(W / 2, H / 2, H * .28, W / 2, H / 2, H * .78);
       vg.addColorStop(0, 'rgba(255,20,50,0)'); vg.addColorStop(1, 'rgba(255,20,50,.95)');
-      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = vg; ctx.fillRect(...bleed(G));
       ctx.restore();
     }
     if (this.paused) this.drawPause(G, ctx);
@@ -577,7 +577,7 @@ export default {
 
   drawPause(G, ctx) {
     const { W, H } = G;
-    ctx.fillStyle = 'rgba(10,6,22,.7)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(10,6,22,.7)'; ctx.fillRect(...bleed(G));
     glassPanel(ctx, W / 2 - 210, H / 2 - 150, 420, 300, 24);
     strokeText(ctx, t('paused'), W / 2, H / 2 - 92, { font: FONT.disp(44), fill: '#fff', stroke: '#3a1d6e', lw: 9, baseline: 'middle' });
     strokeText(ctx, 'Esc  /  P', W / 2, H / 2 - 40,
@@ -593,7 +593,7 @@ export default {
   drawOver(G, ctx) {
     const { W, H } = G;
     const k = clamp(this.overT / .5, 0, 1);
-    ctx.fillStyle = `rgba(10,6,22,${.72 * k})`; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = `rgba(10,6,22,${.72 * k})`; ctx.fillRect(...bleed(G));
     const s = ease.outBack(k);
     ctx.save();
     ctx.translate(W / 2, H / 2 - 40); ctx.scale(s, s); ctx.translate(-W / 2, -(H / 2 - 40));

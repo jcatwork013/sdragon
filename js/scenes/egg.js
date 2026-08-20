@@ -4,6 +4,7 @@ import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, roundBtn, card, glassPanel, icon, C, FONT } from '../ui/widgets.js';
 import { BREEDS } from '../data/characters.js';
 import { Cricket, drawEgg } from '../game/cricket.js';
+import { bleed } from '../core/layout.js';
 
 const STATS = ['might', 'spirit', 'fortune', 'breath'];
 
@@ -71,7 +72,7 @@ export default {
   draw(G, ctx) {
     const { W, H } = G, T = this.t;
     G.world.draw(ctx);
-    ctx.fillStyle = 'rgba(20,12,42,.42)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(20,12,42,.42)'; ctx.fillRect(...bleed(G));
 
     if (this.phase === 'choose') {
       strokeText(ctx, t('eggTitle'), W / 2, 88, { font: FONT.disp(46), fill: '#fff', stroke: '#3a1d6e', lw: 9, baseline: 'middle' });
@@ -129,7 +130,7 @@ export default {
       ctx.globalCompositeOperation = 'lighter';
       const g = ctx.createRadialGradient(W / 2, 330, 20, W / 2, 330, 420);
       g.addColorStop(0, rgba(b.eye, clamp(k * .3, 0, .5))); g.addColorStop(1, rgba(b.eye, 0));
-      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = g; ctx.fillRect(...bleed(G));
       ctx.restore();
 
       if (this.phase === 'hatch') {

@@ -8,6 +8,7 @@ import { Hit, textBtn, card, glassPanel, statBar, icon, matIcon, C, FONT, starBa
 import { BREEDS, STAGES, TRAININGS, stageFor, nextStage } from '../data/characters.js';
 import { MATS, MAT_LIST, SLOTS, RECIPES, recipeById, canCraft, gearBonus } from '../data/gear.js';
 import { heroPower } from '../data/duel.js';
+import { bleed } from '../core/layout.js';
 
 const TABS = [
   { id: 'train', vi: 'Huấn luyện', en: 'Train' },
@@ -148,7 +149,7 @@ export default {
   draw(G, ctx) {
     const { W, H } = G, S = G.save;
     G.world.draw(ctx);
-    ctx.fillStyle = 'rgba(24,14,46,.36)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(24,14,46,.36)'; ctx.fillRect(...bleed(G));
     strokeText(ctx, t('nestTitle'), HEROX, 52,
       { font: FONT.disp(36), fill: '#fff', stroke: '#3a1d6e', lw: 8, baseline: 'middle' });
 
@@ -237,7 +238,7 @@ export default {
       const k = clamp(this.evolveT / 2.2, 0, 1);
       const g = ctx.createRadialGradient(dx, dy - 60, 10, dx, dy - 60, 320);
       g.addColorStop(0, `rgba(255,240,190,${k * .7})`); g.addColorStop(1, 'rgba(255,220,150,0)');
-      ctx.fillStyle = g; ctx.fillRect(0, 0, G.W, G.H);
+      ctx.fillStyle = g; ctx.fillRect(...bleed(G));
       ctx.restore();
     }
     G.hero.gear = { ...(G.save.equip || {}) };

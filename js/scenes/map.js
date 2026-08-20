@@ -3,6 +3,7 @@ import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect, mulberry32 
 import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, roundBtn, card, glassPanel, icon, C, FONT } from '../ui/widgets.js';
 import { EPISODES, ALL_LEVELS, REGIONS } from '../data/levels.js';
+import { bleed } from '../core/layout.js';
 
 const NODE_DX = 148, NODE_R = 34;
 const nodeX = (i) => 170 + i * NODE_DX;
@@ -94,7 +95,7 @@ export default {
   draw(G, ctx) {
     const { W, H } = G;
     G.world.draw(ctx);
-    ctx.fillStyle = 'rgba(18,10,38,.28)'; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(18,10,38,.28)'; ctx.fillRect(...bleed(G));
 
     ctx.save();
     ctx.translate(-this.scroll, 0);

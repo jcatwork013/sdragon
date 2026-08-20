@@ -21,6 +21,11 @@ body{
 }
 #stage{position:relative;line-height:0;box-shadow:0 30px 90px rgba(0,0,0,.75),0 0 0 2px rgba(255,255,255,.06)}
 canvas#game{display:block;image-rendering:auto;border-radius:6px;cursor:pointer}
+@media (pointer:coarse){
+  #stage{box-shadow:none}
+  canvas#game{border-radius:0}
+  #boot{border-radius:0}
+}
 canvas#game.grabbing{cursor:grabbing}
 
 /* ---- boot overlay ---- */
@@ -46,7 +51,7 @@ canvas#game.grabbing{cursor:grabbing}
   position:fixed;inset:0;display:none;place-items:center;text-align:center;padding:24px;
   background:#0b0716;color:#fff;font-size:22px;z-index:20;
 }
-@media (max-aspect-ratio:1/1) and (pointer:coarse){
+@media (max-aspect-ratio:1/1) and (pointer:coarse) and (max-width:599px){
   #rotate{display:grid}
   #stage{display:none}
 }
@@ -61,8 +66,7 @@ canvas#game.grabbing{cursor:grabbing}
 }
 #install:active{transform:translateY(3px);box-shadow:0 1px 0 #1d6b24,0 4px 12px rgba(0,0,0,.45)}
 
-/* ---- chừa lề tai thỏ khi chạy toàn màn hình trên điện thoại ---- */
-@supports(padding:max(0px)){
-  body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)}
-}
+/* Lề tai thỏ / lỗ camera KHÔNG đệm ở đây nữa: đệm body thì canvas co lại và
+   lộ nền trang ở mép, mất toàn màn hình. main.js đọc env(safe-area-inset-*)
+   qua một thẻ dò rồi chỉ đẩy DẢI GIAO DIỆN vào trong, tranh nền vẫn tràn mép. */
 #rotate{font-family:"Baloo 2","Be Vietnam Pro",sans-serif;line-height:1.5}

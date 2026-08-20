@@ -6,6 +6,7 @@ import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect, mulberry32 
 import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, glassPanel, icon, C, FONT } from '../ui/widgets.js';
 import { REGIONS, EPISODES, ALL_LEVELS } from '../data/levels.js';
+import { bleed } from '../core/layout.js';
 
 /** Vị trí 10 mảnh trên tấm bản đồ, theo tỉ lệ 0..1 — xếp thành đường vòng cung. */
 const SPOTS = [
@@ -56,7 +57,7 @@ export default {
     // ── nền: tấm bản đồ da thuộc ──────────────────────────────────────────
     const bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#1a1230'); bg.addColorStop(1, '#0c0819');
-    ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = bg; ctx.fillRect(...bleed(G));
 
     const M = 26;
     ctx.save();

@@ -94,6 +94,9 @@ const DICT = {
     lowVitality: 'Sinh lực cạn!',
 
     // kết quả
+    shop: 'Cửa hàng', shopPoor: 'Không đủ vàng!', shopBought: 'Đã mua {n}!',
+    shopEmpty: 'Chưa có món nào ở ô này.', wear: 'Mặc vào',
+    ev_tet: 'TẾT', ev_trungthu: 'TRUNG THU', ev_halloween: 'HALLOWEEN',
     cleared: 'Qua màn!', failed: 'Thất bại', finalScore: 'Tổng điểm',
     finishNow: 'QUA MÀN NGAY', bravoBlast: 'Nổ hết đá đặc biệt!',
     bravoMoves: 'Lượt thừa → vàng', bravoShots: 'Phát thừa → vàng', bravoTime: 'Giờ thừa → vàng', bravoDone: 'Tuyệt vời!',
@@ -190,6 +193,9 @@ const DICT = {
     quitAsk: 'Leave the level? This run will be lost.',
     lowVitality: 'Vitality low!',
 
+    shop: 'Shop', shopPoor: 'Not enough gold!', shopBought: 'Bought {n}!',
+    shopEmpty: 'Nothing in this slot yet.', wear: 'Wear',
+    ev_tet: 'NEW YEAR', ev_trungthu: 'MID-AUTUMN', ev_halloween: 'HALLOWEEN',
     cleared: 'Level clear!', failed: 'Defeat', finalScore: 'Final score',
     finishNow: 'FINISH NOW', bravoBlast: 'Blasting every special!',
     bravoMoves: 'Spare moves → gold', bravoShots: 'Spare shots → gold', bravoTime: 'Spare time → gold', bravoDone: 'Bravo!',

@@ -62,7 +62,8 @@ export default {
     this.scroll = clamp(nodeX(G.save.unlocked - 1) - G.W * .45, 0, this.maxScroll);
     this.hits = [
       new Hit('nest', 24, G.H - 92, 190, 60, { act: () => G.go('nest') }),
-      new Hit('arena', 228, G.H - 92, 190, 60, { act: () => { G.sfx('button'); G.go('duel', { after: () => G.go('map') }); } }),
+      new Hit('arena', 228, G.H - 92, 172, 60, { act: () => { G.sfx('button'); G.go('duel', { after: () => G.go('map') }); } }),
+      new Hit('shop', 414, G.H - 92, 150, 60, { act: () => { G.sfx('button'); G.go('shop', { after: () => G.go('map') }); } }),
       new Hit('world', G.W - 284, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('world', { after: () => G.go('map') }); } }),
       new Hit('help', G.W - 218, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'map'); } }),
       new Hit('lang', G.W - 152, 26, 52, 52, { circle: true, act: () => G.askLang() }),
@@ -430,7 +431,9 @@ export default {
       if (h.id === 'nest') textBtn(ctx, h.x, h.y, h.w, h.h, t('nest'),
         { press: h.press, hover: h.hover, colour: '#8b5fd6', dark: '#3b2263', lite: '#cfa8ff', font: FONT.disp(24) });
       else if (h.id === 'arena') textBtn(ctx, h.x, h.y, h.w, h.h, t('duelArena'),
-        { press: h.press, hover: h.hover, colour: '#e8384f', dark: '#8c0f22', lite: '#ff9aa8', font: FONT.disp(24) });
+        { press: h.press, hover: h.hover, colour: '#e8384f', dark: '#8c0f22', lite: '#ff9aa8', font: FONT.disp(22) });
+      else if (h.id === 'shop') textBtn(ctx, h.x, h.y, h.w, h.h, t('shop'),
+        { press: h.press, hover: h.hover, colour: '#f5a51e', dark: '#a34a05', lite: '#ffe08a', font: FONT.disp(22) });
       else if (h.id === 'world') roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.map(c, s), { press: h.press, hover: h.hover });
       else if (h.id === 'help') roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.help(c, s), { press: h.press, hover: h.hover });
       else if (h.id === 'lang') roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.globe(c, s), { press: h.press, hover: h.hover });

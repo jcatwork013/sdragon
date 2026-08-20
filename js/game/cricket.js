@@ -8,7 +8,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, lerp, clamp, ease, rgba, shade, mix } from '../core/util.js';
 import { STAGES, SPECIES } from '../data/characters.js';
-import { recipeById } from '../data/gear.js';
+import { recipeById, auraOf } from '../data/gear.js';
 import { pickPoke } from '../data/beats.js';
 import { perf, Q } from '../core/perf.js';
 
@@ -267,6 +267,39 @@ export class Cricket {
     const proud  = this.antic === 'proud' || this.mood === 'proud' ? 1 : 0;
     // Cánh lớn dần theo giai đoạn: dế con chỉ có mầm cánh, trưởng thành mới đủ bộ.
     const WING   = (0.34 + st.wing * 0.62) * SPC.wing;
+
+    // ── AURA ─────────────────────────────────────────────────────────────
+    // Mỗi món bậc 4 đang mặc góp một vầng sáng. Vẽ TRƯỚC và phía sau nhân vật
+    // để nó hắt ra ngoài chứ không phủ lên mặt. Nhiều món thì nhiều lớp chồng
+    // nhau, đậm dần — người chơi thấy ngay tiền mình bỏ ra đi đâu.
+    const auras = this.gear ? auraOf({ equip: this.gear }) : [];
+    if (auras.length && perf.quality > Q.LOW) {
+      ctx.save();
+      ctx.translate(x, y + bob * .4);
+      ctx.globalCompositeOperation = 'lighter';
+      auras.forEach((col, i) => {
+        const ph = t * 1.5 + i * 2.1;
+        const rr = S * (1.02 + .06 * Math.sin(ph));
+        const a = (.16 + .08 * Math.sin(ph * .8)) * (1 + auras.length * .12);
+        const g2 = ctx.createRadialGradient(0, 0, S * .32, 0, 0, rr);
+        g2.addColorStop(0, rgba(col, a));
+        g2.addColorStop(.55, rgba(col, a * .45));
+        g2.addColorStop(1, rgba(col, 0));
+        ctx.fillStyle = g2;
+        ctx.beginPath(); ctx.ellipse(0, 0, rr, rr * .82, 0, 0, TAU); ctx.fill();
+      });
+      // hạt sáng bay lên quanh nhân vật
+      for (let i = 0; i < auras.length * 4; i++) {
+        const k = (t * .45 + i / (auras.length * 4)) % 1;
+        const a2 = i * 2.399;
+        const px2 = Math.cos(a2) * S * (.30 + k * .34);
+        const py2 = S * .40 - k * S * 1.05;
+        ctx.globalAlpha = Math.sin(k * Math.PI) * .8;
+        ctx.fillStyle = auras[i % auras.length];
+        ctx.beginPath(); ctx.arc(px2, py2, S * .022 * (1 - k * .5), 0, TAU); ctx.fill();
+      }
+      ctx.restore();
+    }
 
     // ── BÓNG ĐỔ (vẽ trong hệ toạ độ gốc để không nhấp nhô theo thân) ───────
     ctx.save();
@@ -538,7 +571,9 @@ export class Cricket {
     // ── ĐAI CÓI ĐAN vắt chéo ngực (từ giai đoạn 2) ────────────────────────
     // Cố ý khác hẳn kiểu khăn len quấn cổ hay gặp: dải cói đan chéo thân, tông
     // xanh ngọc, có hạt gỗ và tua rua. Ôm theo tấm mai chứ không cắt ngang mặt.
-    if (st.id >= 2) {
+    const scarf = gr('scarf');
+    if (scarf) this._scarf(ctx, S, LW, scarf, t, sway);
+    else if (st.id >= 2) {
       const fly = Math.sin(t * 2.6) * S * .04;
       const strap = (off = 0) => {
         ctx.beginPath();
@@ -1041,6 +1076,112 @@ export class Cricket {
     kg.addColorStop(0, c0); kg.addColorStop(1, c2);
     ctx.fillStyle = kg; ctx.fill();
     ctx.strokeStyle = ink; ctx.lineWidth = W * 1.2; ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * KHĂN quàng cổ — món đồ dễ thấy nhất, nên bậc càng cao thì càng nhiều lớp:
+   *   bậc 1  dải trơn
+   *   bậc 2  thêm sọc
+   *   bậc 3  thêm viền kim loại + hoa văn quả trám
+   *   bậc 4  thêm đuôi bay dài và ánh lấp lánh
+   * Cùng một hình gốc, chỉ chồng thêm lớp — nhờ vậy nhìn là biết món nào đắt.
+   */
+  _scarf(ctx, S, LW, g, t, sway) {
+    const col = g.col, tier = g.tier || 1;
+    const ink = mix(col, -.62, 1);
+    const fly = Math.sin(t * 2.4) * S * .05;
+    const fly2 = Math.sin(t * 2.4 + .8) * S * .06;
+    ctx.save();
+
+    // đuôi khăn bay về sau — bậc 4 dài gấp rưỡi
+    // Đuôi khăn RỦ XUỐNG sau lưng, không chĩa ngang. Kéo thẳng ra sau thì
+    // vạt khăn thành cái mũi tên xuyên qua người — sai hẳn dáng vải.
+    const L = tier >= 4 ? 1.30 : 1.0;
+    const flap = (k, o, w, col2) => {
+      const ex = -S * (.30 + .16 * k) * L, ey = S * (.16 + .14 * k) + (k ? fly2 : fly);
+      ctx.beginPath();
+      ctx.moveTo(S * .20, -S * .02);
+      ctx.bezierCurveTo(S * .02, S * (.06 + o), -S * .14 * L, S * (.20 + o), ex, ey);
+      ctx.lineWidth = w; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      ctx.strokeStyle = col2; ctx.stroke();
+      return [ex, ey];
+    };
+    for (const k of [1, 0]) {                    // vạt xa vẽ trước
+      const dim = k ? -.22 : 0;
+      flap(k, .03, S * .105, 'rgba(0,0,0,.30)');
+      flap(k, 0,   S * .092, shade(col, dim - .16));
+      flap(k, -.012, S * .066, shade(col, dim));
+      const [ex, ey] = flap(k, -.030, S * .020, mix(col, .60, .55));
+      // mút vạt xẻ đôi — dấu hiệu "đây là vải" chứ không phải cái que
+      ctx.beginPath();
+      ctx.moveTo(ex + S * .05, ey - S * .05);
+      ctx.lineTo(ex - S * .05, ey + S * .02);
+      ctx.lineTo(ex - S * .01, ey + S * .07);
+      ctx.lineTo(ex - S * .09, ey + S * .12);
+      ctx.lineTo(ex + S * .02, ey + S * .13);
+      ctx.closePath();
+      ctx.fillStyle = shade(col, dim); ctx.fill();
+      ctx.strokeStyle = ink; ctx.lineWidth = LW * .7; ctx.stroke();
+    }
+
+    // vòng quàng quanh cổ
+    const band = () => {
+      ctx.beginPath();
+      ctx.ellipse(S * .29, -S * .12, S * .205, S * .140, -.34, 0, TAU);
+    };
+    band();
+    const bg = ctx.createLinearGradient(S * .10, -S * .28, S * .46, S * .02);
+    bg.addColorStop(0, shade(col, .40)); bg.addColorStop(.55, col); bg.addColorStop(1, shade(col, -.30));
+    ctx.fillStyle = bg; ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = LW * 1.15; ctx.stroke();
+
+    ctx.save(); band(); ctx.clip();
+    if (tier >= 2) {                                  // sọc
+      ctx.strokeStyle = mix(col, -.42, .55); ctx.lineWidth = LW * .8;
+      for (let i = -2; i <= 2; i++) {
+        ctx.beginPath();
+        ctx.moveTo(S * (.29 + i * .062) - S * .08, -S * .32);
+        ctx.lineTo(S * (.29 + i * .062) + S * .07, S * .06);
+        ctx.stroke();
+      }
+    }
+    if (tier >= 3) {                                  // hoa văn quả trám
+      ctx.fillStyle = mix(col, .70, .70);
+      for (const [ox, oy] of [[-.07, -.02], [.01, .02], [.09, -.03]]) {
+        ctx.save(); ctx.translate(S * (.29 + ox), -S * (.12 + oy)); ctx.rotate(.5);
+        ctx.fillRect(-S * .026, -S * .026, S * .052, S * .052);
+        ctx.restore();
+      }
+    }
+    ctx.restore();
+
+    if (tier >= 3) {                                  // viền kim loại
+      band();
+      ctx.strokeStyle = 'rgba(255,214,110,.9)'; ctx.lineWidth = LW * .55; ctx.stroke();
+    }
+    if (tier >= 4 && perf.quality > Q.LOW) {          // ánh lấp lánh
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 3; i++) {
+        const k = (t * .8 + i / 3) % 1;
+        const px = S * (.20 - k * .55), py = -S * .10 + Math.sin(k * 6 + i) * S * .07;
+        ctx.globalAlpha = Math.sin(k * Math.PI) * .85;
+        ctx.fillStyle = mix(col, .75, 1);
+        ctx.beginPath();
+        for (let q = 0; q < 8; q++) {
+          const aa = q / 8 * TAU, rr = q % 2 ? S * .008 : S * .028;
+          q ? ctx.lineTo(px + Math.cos(aa) * rr, py + Math.sin(aa) * rr)
+            : ctx.moveTo(px + Math.cos(aa) * rr, py + Math.sin(aa) * rr);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
+    // nút thắt
+    ctx.beginPath(); ctx.arc(S * .21, -S * .02, S * .050, 0, TAU);
+    ctx.fillStyle = shade(col, .18); ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = LW * .8; ctx.stroke();
     ctx.restore();
   }
 

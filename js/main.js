@@ -30,6 +30,7 @@ import shootScene from './scenes/shoot.js';
 import storyScene from './scenes/story.js';
 import duelScene  from './scenes/duel.js';
 import worldScene from './scenes/world.js';
+import shopScene  from './scenes/shop.js';
 
 // Khung logic tính từ tỉ lệ màn hình thật (xem js/core/layout.js).
 //   W,H      = DẢI GIAO DIỆN, mọi scene dựng bố cục trên đây (cao luôn 720)
@@ -68,7 +69,7 @@ const G = {
   fx: new FX(),
   world: new World(W, H, OX, OY, CW, CH),
   save: Store.load(),
-  scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene },
+  scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene, shop: shopScene },
   scene: null,
   level: null, levelIndex: 0,
   totalLevels: TOTAL_LEVELS,
@@ -77,6 +78,7 @@ const G = {
 
   // ── điều hướng ────────────────────────────────────────────────────────────
   go(name, arg) {
+    G.modal = null;                             // đổi màn thì bỏ hộp đang mở
     if (G.scene?.exit) G.scene.exit(G);
     G.fx.clear();
     G.scene = G.scenes[name];
@@ -109,7 +111,9 @@ const G = {
   episodeOf(i) { return EPISODES[Math.min(Math.floor(i / 15), EPISODES.length - 1)]; },
 
   // ── tiện ích dùng chung ───────────────────────────────────────────────────
-  persist() { Store.save(G.save); },
+  // Lưu là đồng bộ luôn đồ đang mặc sang nhân vật. Trước đây chỉ màn Tổ dế
+  // gán, nên mua đồ xong ra bản đồ hay vào trận là nhân vật lại cởi trần.
+  persist() { Store.save(G.save); G.hero.gear = { ...(G.save.equip || {}) }; },
   sfx(n, p) { if (G.save.sfx) G.audio.sfx(n, p); },
   /** Đổi nhạc theo KHOÁ ('battle', 'chase'…). Trùng bài thì giữ nguyên. */
   music(key) { G.audio.switchTo(SONGS[key] || SONGS.battle); },
@@ -157,6 +161,7 @@ const G = {
 
 G.hero = new Cricket(BREEDS.find(b => b.id === G.save.breed) || BREEDS[0], G.save.xp);
 G.hero.onFire = (x, y, dx, dy) => G.fx.fire(x, y, dx, dy, 4);
+G.hero.gear = { ...(G.save.equip || {}) };
 onLangChange(() => { /* mọi chuỗi đọc qua t() nên khung hình sau tự cập nhật */ });
 
 // ── co giãn khung hình theo cửa sổ + DPR ────────────────────────────────────

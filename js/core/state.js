@@ -15,8 +15,9 @@ export const blank = () => ({
   choices: {},                                   // lựa chọn cốt truyện
   mats: {},                                      // kho nguyên liệu
   crafted: {},                                   // id món đã chế → true
-  equip: { helm: null, armor: null, weapon: null },
+  equip: { helm: null, scarf: null, armor: null, weapon: null },
   lore: {},                                      // id đối thủ → đã rút được bài học
+  owned: {},                                     // id món đồ đã mua ở cửa hàng
 });
 
 export function load() {
@@ -30,7 +31,7 @@ export function load() {
       stats: { ...base.stats, ...(s.stats || {}) },
       equip: { ...base.equip, ...(s.equip || {}) },
       mats:  { ...(s.mats || {}) }, crafted: { ...(s.crafted || {}) }, choices: { ...(s.choices || {}) },
-      lore:  { ...(s.lore || {}) } };
+      lore:  { ...(s.lore || {}) }, owned: { ...(s.owned || {}) } };
   } catch { return blank(); }
 }
 

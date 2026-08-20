@@ -127,6 +127,8 @@ run('25 · Đang ra đòn', 25, 'sc25_duelhit.png', () => { G.scene.phase = 'pic
 run('25b · Thắng (đểu)',  60, 'sc25b_duelwin.png', () => { G.scene.phase='pick'; G.scene.foe.hp = 1; G.scene.play(G,'huc'); G.scene.finish(G, true); });
 run('25c · Thua (băng bó)',60,'sc25c_duellose.png', () => { G.go('duel', { after: () => {} }); G.scene.phase='pick'; G.scene.finish(G, false); });
 run('27 · Chọn ngôn ngữ', 30, 'sc27_lang.png', () => { G.go('map'); G.askLang(); });
+run('28 · Cửa hàng',  40, 'sc28_shop.png', () => { G.save.gold=5200; G.save.owned={sh_helm2:1,sh_scf3:1};
+  G.save.equip={helm:'sh_helm2',scarf:'sh_scf3',armor:null,weapon:null}; G.go('shop', { after(){} }); });
 run('26 · Bản đồ thế giới', 40, 'sc26_world.png', () => { G.save.unlocked=20; G.go('world', { after: () => {} }); });
 run('17 · Búa giáng',  1, 'sc17_hammer.png', () => { G.startLevel(2); G.scene.skillFx = { kind:'hammer', t:.235, dur:.78, x:640, y:340 }; });
 run('18 · Lửa quét',   1, 'sc18_fire.png',   () => { G.startLevel(2); G.scene.skillFx = { kind:'fire', t:.40, dur:.95, row:4, y:400 }; });

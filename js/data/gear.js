@@ -19,6 +19,7 @@ export const MAT_LIST = Object.values(MATS);
 
 export const SLOTS = [
   { id: 'helm',   name: 'Mũ',     name_en: 'Helm' },
+  { id: 'scarf',  name: 'Khăn',   name_en: 'Scarf' },
   { id: 'armor',  name: 'Giáp',   name_en: 'Armour' },
   { id: 'weapon', name: 'Vũ khí', name_en: 'Weapon' },
 ];
@@ -50,7 +51,101 @@ export const RECIPES = [
     cost: { da: 9, sung: 6, canh: 3 },   add: { atk: 15, charge: 0.3 }, col: '#8fa3bd' },
 ];
 
-export const recipeById = (id) => RECIPES.find(r => r.id === id) || null;
+/**
+ * ╔════════════════════════════════════════════════════════════════════════╗
+ * ║  CỬA HÀNG — mua bằng VÀNG, khác bàn chế tạo (đổi bằng nguyên liệu).     ║
+ * ╚════════════════════════════════════════════════════════════════════════╝
+ *
+ * BẬC quyết định CẢ hai mặt, cố ý gắn liền nhau để giá tiền có nghĩa:
+ *   bậc 1  rẻ    · chỉ số nhẹ      · vẽ trơn, một màu
+ *   bậc 2  vừa   · chỉ số khá      · thêm hoa văn
+ *   bậc 3  đắt   · chỉ số mạnh     · thêm viền kim loại + đá quý
+ *   bậc 4  xa xỉ · chỉ số rất mạnh · CÓ AURA — vầng sáng bao quanh nhân vật
+ *
+ * Mặc nhiều món bậc 4 thì aura chồng lên nhau, đậm dần — người chơi thấy ngay
+ * tiền mình bỏ ra đi đâu.
+ *
+ * `event` = đồ theo mùa, chỉ bày bán đúng dịp (xem eventNow()).
+ * Toàn bộ TỰ VẼ bằng code, không mượn hình của ai — bản quyền thuộc 9bricks.
+ */
+export const SHOP = [
+  // ── MŨ ────────────────────────────────────────────────────────────────
+  { id: 'sh_helm1', slot: 'helm', tier: 1, price: 180,  col: '#cbb98a', art: 'nonla',
+    name: 'Nón Lá Con',       name_en: 'Little Palm Hat',   add: { hp: 10 } },
+  { id: 'sh_helm2', slot: 'helm', tier: 2, price: 640,  col: '#d8a35c', art: 'shell',
+    name: 'Mũ Vỏ Ốc',         name_en: 'Snail-Shell Cap',   add: { hp: 24, atk: 2 } },
+  { id: 'sh_helm3', slot: 'helm', tier: 3, price: 1900, col: '#9fb4d8', art: 'horned',
+    name: 'Mũ Giáp Sừng',     name_en: 'Horned Warhelm',    add: { hp: 44, atk: 4, crit: 3 } },
+  { id: 'sh_helm4', slot: 'helm', tier: 4, price: 4400, col: '#bfe6ff', art: 'crown', aura: '#8fd8ff',
+    name: 'Vương Miện Sương', name_en: 'Dewlight Crown',    add: { hp: 70, atk: 6, crit: 5 } },
+
+  // ── KHĂN ──────────────────────────────────────────────────────────────
+  { id: 'sh_scf1', slot: 'scarf', tier: 1, price: 150,  col: '#c9a86e', art: 'plain',
+    name: 'Khăn Rơm',         name_en: 'Straw Wrap',         add: { hp: 8 } },
+  { id: 'sh_scf2', slot: 'scarf', tier: 2, price: 590,  col: '#3f6fb0', art: 'stripe',
+    name: 'Khăn Lụa Chàm',    name_en: 'Indigo Silk Scarf',  add: { hp: 20, crit: 2 } },
+  { id: 'sh_scf3', slot: 'scarf', tier: 3, price: 1750, col: '#e0b23c', art: 'broc',
+    name: 'Khăn Gấm Vàng',    name_en: 'Gold Brocade Scarf', add: { hp: 36, atk: 3, crit: 4 } },
+  { id: 'sh_scf4', slot: 'scarf', tier: 4, price: 4100, col: '#e8d8ff', art: 'cloud', aura: '#c9a8ff',
+    name: 'Khăn Mây Bay',     name_en: 'Driftcloud Scarf',   add: { hp: 58, atk: 4, charge: .2 } },
+
+  // ── GIÁP ──────────────────────────────────────────────────────────────
+  { id: 'sh_arm1', slot: 'armor', tier: 1, price: 200,  col: '#c2a06a', art: 'plain',
+    name: 'Áo Vỏ Trấu',       name_en: 'Chaff Jerkin',       add: { hp: 16 } },
+  { id: 'sh_arm2', slot: 'armor', tier: 2, price: 700,  col: '#d3703a', art: 'stripe',
+    name: 'Giáp Cánh Cam',    name_en: 'Amber Wing Plate',   add: { hp: 40, crit: 2 } },
+  { id: 'sh_arm3', slot: 'armor', tier: 3, price: 2050, col: '#5fbfa8', art: 'broc',
+    name: 'Giáp Vảy Ngọc',    name_en: 'Jade Scale Plate',   add: { hp: 76, atk: 3 } },
+  { id: 'sh_arm4', slot: 'armor', tier: 4, price: 4700, col: '#ffb648', art: 'cloud', aura: '#ffb44a',
+    name: 'Giáp Hổ Phách',    name_en: 'Amberheart Plate',   add: { hp: 120, atk: 5, crit: 3 } },
+
+  // ── VŨ KHÍ ────────────────────────────────────────────────────────────
+  { id: 'sh_wep1', slot: 'weapon', tier: 1, price: 190,  col: '#a8c46a', art: 'plain',
+    name: 'Gậy Trúc',         name_en: 'Bamboo Stick',       add: { atk: 4 } },
+  { id: 'sh_wep2', slot: 'weapon', tier: 2, price: 720,  col: '#8ed86a', art: 'stripe',
+    name: 'Kiếm Lá Sắc',      name_en: 'Keen Leaf Blade',    add: { atk: 9, crit: 4 } },
+  { id: 'sh_wep3', slot: 'weapon', tier: 3, price: 2150, col: '#b98a4e', art: 'broc',
+    name: 'Búa Hạt Dẻ',       name_en: 'Chestnut Maul',      add: { atk: 17, charge: .25 } },
+  { id: 'sh_wep4', slot: 'weapon', tier: 4, price: 4900, col: '#eaf4ff', art: 'cloud', aura: '#eaf4ff',
+    name: 'Đao Ánh Trăng',    name_en: 'Moonedge Glaive',    add: { atk: 26, crit: 8, charge: .3 } },
+
+  // ── ĐỒ THEO MÙA ───────────────────────────────────────────────────────
+  { id: 'ev_lan', slot: 'helm',  tier: 4, price: 3200, col: '#e83a3a', art: 'lion',
+    aura: '#ff5a3a', event: 'tet',
+    name: 'Mũ Lân Tết',       name_en: 'New-Year Lion Cap',  add: { hp: 60, atk: 6, crit: 4 } },
+  { id: 'ev_sao', slot: 'scarf', tier: 4, price: 3200, col: '#ffd23f', art: 'star',
+    aura: '#ffd23f', event: 'trungthu',
+    name: 'Khăn Đèn Sao',     name_en: 'Star-Lantern Sash',  add: { hp: 48, atk: 5, charge: .25 } },
+  { id: 'ev_ma',  slot: 'scarf', tier: 4, price: 3200, col: '#8ef08a', art: 'ghost',
+    aura: '#8ef08a', event: 'halloween',
+    name: 'Khăn Lân Tinh',    name_en: 'Wisplight Sash',     add: { hp: 48, crit: 8 } },
+];
+
+/** Dịp nào đang tới → chỉ dịp đó mới bày đồ mùa. Theo lịch của máy. */
+export function eventNow(now = new Date()) {
+  const m = now.getMonth() + 1, d = now.getDate();
+  if (m === 1 || (m === 2 && d <= 20)) return 'tet';
+  if (m === 8 || (m === 9 && d <= 20)) return 'trungthu';
+  if (m === 10) return 'halloween';
+  return null;
+}
+
+/** Món đang bày bán: hàng thường + đúng một dòng đồ mùa. */
+export const shopStock = (ev = eventNow()) => SHOP.filter(g => !g.event || g.event === ev);
+
+/** Mọi món đồ, dù chế ra hay mua về — cùng dùng chung ô trang bị. */
+export const ALL_GEAR = [...RECIPES, ...SHOP];
+export const recipeById = (id) => ALL_GEAR.find(r => r.id === id) || null;
+
+/** Tổng aura: mỗi món bậc 4 đang mặc góp một vầng sáng. */
+export function auraOf(save) {
+  const cols = [];
+  for (const sl of SLOTS) {
+    const g = recipeById(save.equip?.[sl.id]);
+    if (g?.aura) cols.push(g.aura);
+  }
+  return cols;
+}
 
 /** Có đủ nguyên liệu chưa? */
 export const canCraft = (save, r) =>

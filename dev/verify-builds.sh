@@ -24,17 +24,26 @@ ROOT=$(pwd)
 # Lấy đúng bản APK của phiên bản ĐANG dựng. Trước đây lấy file .apk đầu tiên
 # theo thứ tự tên, nên khi dist/ còn bản cũ thì hoá ra đi so bản cũ với mã mới
 # rồi báo LỆCH — báo động giả.
+# Tên sản phẩm đọc từ package.json, KHÔNG đóng đinh. Đổi tên game một lần là
+# script này bốc nhầm gói của bản cũ rồi báo LỆCH — báo động giả, mà lại đúng
+# vào lúc cần tin nó nhất.
 VER=$(node -p "require('$ROOT/package.json').version")
-APKFILE="$ROOT/dist/SDrakon-$VER.apk"
-[ -f "$APKFILE" ] || APKFILE=$(ls "$ROOT"/dist/*.apk 2>/dev/null | tail -1)
+PROD=$(node -p "require('$ROOT/package.json').build.productName")
+APKFILE="$ROOT/dist/$PROD-$VER.apk"
+[ -f "$APKFILE" ] || { echo "  ! không thấy $PROD-$VER.apk trong dist/"; APKFILE=""; }
 if [ -n "$APKFILE" ]; then
   mkdir -p "$T/apk"
   ( cd "$T/apk" && unzip -q "$APKFILE" 'assets/public/*' )
   check "APK" "$T/apk/assets/public"
 fi
-for pair in "macOS|dist/mac-arm64/SDrakon.app/Contents/Resources/app.asar" \
+for pair in "macOS|dist/mac-arm64/$PROD.app/Contents/Resources/app.asar" \
             "Windows|dist/win-unpacked/resources/app.asar"; do
   label=${pair%%|*}; asar=${pair##*|}
+  if [ -f "$asar" ]; then
+    :
+  else
+    printf '%-24s %s  ! không thấy %s\n' "$label" "—" "$asar"; bad=$((bad+1))
+  fi
   if [ -f "$asar" ]; then
     npx --yes asar extract "$asar" "$T/${label}" >/dev/null 2>&1
     check "$label" "$T/${label}"

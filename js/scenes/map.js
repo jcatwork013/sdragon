@@ -345,6 +345,21 @@ export default {
         icon.lock(ctx, 42);
       }
 
+      // huy hiệu chế độ Ghép Đôi — hai thẻ chồng nhau
+      if (open && lv.mode === 'pair') {
+        ctx.save();
+        ctx.translate(NODE_R * .74, NODE_R * .74);
+        ctx.beginPath(); ctx.arc(0, 2, 13, 0, TAU);
+        ctx.fillStyle = '#120a20'; ctx.fill();
+        ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU);
+        ctx.fillStyle = '#2b1740'; ctx.fill();
+        ctx.strokeStyle = '#c0a0ff'; ctx.lineWidth = 2.5; ctx.stroke();
+        ctx.fillStyle = '#c0a0ff';
+        roundRect(ctx, -7, -6, 7, 10, 2); ctx.fill();
+        roundRect(ctx, 1, -4, 7, 10, 2); ctx.fill();
+        ctx.restore();
+      }
+
       // huy hiệu chế độ Bắn Đá
       if (open && lv.mode === 'shoot') {
         ctx.save();

@@ -94,6 +94,9 @@ const DICT = {
     lowVitality: 'Sinh lực cạn!',
 
     // kết quả
+    pairMode: 'Ghép Đôi', pairFlips: 'Lượt lật', pairLeft: 'Còn {n} cặp',
+    pairStreak: 'Chuỗi {n}!', pairBest: 'Chuỗi dài nhất: {n}', pairCleared: 'Sạch bàn!',
+    bravoFlips: 'Lượt lật thừa → vàng',
     shop: 'Cửa hàng', shopPoor: 'Không đủ vàng!', shopBought: 'Đã mua {n}!',
     shopEmpty: 'Chưa có món nào ở ô này.', wear: 'Mặc vào',
     ev_tet: 'TẾT', ev_trungthu: 'TRUNG THU', ev_halloween: 'HALLOWEEN',
@@ -193,6 +196,9 @@ const DICT = {
     quitAsk: 'Leave the level? This run will be lost.',
     lowVitality: 'Vitality low!',
 
+    pairMode: 'Pair Up', pairFlips: 'Flips', pairLeft: '{n} pairs left',
+    pairStreak: 'Streak {n}!', pairBest: 'Best streak: {n}', pairCleared: 'Board cleared!',
+    bravoFlips: 'Spare flips → gold',
     shop: 'Shop', shopPoor: 'Not enough gold!', shopBought: 'Bought {n}!',
     shopEmpty: 'Nothing in this slot yet.', wear: 'Wear',
     ev_tet: 'NEW YEAR', ev_trungthu: 'MID-AUTUMN', ev_halloween: 'HALLOWEEN',

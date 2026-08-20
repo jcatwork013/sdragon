@@ -104,6 +104,9 @@ run('7c · Màn bravo', 40, 'sc7c_bravo.png', () => { G.startLevel(2, true); con
   s2.score = G.level.target + 800; s2.movesLeft = 9; s2.timeLeft = 46; s2.startBravo(G, 'test'); });
 run('7d · Câu xà lơ', 30, 'sc7d_quip.png', () => { G.startLevel(2, true);
   G.sess.sessMin = 0; G.quipBox = null; G.quip(); });
+run('29 · Ghép Đôi',  50, 'sc29_pair.png', () => { G.save.unlocked=20; G.startLevel(6, true);
+  const s2=G.scene; s2.cards[0].up=1; s2.cards[3].up=1; s2.cards[5].matched=true; s2.cards[5].up=1;
+  for (let i=0;i<8;i++) s2.cards[i].seed=i; });
 run('9 · Tạm dừng',     20, 'sc9_pause.png', () => { G.startLevel(3); G.scene.togglePause(G); });
 run('10 · Hướng dẫn tr1', 40, 'sc10_help1.png', () => { G.go('help', 'map'); });
 run('11 · Hướng dẫn tr2', 20, 'sc11_help2.png', () => { G.scene.page = 1; });

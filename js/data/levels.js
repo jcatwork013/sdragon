@@ -37,7 +37,9 @@ function makeLevels(ep, baseMoves, colours, epBump = 0, vitScale = 1, epOffset =
     const colourScale = colours >= 6 ? 0.80 : 1;             // đo từ mô phỏng, không phải ước lượng
     const wave = 1 + 0.025 * Math.sin(n * 1.1);              // gợn dễ/khó cho đỡ đều đều
     // Cứ 4 màn có 1 màn Bắn Đá → nhịp chơi luôn đổi vị, không bị chán.
-    const mode = n % 4 === 0 ? 'shoot' : 'match3';
+    // Ba chế độ xen kẽ cho hành trình đỡ đơn điệu. Ghép Đôi thưa nhất (7 màn
+    // một lần) vì nó là màn đổi nhịp — dày quá thì mất tác dụng nghỉ tay.
+    const mode = n % 7 === 0 ? 'pair' : n % 4 === 0 ? 'shoot' : 'match3';
     return {
       id: `${ep}-${n}`,
       index: n,

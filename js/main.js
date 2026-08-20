@@ -32,6 +32,7 @@ import storyScene from './scenes/story.js';
 import duelScene  from './scenes/duel.js';
 import worldScene from './scenes/world.js';
 import shopScene  from './scenes/shop.js';
+import pairScene  from './scenes/pair.js';
 
 // Khung logic tính từ tỉ lệ màn hình thật (xem js/core/layout.js).
 //   W,H      = DẢI GIAO DIỆN, mọi scene dựng bố cục trên đây (cao luôn 720)
@@ -73,7 +74,7 @@ const G = {
   fx: new FX(),
   world: new World(W, H, OX, OY, CW, CH),
   save: Store.load(),
-  scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene, shop: shopScene },
+  scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene, shop: shopScene, pair: pairScene },
   scene: null,
   level: null, levelIndex: 0,
   totalLevels: TOTAL_LEVELS,
@@ -110,7 +111,7 @@ const G = {
       return;
     }
     G._justDueled = false;
-    G.go(G.level.mode === 'shoot' ? 'shoot' : 'play');
+    G.go(G.level.mode === 'shoot' ? 'shoot' : G.level.mode === 'pair' ? 'pair' : 'play');
   },
   /** Xem lại một hồi bất kỳ (dùng ở bản đồ). */
   replayAct(act) { G.go('story', { act, after: () => G.go('map') }); },
@@ -345,7 +346,7 @@ function frame(now) {
 
   // Thỉnh thoảng bật một câu cho vui — chỉ ở màn có người chơi thật sự ngồi
   // lâu, không chen vào lúc chuyển cảnh hay đang xem kết quả.
-  const chatty = G.scene?.name === 'play' || G.scene?.name === 'shoot' || G.scene?.name === 'map';
+  const chatty = ['play', 'shoot', 'pair', 'map'].includes(G.scene?.name);
   if (chatty && !G.quipBox && !G.modal && !G.scene?.over) {
     quipAt -= dt;
     if (quipAt <= 0) { quipAt = 55 + Math.random() * 70; G.quip(); }

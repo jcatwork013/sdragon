@@ -1,7 +1,7 @@
 {
   "name": "cricko",
-  "version": "1.7.1",
-  "description": "CRICKO \u2014 Mi\u1ec1n C\u1ecf Ch\u00e1y \u00b7 match-3 nu\u00f4i d\u1ebf, Canvas 2D + Web Audio, kh\u00f4ng ph\u1ee5 thu\u1ed9c th\u01b0 vi\u1ec7n ngo\u00e0i",
+  "version": "1.8.0",
+  "description": "CRICKO — Miền Cỏ Cháy · match-3 nuôi dế, Canvas 2D + Web Audio, không phụ thuộc thư viện ngoài",
   "private": true,
   "type": "module",
   "scripts": {
@@ -32,7 +32,7 @@
   "build": {
     "appId": "com.9bricks.cricko",
     "productName": "Cricko",
-    "copyright": "CRICKO \u2014 Mi\u1ec1n C\u1ecf Ch\u00e1y \u00b7 9bricks",
+    "copyright": "CRICKO — Miền Cỏ Cháy · 9bricks",
     "directories": {
       "output": "dist",
       "buildResources": "icons"

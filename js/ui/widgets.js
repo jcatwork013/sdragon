@@ -460,6 +460,154 @@ export const icon = {
   },
 };
 
+// ── NGUYÊN LIỆU CHẾ TẠO ─────────────────────────────────────────────────────
+// Sáu thứ nhặt được sau mỗi màn. Trước đây mỗi thứ chỉ là một chấm tròn tô màu
+// nên người chơi phải đọc chữ mới biết là gì; giờ mỗi thứ có hình riêng, liếc
+// một cái là nhận ra, và vẫn phân biệt được khi in đen trắng.
+//   Vẽ tại gốc toạ độ, lọt trong ô cạnh `s`.
+const matInk = (ctx, col, s, lw = .10) => {
+  ctx.fillStyle = col; ctx.fill();
+  ctx.strokeStyle = rgba('#1a1020', .72); ctx.lineWidth = s * lw;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+};
+const matGrad = (ctx, col, s) => {
+  const g = ctx.createLinearGradient(-s * .4, -s * .45, s * .35, s * .45);
+  g.addColorStop(0, shade(col, .42)); g.addColorStop(.5, col); g.addColorStop(1, shade(col, -.34));
+  return g;
+};
+
+export const MAT_ICON = {
+  // Vỏ hạt — nửa vỏ nứt, có sống giữa
+  vo(ctx, s, col) {
+    ctx.beginPath();
+    ctx.moveTo(0, -s * .44);
+    ctx.bezierCurveTo(s * .34, -s * .30, s * .36, s * .22, 0, s * .44);
+    ctx.bezierCurveTo(-s * .36, s * .22, -s * .34, -s * .30, 0, -s * .44);
+    ctx.closePath();
+    matInk(ctx, matGrad(ctx, col, s), s);
+    ctx.strokeStyle = rgba('#1a1020', .45); ctx.lineWidth = s * .06;
+    ctx.beginPath(); ctx.moveTo(0, -s * .40); ctx.lineTo(0, s * .40); ctx.stroke();
+    ctx.strokeStyle = rgba('#ffffff', .55); ctx.lineWidth = s * .05;
+    ctx.beginPath(); ctx.moveTo(-s * .14, -s * .26); ctx.quadraticCurveTo(-s * .22, 0, -s * .13, s * .24); ctx.stroke();
+  },
+  // Tơ nhện — con cúi tơ quấn, hai đầu sợi buông
+  to(ctx, s, col) {
+    ctx.beginPath(); ctx.ellipse(0, 0, s * .40, s * .28, -.30, 0, TAU);
+    matInk(ctx, matGrad(ctx, col, s), s, .085);
+    ctx.save();
+    ctx.beginPath(); ctx.ellipse(0, 0, s * .40, s * .28, -.30, 0, TAU); ctx.clip();
+    ctx.strokeStyle = rgba('#5a6480', .55); ctx.lineWidth = s * .045; ctx.lineCap = 'round';
+    for (let i = -2; i <= 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(i * s * .16 - s * .22, -s * .34);
+      ctx.quadraticCurveTo(i * s * .16, 0, i * s * .16 + s * .22, s * .34);
+      ctx.stroke();
+    }
+    ctx.restore();
+    ctx.strokeStyle = rgba('#1a1020', .55); ctx.lineWidth = s * .045; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(s * .30, -s * .18); ctx.quadraticCurveTo(s * .46, -s * .34, s * .40, -s * .46);
+    ctx.moveTo(-s * .30, s * .18); ctx.quadraticCurveTo(-s * .46, s * .34, -s * .40, s * .46);
+    ctx.stroke();
+  },
+  // Nhựa cây — giọt hổ phách, trong, có bọt khí
+  nhua(ctx, s, col) {
+    ctx.beginPath();
+    ctx.moveTo(0, -s * .46);
+    ctx.bezierCurveTo(s * .16, -s * .18, s * .36, s * .04, s * .36, s * .18);
+    ctx.bezierCurveTo(s * .36, s * .40, s * .18, s * .48, 0, s * .48);
+    ctx.bezierCurveTo(-s * .18, s * .48, -s * .36, s * .40, -s * .36, s * .18);
+    ctx.bezierCurveTo(-s * .36, s * .04, -s * .16, -s * .18, 0, -s * .46);
+    ctx.closePath();
+    const g = ctx.createRadialGradient(-s * .12, s * .06, s * .04, 0, s * .16, s * .48);
+    g.addColorStop(0, shade(col, .55)); g.addColorStop(.55, col); g.addColorStop(1, shade(col, -.40));
+    matInk(ctx, g, s, .085);
+    ctx.fillStyle = rgba('#ffffff', .70);
+    ctx.beginPath(); ctx.ellipse(-s * .13, s * .10, s * .08, s * .13, -.35, 0, TAU); ctx.fill();
+    ctx.fillStyle = rgba('#ffffff', .40);
+    ctx.beginPath(); ctx.arc(s * .13, s * .24, s * .055, 0, TAU); ctx.fill();
+  },
+  // Đá suối — cuội nhẵn, có vân trắng vắt ngang
+  da(ctx, s, col) {
+    ctx.beginPath();
+    ctx.moveTo(-s * .44, s * .04);
+    ctx.bezierCurveTo(-s * .40, -s * .30, -s * .10, -s * .40, s * .14, -s * .34);
+    ctx.bezierCurveTo(s * .42, -s * .28, s * .48, s * .06, s * .34, s * .26);
+    ctx.bezierCurveTo(s * .16, s * .44, -s * .30, s * .38, -s * .44, s * .04);
+    ctx.closePath();
+    matInk(ctx, matGrad(ctx, col, s), s, .085);
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(-s * .44, s * .04);
+    ctx.bezierCurveTo(-s * .40, -s * .30, -s * .10, -s * .40, s * .14, -s * .34);
+    ctx.bezierCurveTo(s * .42, -s * .28, s * .48, s * .06, s * .34, s * .26);
+    ctx.bezierCurveTo(s * .16, s * .44, -s * .30, s * .38, -s * .44, s * .04);
+    ctx.closePath(); ctx.clip();
+    ctx.strokeStyle = rgba('#ffffff', .60); ctx.lineWidth = s * .085; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-s * .48, s * .16); ctx.quadraticCurveTo(0, -s * .02, s * .50, s * .06); ctx.stroke();
+    ctx.restore();
+    ctx.fillStyle = rgba('#ffffff', .45);
+    ctx.beginPath(); ctx.ellipse(-s * .14, -s * .22, s * .15, s * .07, -.3, 0, TAU); ctx.fill();
+  },
+  // Mảnh sừng — miếng sừng cong, chân gãy lởm chởm
+  sung(ctx, s, col) {
+    ctx.beginPath();
+    ctx.moveTo(s * .10, -s * .48);
+    ctx.quadraticCurveTo(s * .40, -s * .10, s * .26, s * .34);
+    ctx.lineTo(s * .06, s * .26);
+    ctx.lineTo(-s * .06, s * .42);
+    ctx.lineTo(-s * .22, s * .24);
+    ctx.quadraticCurveTo(-s * .22, -s * .18, s * .10, -s * .48);
+    ctx.closePath();
+    matInk(ctx, matGrad(ctx, col, s), s, .085);
+    ctx.strokeStyle = rgba('#7a6428', .55); ctx.lineWidth = s * .045; ctx.lineCap = 'round';
+    for (let i = 0; i < 3; i++) {
+      const k = -s * .28 + i * s * .20;
+      ctx.beginPath();
+      ctx.moveTo(-s * .16, k + s * .16); ctx.quadraticCurveTo(s * .04, k + s * .04, s * .26, k + s * .14);
+      ctx.stroke();
+    }
+  },
+  // Cánh khô — màng mỏng có gân, hơi trong
+  canh(ctx, s, col) {
+    ctx.save();
+    ctx.rotate(-.34);
+    ctx.beginPath();
+    ctx.moveTo(-s * .42, s * .10);
+    ctx.bezierCurveTo(-s * .26, -s * .34, s * .10, -s * .40, s * .44, -s * .12);
+    ctx.bezierCurveTo(s * .22, s * .22, -s * .12, s * .32, -s * .42, s * .10);
+    ctx.closePath();
+    ctx.globalAlpha = .92;
+    matInk(ctx, matGrad(ctx, col, s), s, .085);
+    ctx.globalAlpha = 1;
+    ctx.strokeStyle = rgba('#3a1f52', .48); ctx.lineWidth = s * .042; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-s * .38, s * .08); ctx.quadraticCurveTo(0, -s * .16, s * .40, -s * .12);
+    ctx.stroke();
+    for (let i = 0; i < 3; i++) {
+      const u = .22 + i * .24;
+      ctx.beginPath();
+      ctx.moveTo(-s * .38 + u * s * .78, s * .08 - u * s * .14);
+      ctx.lineTo(-s * .30 + u * s * .74, s * .24 - u * s * .12);
+      ctx.stroke();
+    }
+    ctx.restore();
+  },
+};
+
+/** Vẽ icon nguyên liệu theo id; id lạ thì rơi về chấm tròn cũ. */
+export function matIcon(ctx, id, s, col) {
+  const fn = MAT_ICON[id];
+  ctx.save();
+  if (fn) fn(ctx, s, col);
+  else {
+    ctx.beginPath(); ctx.arc(0, 0, s * .4, 0, TAU);
+    matInk(ctx, col, s, .1);
+  }
+  ctx.restore();
+}
+
 // ── nút có vùng bấm ─────────────────────────────────────────────────────────
 export class Hit {
   constructor(id, x, y, w, h, o = {}) { Object.assign(this, { id, x, y, w, h, ...o }); this.press = 0; this.hover = 0; }

@@ -27,5 +27,5 @@ const btn = (cx,cy,fn)=>{ x.save(); x.beginPath(); x.arc(cx,cy,34,0,Math.PI*2);
 btn(120, 400, W.icon.flame); btn(230, 400, W.icon.hammer); btn(340, 400, W.icon.restart);
 btn(450, 400, W.icon.clock); btn(560, 400, W.icon.star);   btn(670, 400, W.icon.crown);
 btn(780, 400, W.icon.heart); btn(890, 400, W.icon.pouch);
-fs.writeFileSync('/Users/macbook/Documents/9bricks/sdrakon/dev/shots/gems.png', c.toBuffer('image/png'));
+fs.writeFileSync(new URL('shots/gems.png', import.meta.url).pathname, c.toBuffer('image/png'));
 console.log('→ dev/shots/gems.png');

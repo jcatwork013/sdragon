@@ -54,6 +54,19 @@ export const rgba = (hex, a) => {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`;
 };
+/**
+ * Pha màu về đen (amt<0) / trắng (amt>0) RỒI kèm alpha.
+ * Dùng thay cho `rgba(shade(hex, k), a)` — shade() trả về chuỗi "rgb(...)",
+ * đưa lại vào rgba() sẽ ra "rgba(NaN,...)" và canvas lặng lẽ bỏ qua lệnh đặt màu.
+ */
+export function mix(hex, amt = 0, a = 1) {
+  const n = parseInt(hex.slice(1), 16);
+  const t = amt < 0 ? 0 : 255, p = Math.abs(amt);
+  const r = Math.round(lerp(n >> 16 & 255, t, p));
+  const g = Math.round(lerp(n >> 8 & 255, t, p));
+  const b = Math.round(lerp(n & 255, t, p));
+  return `rgba(${r},${g},${b},${a})`;
+}
 
 // ── canvas helpers ───────────────────────────────────────────────────────────
 export function roundRect(ctx, x, y, w, h, r) {

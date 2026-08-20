@@ -3,7 +3,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rand, randInt, rgba, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, C, FONT } from '../ui/widgets.js';
+import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT } from '../ui/widgets.js';
 import { BubbleBoard, ORB, drawOrb, buildOrbSprites } from '../game/bubble.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
 import { pickBeat, SPEAKERS, GOAL_NOUN } from '../data/beats.js';
@@ -668,11 +668,7 @@ function drawMatsRow(ctx, cx, y, got) {
   list.forEach(([id, n], i) => {
     const m = MATS[id]; if (!m) return;
     const x = cx - w / 2 + i * 96 + 48;
-    ctx.save();
-    ctx.beginPath(); ctx.arc(x - 18, y, 13, 0, TAU);
-    ctx.fillStyle = m.col; ctx.fill();
-    ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.restore();
+    ctx.save(); ctx.translate(x - 18, y); matIcon(ctx, id, 30, m.col); ctx.restore();
     strokeText(ctx, '+' + n, x + 6, y,
       { font: FONT.disp(20), fill: '#fff', stroke: '#1a0f30', lw: 4, baseline: 'middle' });
   });

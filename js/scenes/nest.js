@@ -4,7 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, textBtn, card, glassPanel, statBar, icon, C, FONT, starBar } from '../ui/widgets.js';
+import { Hit, textBtn, card, glassPanel, statBar, icon, matIcon, C, FONT, starBar } from '../ui/widgets.js';
 import { BREEDS, STAGES, TRAININGS, stageFor, nextStage } from '../data/characters.js';
 import { MATS, MAT_LIST, SLOTS, RECIPES, recipeById, canCraft, gearBonus } from '../data/gear.js';
 import { heroPower } from '../data/duel.js';
@@ -280,9 +280,7 @@ export default {
     MAT_LIST.forEach((m, i) => {
       const col = i % 2, row = (i / 2) | 0;
       const x = LX + 22 + col * 128, y = 424 + row * 26;
-      ctx.beginPath(); ctx.arc(x, y, 9, 0, TAU);
-      ctx.fillStyle = m.col; ctx.fill();
-      ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.save(); ctx.translate(x, y); matIcon(ctx, m.id, 22, m.col); ctx.restore();
       ctx.save();
       ctx.font = FONT.ui(12, 700); ctx.fillStyle = '#e6dcff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
       ctx.fillText(`${tx(m, 'name')} ${S.mats?.[m.id] || 0}`, x + 14, y);
@@ -340,9 +338,7 @@ export default {
         Object.entries(r.cost).forEach(([m, n], j) => {
           const have = S.mats?.[m] || 0;
           const x = h.x + 14 + j * 62, y = cy + 66;
-          ctx.beginPath(); ctx.arc(x, y, 7, 0, TAU);
-          ctx.fillStyle = MATS[m].col; ctx.fill();
-          ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 1.8; ctx.stroke();
+          ctx.save(); ctx.translate(x, y); matIcon(ctx, m, 18, MATS[m].col); ctx.restore();
           strokeText(ctx, `${have}/${n}`, x + 11, y,
             { font: FONT.ui(12, 800), fill: have >= n ? '#8ef08a' : '#ff9aa8', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
         });
@@ -384,43 +380,113 @@ export default {
   },
 };
 
-/** Biểu tượng cho từng ô trang bị. */
+/** Biểu tượng cho từng ô trang bị — cùng một hình dùng cho cả bảng chế tạo
+ *  lẫn ô đang mặc, nên phải đọc được ở cả cỡ 34px lẫn 52px. */
 function gearIcon(ctx, slot, s, col) {
   ctx.save();
-  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = s * .07; ctx.lineJoin = 'round';
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  const ink = 'rgba(18,10,26,.75)';
+  const body = () => {
+    const g = ctx.createLinearGradient(-s * .34, -s * .40, s * .30, s * .40);
+    g.addColorStop(0, shade(col, .46)); g.addColorStop(.48, col); g.addColorStop(1, shade(col, -.38));
+    return g;
+  };
+  const paint = (lw = .085) => {
+    ctx.fillStyle = body(); ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = s * lw; ctx.stroke();
+  };
+  const stud = (x, y, r) => {
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+    ctx.fillStyle = shade(col, .55); ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = s * .035; ctx.stroke();
+  };
+
   if (slot === 'helm') {
+    // hai chấu sừng — vẽ trước để nằm sau vòm mũ
+    for (const d of [-1, 1]) {
+      ctx.save(); ctx.translate(d * s * .27, -s * .26); ctx.rotate(d * .55);
+      ctx.beginPath();
+      ctx.moveTo(-s * .07, s * .12);
+      ctx.quadraticCurveTo(0, -s * .34, s * .07, s * .12);
+      ctx.closePath(); paint(.07);
+      ctx.restore();
+    }
+    // vòm mũ
     ctx.beginPath();
-    ctx.moveTo(-s * .34, s * .16);
-    ctx.quadraticCurveTo(-s * .34, -s * .34, 0, -s * .34);
-    ctx.quadraticCurveTo(s * .34, -s * .34, s * .34, s * .16);
-    ctx.quadraticCurveTo(0, s * .04, -s * .34, s * .16);
+    ctx.moveTo(-s * .34, s * .14);
+    ctx.bezierCurveTo(-s * .36, -s * .32, s * .36, -s * .32, s * .34, s * .14);
+    ctx.quadraticCurveTo(0, s * .02, -s * .34, s * .14);
+    ctx.closePath(); paint();
+    // vành mũ + thanh che mũi
+    ctx.beginPath();
+    ctx.moveTo(-s * .38, s * .12);
+    ctx.quadraticCurveTo(0, s * .00, s * .38, s * .12);
+    ctx.quadraticCurveTo(0, s * .24, -s * .38, s * .12);
     ctx.closePath();
-    ctx.fillStyle = col; ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-s * .2, -s * .3); ctx.lineTo(-s * .3, -s * .5);
-    ctx.moveTo(s * .2, -s * .3); ctx.lineTo(s * .3, -s * .5);
-    ctx.lineWidth = s * .1; ctx.stroke();
+    ctx.fillStyle = shade(col, -.26); ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = s * .06; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-s * .05, s * .06); ctx.lineTo(-s * .05, s * .32);
+    ctx.quadraticCurveTo(0, s * .38, s * .05, s * .32); ctx.lineTo(s * .05, s * .06);
+    ctx.closePath();
+    ctx.fillStyle = shade(col, -.10); ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = s * .05; ctx.stroke();
+    stud(-s * .22, s * .11, s * .035); stud(s * .22, s * .11, s * .035);
+    ctx.fillStyle = 'rgba(255,255,255,.50)';
+    ctx.beginPath(); ctx.ellipse(-s * .12, -s * .16, s * .16, s * .055, -.22, 0, TAU); ctx.fill();
+
   } else if (slot === 'armor') {
+    // tấm giáp ngực có bờ vai
     ctx.beginPath();
-    ctx.moveTo(0, -s * .36);
-    ctx.quadraticCurveTo(s * .34, -s * .26, s * .30, s * .06);
-    ctx.quadraticCurveTo(s * .22, s * .34, 0, s * .40);
-    ctx.quadraticCurveTo(-s * .22, s * .34, -s * .30, s * .06);
-    ctx.quadraticCurveTo(-s * .34, -s * .26, 0, -s * .36);
-    ctx.closePath();
-    ctx.fillStyle = col; ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, -s * .22); ctx.lineTo(0, s * .26);
-    ctx.lineWidth = s * .06; ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.stroke();
+    ctx.moveTo(0, -s * .40);
+    ctx.lineTo(s * .30, -s * .30);
+    ctx.bezierCurveTo(s * .36, -s * .04, s * .28, s * .24, 0, s * .42);
+    ctx.bezierCurveTo(-s * .28, s * .24, -s * .36, -s * .04, -s * .30, -s * .30);
+    ctx.closePath(); paint();
+    // sống giữa
+    ctx.beginPath();
+    ctx.moveTo(0, -s * .32); ctx.lineTo(0, s * .32);
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = s * .05; ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-s * .26, -s * .16); ctx.quadraticCurveTo(0, -s * .04, s * .26, -s * .16);
+    ctx.strokeStyle = 'rgba(18,10,26,.42)'; ctx.lineWidth = s * .045; ctx.stroke();
+    stud(-s * .19, -s * .24, s * .038); stud(s * .19, -s * .24, s * .038);
+    ctx.fillStyle = 'rgba(255,255,255,.45)';
+    ctx.beginPath(); ctx.ellipse(-s * .14, -s * .14, s * .09, s * .17, .28, 0, TAU); ctx.fill();
+
   } else {
+    // vuốt/lưỡi gắn cán, tay cầm quấn dây
+    ctx.save(); ctx.rotate(-.22);
     ctx.beginPath();
-    ctx.moveTo(-s * .30, s * .30);
-    ctx.lineTo(s * .10, -s * .10);
-    ctx.lineTo(s * .30, -s * .36);
-    ctx.lineTo(s * .36, -s * .16);
-    ctx.lineTo(s * .06, s * .10);
-    ctx.closePath();
-    ctx.fillStyle = col; ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(-s * .30, s * .30, s * .09, 0, TAU);
-    ctx.fillStyle = '#7a5230'; ctx.fill(); ctx.stroke();
+    ctx.moveTo(-s * .30, s * .34);
+    ctx.lineTo(-s * .16, s * .18);
+    ctx.lineTo(s * .12, -s * .12);
+    ctx.stroke();
+    ctx.strokeStyle = '#5f3c18'; ctx.lineWidth = s * .13; ctx.stroke();
+    ctx.strokeStyle = '#9a6a34'; ctx.lineWidth = s * .075; ctx.stroke();
+    // dây quấn
+    ctx.strokeStyle = 'rgba(40,24,8,.60)'; ctx.lineWidth = s * .035;
+    for (let i = 0; i < 3; i++) {
+      const u = .10 + i * .16;
+      ctx.beginPath();
+      ctx.moveTo(-s * .30 + u * s * .30, s * .34 - u * s * .26);
+      ctx.lineTo(-s * .24 + u * s * .30, s * .40 - u * s * .26);
+      ctx.stroke();
+    }
+    // lưỡi
+    ctx.beginPath();
+    ctx.moveTo(s * .04, -s * .04);
+    ctx.quadraticCurveTo(s * .30, -s * .40, s * .40, -s * .34);
+    ctx.quadraticCurveTo(s * .40, -s * .10, s * .18, s * .10);
+    ctx.closePath(); paint(.075);
+    ctx.beginPath();
+    ctx.moveTo(s * .12, -s * .06); ctx.quadraticCurveTo(s * .28, -s * .26, s * .36, -s * .28);
+    ctx.strokeStyle = 'rgba(255,255,255,.60)'; ctx.lineWidth = s * .045; ctx.stroke();
+    ctx.restore();
+    // chuôi
+    ctx.beginPath(); ctx.arc(-s * .24, s * .29, s * .085, 0, TAU);
+    ctx.fillStyle = shade(col, .18); ctx.fill();
+    ctx.strokeStyle = ink; ctx.lineWidth = s * .05; ctx.stroke();
   }
   ctx.restore();
 }

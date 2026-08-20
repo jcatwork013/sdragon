@@ -39,59 +39,140 @@ const SHAPES = {
   trillion: [[0,-1],[.5,-.29],[.87,.5],[0,.58],[-.87,.5],[-.5,-.29]],
 };
 
-const SPRITE = 128;          // độ phân giải render sẵn — thừa cho ô 64px @2x DPR
+const SPRITE = 192;          // độ phân giải render sẵn — dư cho ô 80px @2x DPR
 const LIGHT  = -Math.PI * 0.72;   // hướng nguồn sáng (trên-trái)
-
-/** Vẽ 1 viên đá cắt giác: thân → các mặt cắt → mặt bàn → chớp sáng → viền. */
+/**
+ * Vẽ 1 viên đá cắt giác kiểu "brilliant": bóng đổ → thân → đáy (pavilion) →
+ * HAI vành mặt cắt lệch pha nhau → vành đai → mặt bàn → chớp sáng → viền.
+ *
+ * Chỗ ăn tiền là hai vành mặt cắt: vành trong sáng ngược pha với vành ngoài,
+ * tạo ra lưới sáng-tối xen kẽ — đúng cái làm mắt đọc ra "đá quý có giác cắt"
+ * chứ không phải "hình đa giác tô gradient".
+ */
 function renderGem(ctx, g, R) {
-  const pts = SHAPES[g.shape].map(([x, y]) => [x * R, y * R]);
-  const table = pts.map(([x, y]) => [x * 0.5, y * 0.5]);   // "mặt bàn" ở giữa
+  // giữ nguyên mọi góc của hình gốc, chỉ chèn thêm điểm giữa các cạnh dài
+  const src = [];
+  {
+    const p = SHAPES[g.shape];
+    for (let i = 0; i < p.length; i++) {
+      const a = p[i], b = p[(i + 1) % p.length];
+      const k = Math.max(1, Math.round(Math.hypot(b[0] - a[0], b[1] - a[1]) / 0.52));
+      for (let m = 0; m < k; m++) src.push([lerp(a[0], b[0], m / k), lerp(a[1], b[1], m / k)]);
+    }
+  }
+  const ring = (k) => src.map(([x, y]) => [x * R * k, y * R * k]);
+  const pts    = ring(1);        // mép ngoài
+  const girdle = ring(0.94);     // vành đai
+  const mid    = ring(0.70);     // vành giác giữa
+  const table  = ring(0.40);     // mặt bàn
   const n = pts.length;
+  const lit = (x, y, phase = 0) => clamp(0.5 + 0.5 * Math.cos(Math.atan2(y, x) - LIGHT + phase), 0, 1);
 
   // bóng đổ mềm
   ctx.save();
-  ctx.globalAlpha = 0.30;
-  ctx.fillStyle = '#000';
-  ctx.beginPath(); ctx.ellipse(0, R * 0.86, R * 0.72, R * 0.24, 0, 0, TAU); ctx.fill();
+  const sh = ctx.createRadialGradient(0, R * 0.86, 0, 0, R * 0.86, R * 0.78);
+  sh.addColorStop(0, 'rgba(0,0,0,.40)'); sh.addColorStop(.6, 'rgba(0,0,0,.20)');
+  sh.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = sh;
+  ctx.save(); ctx.translate(0, R * 0.86); ctx.scale(1, 0.30); ctx.translate(0, -R * 0.86);
+  ctx.beginPath(); ctx.arc(0, R * 0.86, R * 0.78, 0, TAU); ctx.fill();
+  ctx.restore();
   ctx.restore();
 
-  // thân đá
-  const body = ctx.createLinearGradient(-R, -R, R, R);
-  body.addColorStop(0, g.lite); body.addColorStop(.42, g.base); body.addColorStop(1, g.dark);
-  poly(ctx, pts); ctx.fillStyle = body; ctx.fill();
+  // ── thân: sáng ở đỉnh trên-trái, đậm dần xuống đáy ────────────────────────
+  poly(ctx, pts);
+  const body = ctx.createRadialGradient(-R * .34, -R * .40, R * .05, 0, R * .12, R * 1.32);
+  body.addColorStop(0, shade(g.lite, .30));
+  body.addColorStop(.34, g.base);
+  body.addColorStop(1, g.dark);
+  ctx.fillStyle = body; ctx.fill();
 
-  // các mặt cắt — độ sáng phụ thuộc hướng mặt so với nguồn sáng
+  // ── đáy đá: ánh màu dội ngược lên, làm viên đá "trong" chứ không đặc ─────
+  ctx.save();
+  poly(ctx, pts); ctx.clip();
+  ctx.globalCompositeOperation = 'lighter';
+  const up = ctx.createRadialGradient(R * .10, R * .62, 0, R * .10, R * .62, R * .82);
+  up.addColorStop(0, rgba(g.base, .55)); up.addColorStop(1, rgba(g.base, 0));
+  ctx.fillStyle = up;
+  ctx.beginPath(); ctx.arc(R * .10, R * .62, R * .82, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  // ── vành giác NGOÀI: mép ngoài → vành giữa ───────────────────────────────
   for (let i = 0; i < n; i++) {
     const j = (i + 1) % n;
-    const quad = [pts[i], pts[j], table[j], table[i]];
     const cx = (pts[i][0] + pts[j][0]) / 2, cy = (pts[i][1] + pts[j][1]) / 2;
-    const lit = clamp(0.5 + 0.5 * Math.cos(Math.atan2(cy, cx) - LIGHT), 0, 1);
-    poly(ctx, quad);
-    ctx.fillStyle = lit > 0.5 ? rgba('#ffffff', (lit - .5) * 0.78)
-                              : `rgba(0,0,0,${(.5 - lit) * 0.5})`;
+    const k = lit(cx, cy);
+    poly(ctx, [pts[i], pts[j], mid[j], mid[i]]);
+    ctx.fillStyle = k > .5 ? rgba('#ffffff', (k - .5) * 1.00)
+                           : `rgba(10,5,26,${(.5 - k) * 0.42})`;
     ctx.fill();
-    ctx.strokeStyle = rgba('#ffffff', 0.14); ctx.lineWidth = R * 0.035; ctx.stroke();
   }
+  // ── vành giác TRONG: lệch pha nửa vòng → sáng/tối cài răng lược ──────────
+  for (let i = 0; i < n; i++) {
+    const j = (i + 1) % n;
+    const cx = (mid[i][0] + mid[j][0]) / 2, cy = (mid[i][1] + mid[j][1]) / 2;
+    const k = lit(cx, cy, Math.PI * .62);
+    poly(ctx, [mid[i], mid[j], table[j], table[i]]);
+    ctx.fillStyle = k > .5 ? rgba('#ffffff', (k - .5) * 0.78)
+                           : `rgba(10,5,26,${(.5 - k) * 0.34})`;
+    ctx.fill();
+  }
+  // gân giác — nét mảnh sáng dọc các cạnh giác, thứ làm đá "sắc"
+  ctx.strokeStyle = rgba('#ffffff', .22); ctx.lineWidth = R * .022;
+  ctx.beginPath();
+  for (let i = 0; i < n; i++) {
+    ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(mid[i][0], mid[i][1]);
+    ctx.lineTo(table[i][0], table[i][1]);
+  }
+  ctx.stroke();
 
-  // mặt bàn
-  const tg = ctx.createLinearGradient(-R * .5, -R * .5, R * .5, R * .5);
-  tg.addColorStop(0, shade(g.lite, .35)); tg.addColorStop(.55, g.base); tg.addColorStop(1, shade(g.dark, .12));
-  poly(ctx, table); ctx.fillStyle = tg; ctx.fill();
-  ctx.strokeStyle = rgba('#ffffff', .38); ctx.lineWidth = R * .045; ctx.stroke();
-
-  // chớp sáng chính + phụ
+  // ── vành đai: dải sáng mảnh chạy quanh mép, tách đá khỏi nền ─────────────
   ctx.save();
-  ctx.globalCompositeOperation = 'lighter';
-  ctx.fillStyle = rgba('#ffffff', .62);
-  ctx.beginPath(); ctx.ellipse(-R * .3, -R * .42, R * .24, R * .13, -0.7, 0, TAU); ctx.fill();
-  ctx.fillStyle = rgba('#ffffff', .30);
-  ctx.beginPath(); ctx.ellipse(R * .28, R * .3, R * .12, R * .07, -0.7, 0, TAU); ctx.fill();
+  poly(ctx, pts); ctx.clip();
+  poly(ctx, girdle);
+  ctx.strokeStyle = rgba(g.lite, .58); ctx.lineWidth = R * .085; ctx.stroke();
   ctx.restore();
 
-  // viền ngoài
+  // ── mặt bàn ──────────────────────────────────────────────────────────────
+  poly(ctx, table);
+  const tg = ctx.createLinearGradient(-R * .42, -R * .46, R * .38, R * .42);
+  tg.addColorStop(0, shade(g.lite, .48));
+  tg.addColorStop(.46, shade(g.base, .12));
+  tg.addColorStop(1, shade(g.dark, .18));
+  ctx.fillStyle = tg; ctx.fill();
+  ctx.strokeStyle = rgba('#ffffff', .48); ctx.lineWidth = R * .042; ctx.stroke();
+
+  // ── chớp sáng: một vệt mềm + một ngôi sao 4 cánh sắc ─────────────────────
+  ctx.save();
+  poly(ctx, pts); ctx.clip();                       // <- không có dòng này thì sáng tràn ra nền
+  ctx.globalCompositeOperation = 'lighter';
+  const hi = ctx.createRadialGradient(-R * .28, -R * .38, 0, -R * .28, -R * .38, R * .40);
+  hi.addColorStop(0, 'rgba(255,255,255,.78)'); hi.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = hi;
+  ctx.beginPath(); ctx.ellipse(-R * .28, -R * .38, R * .32, R * .19, -0.7, 0, TAU); ctx.fill();
+  // ngôi sao lấp lánh — 4 cánh nhọn, hai trục dài ngắn khác nhau cho tự nhiên
+  ctx.translate(-R * .26, -R * .36); ctx.rotate(-0.36);
+  ctx.fillStyle = 'rgba(255,255,255,.92)';
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * TAU, rr = i % 2 ? R * .035 : (i % 4 === 0 ? R * .30 : R * .19);
+    i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+  // chớp phụ ở đáy đối diện
+  ctx.save();
+  poly(ctx, pts); ctx.clip();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.fillStyle = rgba('#ffffff', .30);
+  ctx.beginPath(); ctx.ellipse(R * .28, R * .32, R * .14, R * .08, -0.7, 0, TAU); ctx.fill();
+  ctx.restore();
+
+  // ── viền ngoài: nét tối dày + nét màu mảnh phía trong ───────────────────
   poly(ctx, pts);
-  ctx.strokeStyle = rgba('#000000', .5); ctx.lineWidth = R * .075; ctx.stroke();
-  ctx.strokeStyle = rgba(g.lite, .55);   ctx.lineWidth = R * .032; ctx.stroke();
+  ctx.strokeStyle = rgba('#000000', .55); ctx.lineWidth = R * .085;
+  ctx.lineJoin = 'round'; ctx.stroke();
+  ctx.strokeStyle = rgba(g.lite, .62);   ctx.lineWidth = R * .030; ctx.stroke();
 }
 
 /** Cache sprite — build 1 lần lúc khởi động. */
@@ -144,10 +225,10 @@ export function drawGem(ctx, type, x, y, size, o = {}) {
   const t = o.t ?? 0;
   const ph = (t * 0.55 + type * 0.37 + (o.seed ?? 0)) % 3.4;
   if (ph < 0.8 && perf.wantShimmer) {
-    const k = ph / 0.8, w = d * 0.24;
+    const k = ph / 0.8;
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = a * Math.sin(k * Math.PI) * 0.55;
+    ctx.globalAlpha = a * Math.sin(k * Math.PI) * 0.42;
     const lg = ctx.createLinearGradient(-d / 2, 0, d / 2, 0);
     const c0 = clamp(k - .12, 0, 1), c1 = clamp(k + .12, 0, 1);
     lg.addColorStop(0, 'rgba(255,255,255,0)');
@@ -156,7 +237,7 @@ export function drawGem(ctx, type, x, y, size, o = {}) {
     lg.addColorStop(c1, 'rgba(255,255,255,0)');
     lg.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = lg;
-    ctx.beginPath(); ctx.arc(0, 0, d * .46, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, d * .34, 0, TAU); ctx.fill();
     ctx.restore();
   }
 
@@ -165,33 +246,73 @@ export function drawGem(ctx, type, x, y, size, o = {}) {
   ctx.restore();
 }
 
-/** Huy hiệu vật phẩm gắn ở góc viên đá. */
+/** Huy hiệu vật phẩm gắn ở góc viên đá — nhìn là biết phá viên này được gì. */
 function drawToken(ctx, tk, d, t) {
   const info = TOKEN_INFO[tk]; if (!info) return;
-  const r = d * .20, bx = d * .27, by = -d * .27;
-  const pop = 1 + .10 * Math.sin(t * 7);
+  const r = d * .21, bx = d * .27, by = -d * .27;
+  const pop = 1 + .08 * Math.sin(t * 7);
   ctx.save();
   ctx.translate(bx, by); ctx.scale(pop, pop);
+
+  // bóng đổ — tách huy hiệu khỏi viên đá bên dưới
+  ctx.fillStyle = 'rgba(0,0,0,.38)';
+  ctx.beginPath(); ctx.arc(r * .10, r * .16, r, 0, TAU); ctx.fill();
+
+  // vành kim loại
   ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU);
-  ctx.fillStyle = '#fffbe8'; ctx.fill();
-  ctx.strokeStyle = info.ring; ctx.lineWidth = r * .28; ctx.stroke();
-  ctx.strokeStyle = info.colour; ctx.lineWidth = r * .16; ctx.stroke();
-  ctx.strokeStyle = info.ring; ctx.lineWidth = r * .22; ctx.lineCap = 'round';
+  const ring = ctx.createLinearGradient(0, -r, 0, r);
+  ring.addColorStop(0, shade(info.colour, .55));
+  ring.addColorStop(.5, info.colour);
+  ring.addColorStop(1, shade(info.ring, .10));
+  ctx.fillStyle = ring; ctx.fill();
+  ctx.strokeStyle = info.ring; ctx.lineWidth = r * .17; ctx.stroke();
+
+  // mặt trong sáng, hơi lõm
+  ctx.beginPath(); ctx.arc(0, 0, r * .70, 0, TAU);
+  // mặt trong luôn màu kem, KHÔNG ăn theo màu huy hiệu — nếu ăn theo thì sao
+  // xanh nằm trên nền xanh, đồng vàng nằm trên nền vàng, nhìn không ra hình gì.
+  const face = ctx.createLinearGradient(0, -r * .7, 0, r * .7);
+  face.addColorStop(0, '#fffdf3'); face.addColorStop(1, '#f2e2bc');
+  ctx.fillStyle = face; ctx.fill();
+  ctx.strokeStyle = rgba('#000000', .28); ctx.lineWidth = r * .07; ctx.stroke();
+
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   if (tk === TOKEN.CLOCK) {
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -r * .48); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(r * .40, r * .22); ctx.stroke();
+    ctx.strokeStyle = info.ring; ctx.lineWidth = r * .13;
+    for (let i = 0; i < 4; i++) {                       // vạch giờ
+      const a = i * Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(a) * r * .56, Math.sin(a) * r * .56);
+      ctx.lineTo(Math.cos(a) * r * .44, Math.sin(a) * r * .44);
+      ctx.stroke();
+    }
+    ctx.lineWidth = r * .17;
+    ctx.beginPath(); ctx.moveTo(0, r * .04); ctx.lineTo(0, -r * .40); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, r * .04); ctx.lineTo(r * .32, r * .18); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, r * .02, r * .09, 0, TAU); ctx.fillStyle = info.ring; ctx.fill();
   } else if (tk === TOKEN.COIN) {
-    ctx.fillStyle = info.colour;
-    ctx.beginPath(); ctx.arc(0, 0, r * .46, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(0, 0, r * .46, 0, TAU);
+    const cg = ctx.createLinearGradient(0, -r * .5, 0, r * .5);
+    cg.addColorStop(0, shade(info.colour, .45)); cg.addColorStop(1, shade(info.colour, -.18));
+    ctx.fillStyle = cg; ctx.fill();
+    ctx.strokeStyle = info.ring; ctx.lineWidth = r * .13; ctx.stroke();
+    ctx.strokeStyle = rgba('#ffffff', .75); ctx.lineWidth = r * .08;
+    ctx.beginPath(); ctx.arc(0, 0, r * .26, Math.PI * .9, Math.PI * 1.75); ctx.stroke();
   } else {
-    ctx.fillStyle = info.colour;
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {
-      const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .24 : r * .55;
+      const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r * .24 : r * .56;
       i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
     }
-    ctx.closePath(); ctx.fill();
+    ctx.closePath();
+    const sg = ctx.createLinearGradient(0, -r * .56, 0, r * .56);
+    sg.addColorStop(0, shade(info.colour, .50)); sg.addColorStop(1, shade(info.colour, -.20));
+    ctx.fillStyle = sg; ctx.fill();
+    ctx.strokeStyle = info.ring; ctx.lineWidth = r * .13; ctx.lineJoin = 'round'; ctx.stroke();
   }
+  // chớp sáng trên vành
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  ctx.beginPath(); ctx.ellipse(-r * .34, -r * .58, r * .30, r * .13, -.5, 0, TAU); ctx.fill();
   ctx.restore();
 }
 
@@ -282,14 +403,14 @@ function drawSpecialMark(ctx, sp, d, t, g) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     if (!horiz) ctx.rotate(Math.PI / 2);
-    const L = d * .46, th = d * .17;
-    // thân luồng
+    const L = d * .42, th = d * .105;
+    // thân luồng — hai đầu ăn theo màu họ gem, chỉ lõi giữa mới trắng
     const bg = ctx.createLinearGradient(-L, 0, L, 0);
-    bg.addColorStop(0, 'rgba(255,240,190,0)');
-    bg.addColorStop(.22, `rgba(255,236,160,${.55 * pulse})`);
-    bg.addColorStop(.5,  `rgba(255,255,255,${.92 * pulse})`);
-    bg.addColorStop(.78, `rgba(255,236,160,${.55 * pulse})`);
-    bg.addColorStop(1, 'rgba(255,240,190,0)');
+    bg.addColorStop(0, rgba(g.lite, 0));
+    bg.addColorStop(.20, rgba(g.lite, .70 * pulse));
+    bg.addColorStop(.5,  `rgba(255,255,255,${.72 * pulse})`);
+    bg.addColorStop(.80, rgba(g.lite, .70 * pulse));
+    bg.addColorStop(1, rgba(g.lite, 0));
     ctx.fillStyle = bg;
     ctx.beginPath();
     ctx.moveTo(-L, 0);
@@ -300,19 +421,18 @@ function drawSpecialMark(ctx, sp, d, t, g) {
     ctx.closePath(); ctx.fill();
     // vệt sáng chạy dọc luồng
     const run = ((t * 1.7) % 1) * 2 - 1;
-    const sg = ctx.createRadialGradient(run * L, 0, 0, run * L, 0, d * .22);
-    sg.addColorStop(0, 'rgba(255,255,255,.95)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
+    const sg = ctx.createRadialGradient(run * L, 0, 0, run * L, 0, d * .18);
+    sg.addColorStop(0, 'rgba(255,255,255,.9)'); sg.addColorStop(1, 'rgba(255,255,255,0)');
     ctx.fillStyle = sg;
-    ctx.beginPath(); ctx.ellipse(run * L, 0, d * .22, th * .9, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(run * L, 0, d * .18, th * .9, 0, 0, TAU); ctx.fill();
     // mũi tên hai đầu
-    ctx.strokeStyle = `rgba(255,255,255,${.95 * pulse})`;
-    ctx.lineWidth = d * .055; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = d * .050; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const sgn of [-1, 1]) {
       ctx.beginPath();
-      ctx.moveTo(sgn * (L - d * .17), -d * .11);
+      ctx.moveTo(sgn * (L - d * .15), -d * .10);
       ctx.lineTo(sgn * L, 0);
-      ctx.lineTo(sgn * (L - d * .17), d * .11);
-      ctx.stroke();
+      ctx.lineTo(sgn * (L - d * .15), d * .10);
+      ctx.strokeStyle = `rgba(255,255,255,${.95 * pulse})`; ctx.stroke();
     }
     ctx.restore();
   };
@@ -324,12 +444,12 @@ function drawSpecialMark(ctx, sp, d, t, g) {
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.rotate(t * .9);
-    const rg = ctx.createRadialGradient(0, 0, d * .04, 0, 0, d * .22);
-    rg.addColorStop(0, `rgba(255,255,255,${pulse})`);
-    rg.addColorStop(1, 'rgba(255,220,140,0)');
-    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0, 0, d * .22, 0, TAU); ctx.fill();
-    ctx.strokeStyle = `rgba(255,246,200,${.8 * pulse})`; ctx.lineWidth = d * .026;
-    ctx.beginPath(); ctx.arc(0, 0, d * .155, 0, TAU); ctx.stroke();
+    const rg = ctx.createRadialGradient(0, 0, d * .03, 0, 0, d * .17);
+    rg.addColorStop(0, `rgba(255,255,255,${.9 * pulse})`);
+    rg.addColorStop(1, rgba(g.lite, 0));
+    ctx.fillStyle = rg; ctx.beginPath(); ctx.arc(0, 0, d * .17, 0, TAU); ctx.fill();
+    ctx.strokeStyle = rgba(g.spark, .8 * pulse); ctx.lineWidth = d * .024;
+    ctx.beginPath(); ctx.arc(0, 0, d * .125, 0, TAU); ctx.stroke();
     ctx.restore();
   }
   ctx.restore();

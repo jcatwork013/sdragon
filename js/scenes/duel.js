@@ -4,7 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rand, rgba, shade, strokeText, roundRect, poly } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, textBtn, card, glassPanel, roundBtn, icon, C, FONT } from '../ui/widgets.js';
+import { Hit, textBtn, card, glassPanel, roundBtn, icon, matIcon, C, FONT } from '../ui/widgets.js';
 import { MOVES, beats, makeFoe, heroPower } from '../data/duel.js';
 import { Enemy, ENEMIES } from '../game/enemy.js';
 import { BREEDS, stageFor } from '../data/characters.js';
@@ -318,9 +318,7 @@ export default {
       list.forEach(([id, n], i) => {
         const m = MATS[id]; if (!m) return;
         const x = W / 2 - wRow / 2 + i * 96 + 48;
-        ctx.beginPath(); ctx.arc(x - 18, 352, 13, 0, TAU);
-        ctx.fillStyle = m.col; ctx.fill();
-        ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 2.5; ctx.stroke();
+        ctx.save(); ctx.translate(x - 18, 352); matIcon(ctx, id, 30, m.col); ctx.restore();
         strokeText(ctx, '+' + n, x + 6, 352,
           { font: FONT.disp(20), fill: '#fff', stroke: '#1a0f30', lw: 4, baseline: 'middle' });
       });

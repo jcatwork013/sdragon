@@ -20,7 +20,7 @@ export const ORB = [
   { id: 'lam2', base: '#1ed2d8', lite: '#c6ffff', dark: '#065a63', spark: '#e6ffff', rune: 'wave'   },
 ];
 
-const SPRITE = 128;
+const SPRITE = 160;
 const cache = [];
 
 /** Vẽ sẵn từng loại viên đá ra ảnh — bắn nhiều viên vẫn không tốn thêm gì. */
@@ -29,44 +29,76 @@ export function buildOrbSprites() {
   for (const o of ORB) {
     const c = makeCanvas(SPRITE, SPRITE);
     const x = c.getContext('2d');
-    const R = SPRITE * .46, cx = SPRITE / 2, cy = SPRITE / 2;
-
-    x.beginPath(); x.arc(cx, cy, R, 0, TAU);
-    const g = x.createRadialGradient(cx - R * .34, cy - R * .40, R * .10, cx, cy, R);
-    g.addColorStop(0, o.lite); g.addColorStop(.45, o.base); g.addColorStop(1, o.dark);
-    x.fillStyle = g; x.fill();
-    x.strokeStyle = rgba(o.dark, .9); x.lineWidth = R * .11; x.stroke();
-
-    // vân khắc — mỗi màu một ký hiệu, phân biệt được cả khi mù màu
-    x.save();
+    const R = SPRITE * .44, cx = SPRITE / 2, cy = SPRITE / 2;
     x.translate(cx, cy);
-    x.strokeStyle = rgba('#ffffff', .78); x.fillStyle = rgba('#ffffff', .78);
-    x.lineWidth = R * .13; x.lineCap = 'round'; x.lineJoin = 'round';
-    const r = R * .46;
-    if (o.rune === 'ring') { x.beginPath(); x.arc(0, 0, r * .8, 0, TAU); x.stroke(); }
-    if (o.rune === 'bolt') { x.beginPath(); x.moveTo(r * .3, -r); x.lineTo(-r * .4, r * .1);
-                             x.lineTo(r * .2, r * .1); x.lineTo(-r * .3, r); x.stroke(); }
-    if (o.rune === 'cross') { x.beginPath(); x.moveTo(-r, 0); x.lineTo(r, 0);
-                              x.moveTo(0, -r); x.lineTo(0, r); x.stroke(); }
-    if (o.rune === 'sun') { x.beginPath(); x.arc(0, 0, r * .42, 0, TAU); x.fill();
-                            for (let i = 0; i < 8; i++) { const a = i / 8 * TAU;
-                              x.beginPath(); x.moveTo(Math.cos(a) * r * .68, Math.sin(a) * r * .68);
-                              x.lineTo(Math.cos(a) * r, Math.sin(a) * r); x.stroke(); } }
-    if (o.rune === 'leaf') { x.beginPath(); x.moveTo(0, -r);
-                             x.quadraticCurveTo(r, -r * .1, 0, r);
-                             x.quadraticCurveTo(-r, -r * .1, 0, -r); x.stroke(); }
-    if (o.rune === 'wave') { x.beginPath(); x.moveTo(-r, -r * .3);
-                             x.quadraticCurveTo(-r * .3, -r, r * .3, -r * .3);
-                             x.quadraticCurveTo(r * .7, r * .1, r, -r * .3);
-                             x.moveTo(-r, r * .5); x.quadraticCurveTo(-r * .3, -r * .2, r * .3, r * .5);
-                             x.stroke(); }
+
+    // thân viên — sáng ở trên-trái, tối dần xuống dưới-phải
+    x.beginPath(); x.arc(0, 0, R, 0, TAU);
+    const g = x.createRadialGradient(-R * .36, -R * .42, R * .06, 0, 0, R * 1.06);
+    g.addColorStop(0, shade(o.lite, .30)); g.addColorStop(.42, o.base); g.addColorStop(1, o.dark);
+    x.fillStyle = g; x.fill();
+
+    // ánh phản chiếu hắt lên từ dưới — mẹo làm quả cầu ra "thuỷ tinh"
+    // chứ không phải "đĩa tròn tô gradient".
+    x.save();
+    x.beginPath(); x.arc(0, 0, R, 0, TAU); x.clip();
+    x.globalCompositeOperation = 'lighter';
+    const bounce = x.createRadialGradient(R * .18, R * .52, 0, R * .18, R * .52, R * .70);
+    bounce.addColorStop(0, rgba(o.lite, .45)); bounce.addColorStop(1, rgba(o.lite, 0));
+    x.fillStyle = bounce;
+    x.beginPath(); x.arc(R * .18, R * .52, R * .70, 0, TAU); x.fill();
     x.restore();
 
-    // chớp sáng
-    x.save(); x.globalCompositeOperation = 'lighter';
-    x.fillStyle = 'rgba(255,255,255,.55)';
-    x.beginPath(); x.ellipse(cx - R * .32, cy - R * .40, R * .26, R * .16, -.7, 0, TAU); x.fill();
+    // vân khắc — mỗi màu một ký hiệu, phân biệt được cả khi mù màu.
+    // Vẽ hai lượt: lượt tối lệch xuống làm rãnh, lượt sáng nằm trên → khắc chìm.
+    const r = R * .46;
+    const rune = () => {
+      if (o.rune === 'ring') { x.beginPath(); x.arc(0, 0, r * .8, 0, TAU); x.stroke(); }
+      if (o.rune === 'bolt') { x.beginPath(); x.moveTo(r * .3, -r); x.lineTo(-r * .4, r * .1);
+                               x.lineTo(r * .2, r * .1); x.lineTo(-r * .3, r); x.stroke(); }
+      if (o.rune === 'cross') { x.beginPath(); x.moveTo(-r, 0); x.lineTo(r, 0);
+                                x.moveTo(0, -r); x.lineTo(0, r); x.stroke(); }
+      if (o.rune === 'sun') { x.beginPath(); x.arc(0, 0, r * .40, 0, TAU); x.stroke();
+                              for (let i = 0; i < 8; i++) { const a = i / 8 * TAU;
+                                x.beginPath(); x.moveTo(Math.cos(a) * r * .66, Math.sin(a) * r * .66);
+                                x.lineTo(Math.cos(a) * r, Math.sin(a) * r); x.stroke(); } }
+      if (o.rune === 'leaf') { x.beginPath(); x.moveTo(0, -r);
+                               x.quadraticCurveTo(r, -r * .1, 0, r);
+                               x.quadraticCurveTo(-r, -r * .1, 0, -r); x.stroke(); }
+      if (o.rune === 'wave') { x.beginPath(); x.moveTo(-r, -r * .3);
+                               x.quadraticCurveTo(-r * .3, -r, r * .3, -r * .3);
+                               x.quadraticCurveTo(r * .7, r * .1, r, -r * .3);
+                               x.moveTo(-r, r * .5); x.quadraticCurveTo(-r * .3, -r * .2, r * .3, r * .5);
+                               x.stroke(); }
+    };
+    x.save();
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    x.translate(R * .045, R * .055);
+    x.strokeStyle = rgba(o.dark, .70); x.lineWidth = R * .135; rune();
     x.restore();
+    x.save();
+    x.lineCap = 'round'; x.lineJoin = 'round';
+    x.strokeStyle = rgba('#ffffff', .88); x.lineWidth = R * .115; rune();
+    x.restore();
+
+    // viền: nét tối dày ngoài + nét sáng mảnh ôm mép trên-trái
+    x.beginPath(); x.arc(0, 0, R, 0, TAU);
+    x.strokeStyle = rgba(o.dark, .95); x.lineWidth = R * .11; x.stroke();
+    x.beginPath(); x.arc(0, 0, R * .93, Math.PI * 1.02, Math.PI * 1.88);
+    x.strokeStyle = rgba(o.lite, .55); x.lineWidth = R * .07; x.stroke();
+
+    // chớp sáng: một vệt mềm rộng + một chấm sắc
+    x.save();
+    x.beginPath(); x.arc(0, 0, R * .96, 0, TAU); x.clip();
+    x.globalCompositeOperation = 'lighter';
+    const hi = x.createRadialGradient(-R * .34, -R * .40, 0, -R * .34, -R * .40, R * .44);
+    hi.addColorStop(0, 'rgba(255,255,255,.85)'); hi.addColorStop(1, 'rgba(255,255,255,0)');
+    x.fillStyle = hi;
+    x.beginPath(); x.ellipse(-R * .34, -R * .40, R * .30, R * .19, -.7, 0, TAU); x.fill();
+    x.restore();
+    x.fillStyle = 'rgba(255,255,255,.95)';
+    x.beginPath(); x.ellipse(-R * .40, -R * .46, R * .13, R * .075, -.7, 0, TAU); x.fill();
+
     cache.push(c);
   }
   return cache;

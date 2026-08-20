@@ -8,7 +8,7 @@ import { ORB, drawOrb, buildOrbSprites } from '../game/bubble.js';
 import { FX } from '../game/fx.js';
 import { bleed } from '../core/layout.js';
 
-const PAGES = 3;
+const PAGES = 4;
 const DCELL = 58, DCOLS = 5, DROWS = 3;
 const DX = 96, DY = 214;
 // Bố cục có chủ đích: kéo viên ở (cột 2, hàng 0) xuống → hàng 1 thành ba viên
@@ -83,7 +83,8 @@ export default {
 
     if (this.page === 0) this.drawPage1(G, ctx);
     else if (this.page === 1) this.drawPage2(G, ctx);
-    else this.drawPage3(G, ctx);
+    else if (this.page === 2) this.drawPage3(G, ctx);
+    else this.drawPage4(G, ctx);
 
     // chấm trang
     for (let i = 0; i < PAGES; i++) {
@@ -153,9 +154,68 @@ export default {
 
   drawPage3(G, ctx) { HELP_EXTRA.drawPage3.call(this, G, ctx); },
 
+  /**
+   * Trang 4 — chế độ GHÉP ĐÔI.
+   *
+   * Chế độ này xen vào hành trình 7 màn một lần mà trang hướng dẫn không hề
+   * nhắc tới, nên người chơi gặp nó lần đầu là ngơ ngác. Vẽ luôn mấy tấm thẻ
+   * mẫu: nhìn hình dễ hiểu hơn đọc chữ nhiều lần.
+   */
+  drawPage4(G, ctx) {
+    const { W } = G;
+    const M = Math.max(56, Math.round(W * .052));
+    strokeText(ctx, t('htPairT'), W / 2, 118,
+      { font: FONT.disp(28), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, baseline: 'middle' });
+
+    // ba tấm thẻ mẫu: hai úp, một ngửa
+    const cw = 96, ch = 112, gap = 26;
+    const total = cw * 3 + gap * 2, sx = W / 2 - total / 2, sy = 168;
+    const card = (i, up) => {
+      const x = sx + i * (cw + gap);
+      roundRect(ctx, x, sy + 7, cw, ch, 16);
+      ctx.fillStyle = up ? '#6b4a9a' : '#2a2140'; ctx.fill();
+      roundRect(ctx, x, sy, cw, ch, 16);
+      const g = ctx.createLinearGradient(0, sy, 0, sy + ch);
+      if (up) { g.addColorStop(0, '#fff6e2'); g.addColorStop(1, '#dcc8f0'); }
+      else { g.addColorStop(0, '#5a4a86'); g.addColorStop(1, '#312452'); }
+      ctx.fillStyle = g; ctx.fill();
+      ctx.strokeStyle = up ? '#8a5fd0' : '#1d1633'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.save(); roundRect(ctx, x, sy, cw, ch, 16); ctx.clip();
+      ctx.fillStyle = 'rgba(255,255,255,.30)';
+      roundRect(ctx, x + cw * .10, sy + ch * .07, cw * .80, ch * .22, 10); ctx.fill();
+      if (up) drawGem(ctx, 4, x + cw / 2, sy + ch * .54, cw * .68, { t: this.t, seed: i });
+      else {
+        ctx.strokeStyle = 'rgba(190,165,255,.34)'; ctx.lineWidth = cw * .045; ctx.lineCap = 'round';
+        for (let k = -2; k <= 2; k++) {
+          ctx.beginPath();
+          ctx.moveTo(x + cw * .24, sy + ch / 2 + k * 18 + 10);
+          ctx.lineTo(x + cw / 2, sy + ch / 2 + k * 18 - 4);
+          ctx.lineTo(x + cw * .76, sy + ch / 2 + k * 18 + 10);
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    };
+    card(0, true); card(1, false); card(2, true);
+
+    const rows = [t('htPair1'), t('htPair2'), t('htPair3')];
+    rows.forEach((txt, i) => {
+      const y = 330 + i * 78;
+      glassPanel(ctx, M, y, W - M * 2, 64, 16);
+      strokeText(ctx, String(i + 1), M + 34, y + 32,
+        { font: FONT.disp(26), fill: '#ffd23f', stroke: '#3a2000', lw: 4, baseline: 'middle' });
+      wrapText(ctx, txt, M + 66, y + 22, W - M * 2 - 100, 22, FONT.ui(16, 600), '#e6dcff');
+    });
+  },
+
   // ── Trang 2: đá đặc biệt · bảng chỉ số · kỹ năng ─────────────────────────
   drawPage2(G, ctx) {
-    const L = 70, R = 690, colW = 520;
+    // Cột đóng đinh 70/690/520 chỉ vừa đúng màn 1280. Máy rộng hơn thì cột
+    // phải tràn qua mép, máy hẹp hơn thì chữ bị bóp. Tính theo bề ngang thật.
+    const { W: WW } = G;
+    const M = Math.max(56, Math.round(WW * .052)), GAP = Math.round(WW * .03);
+    const colW = Math.round((WW - M * 2 - GAP) / 2);
+    const L = M, R = M + colW + GAP;
 
     strokeText(ctx, t('htSpecialT'), L, 118,
       { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
@@ -238,15 +298,16 @@ Object.assign(HELP_EXTRA, {
     ctx.strokeStyle = '#3f2a15'; ctx.lineWidth = 4; ctx.stroke();
     drawOrb(ctx, 2, lx, ly, D);
 
-    const px = 690, pw = W - px - 60;
+    const M3 = Math.max(56, Math.round(W * .052));
+    const px = Math.round(W * .54), pw = W - px - M3;
     glassPanel(ctx, px, 168, pw, 170, 18);
     wrapText(ctx, t('htShootD'), px + 22, 202, pw - 44, 24, FONT.ui(16, 600), '#e6dcff');
 
     glassPanel(ctx, px, 360, pw, 92, 18);
     wrapText(ctx, t('htTokenD'), px + 22, 392, pw - 44, 22, FONT.ui(15, 600), '#e6dcff');
 
-    glassPanel(ctx, 250, 470, W - 310, 92, 18);
-    wrapText(ctx, t('htTimeD'), 272, 502, W - 354, 22, FONT.ui(15, 600), '#ffd9a0');
+    glassPanel(ctx, M3, 470, W - M3 * 2, 92, 18);
+    wrapText(ctx, t('htTimeD'), M3 + 22, 502, W - M3 * 2 - 44, 22, FONT.ui(15, 600), '#ffd9a0');
   },
 });
 

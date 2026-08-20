@@ -122,6 +122,7 @@ run('10 · Hướng dẫn tr1', 40, 'sc10_help1.png', () => { G.go('help', 'map'
 run('11 · Hướng dẫn tr2', 20, 'sc11_help2.png', () => { G.scene.page = 1; });
 run('12 · Dạy màn 1',    60, 'sc12_tutor.png', () => { G.save.seenTut = false; G.startLevel(0); });
 
+run('15b · Hướng dẫn tr4', 30, 'sc15b_help4.png', () => { G.go('help', 'title'); G.scene.page = 3; });
 run('15 · Hướng dẫn tr3', 30, 'sc15_help3.png', () => { G.go('help','map'); G.scene.page = 2; });
 run('13 · Bắn Đá',       90, 'sc13_shoot.png', () => { G.save.unlocked=24; G.startLevel(18, true); });
 run('14 · Bắn Đá đang bay', 30, 'sc14_shootfly.png', () => {

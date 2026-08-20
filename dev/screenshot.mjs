@@ -53,6 +53,7 @@ const errors = [];
 process.on('uncaughtException', e => { console.error('UNCAUGHT:', e.stack.split('\n').slice(0,4).join('\n')); errors.push('uncaught: ' + e.message); });
 
 const ROOT = new URL('../js/', import.meta.url).href;
+const { SHOP: SHOPI } = await import(ROOT + 'data/gear.js');
 await import(ROOT + 'main.js');
 await new Promise(r => setTimeout(r, 120));            // chờ boot() xong
 const G = globalThis.window.SDRAKON || globalThis.SDRAKON;
@@ -135,6 +136,11 @@ run('25c · Thua (băng bó)',60,'sc25c_duellose.png', () => { G.go('duel', { af
 run('27 · Chọn ngôn ngữ', 30, 'sc27_lang.png', () => { G.go('map'); G.askLang(); });
 run('28 · Cửa hàng',  40, 'sc28_shop.png', () => { G.save.gold=5200; G.save.owned={sh_helm2:1,sh_scf3:1};
   G.save.equip={helm:'sh_helm2',scarf:'sh_scf3',armor:null,weapon:null}; G.go('shop', { after(){} }); });
+run('28b · Xác nhận mua', 20, 'sc28b_buy.png', () => { G.save.gold=5200;
+  G.go('shop', { after(){} }); G.scene.askBuy(G, SHOPI.find(x=>x.id==='sh_helm4')); });
+run('28c · Tủ đồ', 20, 'sc28c_bag.png', () => { G.save.gold=1240;
+  G.save.owned={sh_helm2:1,sh_helm3:1,sh_helm4:1}; G.save.equip={helm:'sh_helm3'};
+  G.go('shop', { after(){}, mode:'bag' }); });
 run('26 · Bản đồ thế giới', 40, 'sc26_world.png', () => { G.save.unlocked=20; G.go('world', { after: () => {} }); });
 run('17 · Búa giáng',  1, 'sc17_hammer.png', () => { G.startLevel(2); G.scene.skillFx = { kind:'hammer', t:.235, dur:.78, x:640, y:340 }; });
 run('18 · Lửa quét',   1, 'sc18_fire.png',   () => { G.startLevel(2); G.scene.skillFx = { kind:'fire', t:.40, dur:.95, row:4, y:400 }; });

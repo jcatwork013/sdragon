@@ -5,7 +5,7 @@ import { TAU, clamp, lerp, ease, rand, randInt, rgba, shade, strokeText, roundRe
 import { t, tx } from '../core/i18n.js';
 import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT, resultBanner, frostCard } from '../ui/widgets.js';
 import { Board } from '../game/board.js';
-import { GEMS, SP, TOKEN } from '../game/gems.js';
+import { GEMS, SP, TOKEN, ensureGemSprites } from '../game/gems.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
 import { Enemy, ENEMIES, ATK } from '../game/enemy.js';
 import { playLayout, bleed } from '../core/layout.js';
@@ -24,8 +24,11 @@ const ENEMY_Y = 82;                       // hàng thiên địch nằm ngay tr�
 // bàn cờ luôn ở giữa, thẻ nhân vật bám mép trái, bảng HUD bám mép phải.
 let BX = 398, BY = 136, FX_ = 384, FY_ = 122;
 let CARDX = 24, STRIPX = 292, HUDX = 950, HUDW = 306, COMPACT = false;
-function relayout(W) {
+function relayout(W, dpr = 1.5) {
   CELL = W < 1240 ? 56 : 62;
+  // Dựng sprite đá quý đúng bằng số điểm ảnh THẬT một viên chiếm — vẽ 1:1 thì
+  // mới sắc; để sprite cỡ cố định rồi co giãn là nhoè hết nét giác cắt.
+  ensureGemSprites(CELL * 1.02 * dpr);
   FW = COLS * CELL + 28; FH = ROWS * CELL + 28;
   const L = playLayout(W, FW, FH);
   FX_ = L.boardX; FY_ = 122;
@@ -37,7 +40,7 @@ export default {
   name: 'play',
 
   enter(G) {
-    relayout(G.W);
+    relayout(G.W, G.dpr);
     const L = G.level;
     this.t = 0;
     this.score = 0; this.gold = 0; this.movesLeft = L.moves;

@@ -39,7 +39,11 @@ const SHAPES = {
   trillion: [[0,-1],[.5,-.29],[.87,.5],[0,.58],[-.87,.5],[-.5,-.29]],
 };
 
-const SPRITE = 192;          // độ phân giải render sẵn — dư cho ô 80px @2x DPR
+// Độ phân giải sprite. KHÔNG để cố định: sprite dựng ở một cỡ rồi vẽ ra ở cỡ
+// khác thì trình duyệt phải nội suy lại, và mọi nét giác cắt mảnh đều nhoè
+// thành một mảng mờ. ensureGemSprites() dựng lại đúng bằng số điểm ảnh THẬT
+// mà một viên chiếm trên màn hình, nên vẽ ra là 1:1, không nội suy.
+let SPRITE = 192;
 const LIGHT  = -Math.PI * 0.72;   // hướng nguồn sáng (trên-trái)
 /**
  * Vẽ 1 viên đá cắt giác kiểu "brilliant": bóng đổ → thân → đáy (pavilion) →
@@ -118,7 +122,7 @@ function renderGem(ctx, g, R) {
     ctx.fill();
   }
   // gân giác — nét mảnh sáng dọc các cạnh giác, thứ làm đá "sắc"
-  ctx.strokeStyle = rgba('#ffffff', .22); ctx.lineWidth = R * .022;
+  ctx.strokeStyle = rgba('#ffffff', .30); ctx.lineWidth = R * .028;
   ctx.beginPath();
   for (let i = 0; i < n; i++) {
     ctx.moveTo(pts[i][0], pts[i][1]); ctx.lineTo(mid[i][0], mid[i][1]);
@@ -170,13 +174,27 @@ function renderGem(ctx, g, R) {
 
   // ── viền ngoài: nét tối dày + nét màu mảnh phía trong ───────────────────
   poly(ctx, pts);
-  ctx.strokeStyle = rgba('#000000', .55); ctx.lineWidth = R * .085;
+  ctx.strokeStyle = rgba('#000000', .70); ctx.lineWidth = R * .095;
   ctx.lineJoin = 'round'; ctx.stroke();
-  ctx.strokeStyle = rgba(g.lite, .62);   ctx.lineWidth = R * .030; ctx.stroke();
+  ctx.strokeStyle = rgba(g.lite, .80);   ctx.lineWidth = R * .036; ctx.stroke();
 }
 
 /** Cache sprite — build 1 lần lúc khởi động. */
 const cache = [];
+
+/**
+ * Dựng lại bộ sprite cho khớp cỡ hiển thị thật.
+ * @param px số điểm ảnh THIẾT BỊ mà một viên chiếm (cạnh ô × devicePixelRatio)
+ */
+export function ensureGemSprites(px) {
+  const want = clamp(Math.round(px), 96, 384);
+  // Lệch dưới 12% thì giữ nguyên — dựng lại liên tục còn tốn hơn là nhoè.
+  if (cache.length && Math.abs(want - SPRITE) / SPRITE < 0.12) return cache;
+  SPRITE = want;
+  cache.length = 0;
+  return buildGemSprites();
+}
+
 export function buildGemSprites() {
   if (cache.length) return cache;
   for (const g of GEMS) {

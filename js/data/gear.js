@@ -137,6 +137,13 @@ export const shopStock = (ev = eventNow()) => SHOP.filter(g => !g.event || g.eve
 export const ALL_GEAR = [...RECIPES, ...SHOP];
 export const recipeById = (id) => ALL_GEAR.find(r => r.id === id) || null;
 
+/**
+ * Giá bán lại — 40% giá mua. Cố ý lỗ nặng: mua nhầm thì phải xót, nếu không
+ * người chơi cứ mua bừa rồi bán, tiền mất giá và mọi lựa chọn thành vô nghĩa.
+ */
+export const SELL_RATE = 0.40;
+export const sellPrice = (g) => Math.max(1, Math.round((g.price || 0) * SELL_RATE));
+
 /** Tổng aura: mỗi món bậc 4 đang mặc góp một vầng sáng. */
 export function auraOf(save) {
   const cols = [];

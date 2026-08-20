@@ -236,6 +236,7 @@ function resize() {
   canvas.style.height = Math.round(CH * s) + 'px';
   canvas.width = Math.round(CW * dpr);
   canvas.height = Math.round(CH * dpr);
+  G.dpr = dpr;                       // scene cần biết để dựng sprite đúng cỡ thật
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.imageSmoothingQuality = 'high';
   G.scale = s;

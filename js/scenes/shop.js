@@ -11,7 +11,7 @@
 import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, card, glassPanel, roundBtn, icon, frostCard, pillTag, C, FONT } from '../ui/widgets.js';
-import { SLOTS, SHOP, shopStock, eventNow, recipeById, gearBonus } from '../data/gear.js';
+import { SLOTS, SHOP, shopStock, eventNow, recipeById, gearBonus, sellPrice } from '../data/gear.js';
 import { BREEDS, stageFor } from '../data/characters.js';
 import { bleed } from '../core/layout.js';
 
@@ -26,8 +26,11 @@ export default {
     this.after = arg.after || (() => G.go('nest'));
     this.t = 0;
     this.slot = 'helm';
+    this.mode = arg.mode === 'bag' ? 'bag' : 'shop';   // cửa hàng | tủ đồ
+    this.ask = null;                                   // hộp xác nhận mua/bán
     this.toast = null; this.toastT = 0;
     this.preview = { ...(G.save.equip || {}) };
+    this.G = G;
     this.build(G);
     G.music('nest');
   },
@@ -38,6 +41,10 @@ export default {
     this.PW = Math.min(W - this.PX - 24, 640);
     this.hits = [
       new Hit('back', 24, H - 82, 150, 56, { act: () => { G.sfx('button'); this.after(); } }),
+      new Hit('m_shop', this.PX, 34, 150, 44,
+        { act: () => { this.mode = 'shop'; G.sfx('select'); this.build(G); } }),
+      new Hit('m_bag', this.PX + 158, 34, 150, 44,
+        { act: () => { this.mode = 'bag'; G.sfx('select'); this.build(G); } }),
       ...SLOTS.map((sl, i) => new Hit('tab_' + sl.id, this.PX + i * 116, 92, 108, 46,
         { act: () => { this.slot = sl.id; G.sfx('select'); this.build(G); } })),
     ];
@@ -45,22 +52,31 @@ export default {
     list.forEach((g, i) => {
       const col = i % 2, row = (i / 2) | 0;
       const x = this.PX + col * (this.PW / 2), y = 156 + row * 104;
-      this.hits.push(new Hit('it_' + g.id, x, y, this.PW / 2 - 12, 94, { act: () => this.tap(G, g) }));
+      const w = this.PW / 2 - 12;
+      this.hits.push(new Hit('it_' + g.id, x, y, w, 94, { act: () => this.tap(G, g) }));
+      // Trong tủ đồ mỗi món có nút BÁN riêng — gộp bán vào cùng chỗ bấm để
+      // mặc thì sớm muộn cũng có người lỡ tay bán mất món đang dùng.
+      if (this.mode === 'bag' && g.price)
+        this.hits.push(new Hit('sell_' + g.id, x + w - 84, y + 58, 72, 28,
+          { act: () => this.askSell(G, g) }));
     });
   },
 
-  stock() { return shopStock().filter(g => g.slot === this.slot); },
+  stock() {
+    if (this.mode === 'bag') {
+      const own = this.G?.save?.owned || {};
+      return SHOP.filter(g => g.slot === this.slot && own[g.id]);
+    }
+    return shopStock().filter(g => g.slot === this.slot);
+  },
 
-  /** Chưa mua → mua. Đã mua → mặc vào (bấm lại thì cởi ra). */
+  /** Chưa mua → HỎI trước khi trừ tiền. Đã mua → mặc vào (bấm lại thì cởi). */
   tap(G, g) {
     const S = G.save;
     S.owned = S.owned || {};
     if (!S.owned[g.id]) {
       if (S.gold < g.price) { this.say(G, t('shopPoor'), '#ff9aa8'); G.sfx('invalid'); return; }
-      S.gold -= g.price; S.owned[g.id] = true;
-      G.persist(); G.sfx('levelup');
-      G.fx.sparkle(G.W * .16, G.H * .52, '#ffd23f', 22);
-      this.say(G, t('shopBought', { n: tx(g, 'name') }), '#8ef08a');
+      this.askBuy(G, g);
       return;
     }
     S.equip = S.equip || {};
@@ -68,6 +84,51 @@ export default {
     this.preview = { ...S.equip };
     G.persist(); G.sfx('button'); G.sess.gearAt = performance.now();
     if (g.aura && S.equip[g.slot] === g.id) G.fx.ring(G.W * .16, G.H * .52, g.aura, 10, 220, .5, 14);
+  },
+
+  /**
+   * Hộp xác nhận. Tiền là thứ khó lấy lại nhất trong game, nên mọi thao tác
+   * đụng tới hầu bao đều phải hỏi một câu — kể cả bán, vì bán xong mua lại
+   * còn lỗ hơn (bán 40%, mua 100%).
+   */
+  openAsk(G, kind, g, amount) {
+    const W = G.W, H = G.H, bw = 460, bh = 250;
+    const x = (W - bw) / 2, y = (H - bh) / 2;
+    this.ask = {
+      kind, g, amount, x, y, w: bw, h: bh, t: 0,
+      hits: [
+        new Hit('shade', 0, 0, W, H, { act: () => {} }),   // nuốt mọi cú bấm ra ngoài
+        new Hit('ok', x + 36, y + bh - 78, 176, 54, { act: () => this.confirm(G) }),
+        new Hit('no', x + bw - 212, y + bh - 78, 176, 54,
+          { act: () => { G.sfx('button'); this.ask = null; this.build(G); } }),
+      ],
+    };
+    this.hits = this.ask.hits;
+  },
+  askBuy(G, g)  { G.sfx('select'); this.openAsk(G, 'buy', g, g.price); },
+  askSell(G, g) { G.sfx('select'); this.openAsk(G, 'sell', g, sellPrice(g)); },
+
+  confirm(G) {
+    const A = this.ask; if (!A) return;
+    const S = G.save, g = A.g;
+    if (A.kind === 'buy') {
+      if (S.gold < g.price) { this.say(G, t('shopPoor'), '#ff9aa8'); G.sfx('invalid'); this.ask = null; return; }
+      S.gold -= g.price; S.owned[g.id] = true;
+      G.persist(); G.sfx('levelup');
+      G.fx.sparkle(G.W * .16, G.H * .52, '#ffd23f', 22);
+      this.say(G, t('shopBought', { n: tx(g, 'name') }), '#8ef08a');
+    } else {
+      // Đang mặc thì cởi ra trước, kẻo bán rồi mà ô trang bị vẫn trỏ vào món
+      // không còn trong tủ.
+      if (S.equip?.[g.slot] === g.id) S.equip[g.slot] = null;
+      delete S.owned[g.id];
+      S.gold += A.amount;
+      this.preview = { ...S.equip };
+      G.persist(); G.sfx('coin');
+      this.say(G, t('shopSold', { n: tx(g, 'name'), g: A.amount }), '#ffe066');
+    }
+    this.ask = null;
+    this.build(G);
   },
 
   say(G, msg, col) { this.toast = { msg, col }; this.toastT = 2.2; },
@@ -86,9 +147,6 @@ export default {
     const { W, H } = G, S = G.save;
     G.world.draw(ctx);
     ctx.fillStyle = 'rgba(20,12,42,.52)'; ctx.fillRect(...bleed(G));
-
-    strokeText(ctx, t('shop'), W / 2, 44,
-      { font: FONT.disp(34), fill: '#ffe066', stroke: '#3a1d6e', lw: 7, baseline: 'middle' });
 
     // ── túi vàng ────────────────────────────────────────────────────────
     glassPanel(ctx, 24, 22, 200, 56, 16);
@@ -112,6 +170,17 @@ export default {
       strokeText(ctx, k, 60, yy, { font: FONT.ui(13, 700), fill: '#12324e', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
       strokeText(ctx, '+' + v, this.PX - 72, yy, { font: FONT.disp(16), fill: '#1d6b24', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
     });
+
+    // ── thẻ chế độ: Cửa hàng / Tủ đồ ────────────────────────────────────
+    for (const [id, lbl] of [['m_shop', t('shop')], ['m_bag', t('bag')]]) {
+      const h = this.hits.find(x2 => x2.id === id); if (!h) continue;
+      const on = (id === 'm_shop') === (this.mode === 'shop');
+      roundRect(ctx, h.x, h.y, h.w, h.h, 14);
+      ctx.fillStyle = on ? 'rgba(140,95,214,.95)' : 'rgba(18,11,36,.72)'; ctx.fill();
+      ctx.strokeStyle = on ? '#cfa8ff' : 'rgba(255,255,255,.22)'; ctx.lineWidth = 2.4; ctx.stroke();
+      strokeText(ctx, lbl, h.x + h.w / 2, h.y + h.h / 2,
+        { font: FONT.disp(19), fill: on ? '#fff' : '#b0a4d0', stroke: on ? '#3b2263' : null, lw: on ? 4 : 0, baseline: 'middle', shadow: null });
+    }
 
     // ── thẻ ô trang bị ──────────────────────────────────────────────────
     SLOTS.forEach((sl, i) => {
@@ -171,7 +240,24 @@ export default {
         { font: FONT.disp(19), fill: '#fff', stroke: '#12060f', lw: 4, align: 'left', baseline: 'middle' });
       strokeText(ctx, tx({ name: TIER_NAME[g.tier], name_en: TIER_NAME_EN[g.tier] }, 'name'), h.x + 92, y + 50,
         { font: FONT.ui(12, 800), fill: tc, stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
-      const bonus = Object.entries(g.add).map(([k, v]) => `${t('st_' + k)}+${v}`).join('  ');
+      // nút BÁN — chỉ có trong tủ đồ
+      const sh = this.hits.find(x2 => x2.id === 'sell_' + g.id);
+      if (sh) {
+        roundRect(ctx, sh.x, sh.y + sh.press * 2, sh.w, sh.h, 15);
+        ctx.fillStyle = 'rgba(200,70,50,.92)'; ctx.fill();
+        ctx.strokeStyle = '#ff9a7a'; ctx.lineWidth = 2; ctx.stroke();
+        strokeText(ctx, `${t('sell')} ${sellPrice(g)}`, sh.x + sh.w / 2, sh.y + sh.h / 2 + sh.press * 2,
+          { font: FONT.ui(12, 800), fill: '#fff', stroke: '#4a0f00', lw: 3, baseline: 'middle', shadow: null });
+      }
+
+      // Trong tủ đồ có nút Bán chiếm góc phải → cắt bớt dòng chỉ số cho khỏi đè.
+      let bonus = Object.entries(g.add).map(([k, v]) => `${t('st_' + k)}+${v}`).join('  ');
+      if (sh) {
+        ctx.font = FONT.ui(12, 700);
+        const room = sh.x - (h.x + 92) - 10;
+        while (bonus.length > 4 && ctx.measureText(bonus + '…').width > room) bonus = bonus.slice(0, -1);
+        if (ctx.measureText(Object.entries(g.add).map(([k, v]) => `${t('st_' + k)}+${v}`).join('  ')).width > room) bonus += '…';
+      }
       strokeText(ctx, bonus, h.x + 92, y + 72,
         { font: FONT.ui(12, 700), fill: '#cfe6ff', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
 
@@ -201,6 +287,37 @@ export default {
     const b = this.hits.find(h => h.id === 'back');
     if (b) textBtn(ctx, b.x, b.y, b.w, b.h, t('back'),
       { press: b.press, hover: b.hover, colour: '#5b5f74', dark: '#33374a', lite: '#9aa0b6', font: FONT.disp(20) });
+
+    // ── HỘP XÁC NHẬN ────────────────────────────────────────────────────
+    if (this.ask) {
+      const A = this.ask, buy = A.kind === 'buy';
+      A.t = Math.min(1, A.t + 1 / 30);
+      const k = ease.outBack(clamp(A.t, 0, 1));
+      ctx.fillStyle = `rgba(8,4,18,${.62 * clamp(A.t * 2, 0, 1)})`; ctx.fillRect(...bleed(G));
+      ctx.save();
+      ctx.translate(A.x + A.w / 2, A.y + A.h / 2); ctx.scale(.88 + .12 * k, .88 + .12 * k);
+      ctx.translate(-(A.x + A.w / 2), -(A.y + A.h / 2));
+      glassPanel(ctx, A.x, A.y, A.w, A.h, 24);
+      strokeText(ctx, buy ? t('askBuy') : t('askSell'), A.x + A.w / 2, A.y + 40,
+        { font: FONT.disp(24), fill: buy ? '#ffe066' : '#ff9a7a', stroke: '#2b1740', lw: 5, baseline: 'middle' });
+      ctx.save(); ctx.translate(A.x + 74, A.y + 108); gearIcon(ctx, A.g.slot, 60, A.g.col); ctx.restore();
+      strokeText(ctx, tx(A.g, 'name'), A.x + 122, A.y + 92,
+        { font: FONT.disp(22), fill: '#fff', stroke: '#12060f', lw: 4, align: 'left', baseline: 'middle' });
+      ctx.save(); ctx.translate(A.x + 136, A.y + 124); icon.coin(ctx, 26); ctx.restore();
+      strokeText(ctx, String(A.amount), A.x + 156, A.y + 124,
+        { font: FONT.disp(26), fill: buy ? '#ffe066' : '#8ef08a', stroke: '#4a2d00', lw: 5, align: 'left', baseline: 'middle' });
+      strokeText(ctx, buy ? t('askAfter', { g: S.gold - A.amount }) : t('askAfter', { g: S.gold + A.amount }),
+        A.x + A.w / 2, A.y + 158,
+        { font: FONT.ui(14, 700), fill: '#b0a4d0', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+      for (const h of A.hits) {
+        if (h.id === 'ok') textBtn(ctx, h.x, h.y, h.w, h.h, buy ? t('askYesBuy') : t('askYesSell'),
+          { press: h.press, hover: h.hover, colour: buy ? '#3fbf4a' : '#e8384f',
+            dark: buy ? '#1d6b24' : '#8c0f22', lite: buy ? '#8ef08a' : '#ff9aa8', font: FONT.disp(20) });
+        if (h.id === 'no') textBtn(ctx, h.x, h.y, h.w, h.h, t('cancel'),
+          { press: h.press, hover: h.hover, colour: '#5b5f74', dark: '#33374a', lite: '#9aa0b6', font: FONT.disp(20) });
+      }
+      ctx.restore();
+    }
 
     if (this.toastT > 0 && this.toast) {
       ctx.save(); ctx.globalAlpha = clamp(this.toastT, 0, 1);

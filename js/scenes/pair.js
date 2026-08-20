@@ -14,7 +14,7 @@
 import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect, mulberry32 } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, glassPanel, statBar, roundBtn, icon, matIcon, frostCard, starBar, resultBanner, C, FONT } from '../ui/widgets.js';
-import { drawGem, GEMS } from '../game/gems.js';
+import { drawGem, GEMS, ensureGemSprites } from '../game/gems.js';
 import { MAT_LIST } from '../data/gear.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
 import { rollMats, addMats, gearBonus } from '../data/gear.js';
@@ -92,6 +92,8 @@ export default {
     HUDX = FX_ + bw + G3; HUDW = HW2;
     FW = bw; FH = bh; FY_ = 132;
     this.cell = Math.min((FW - 40) / this.cols, (FH - 40) / this.rows);
+    // hình trên thẻ là đá quý — dựng sprite đúng cỡ hiển thị cho sắc nét
+    ensureGemSprites(this.cell * .70 * (G.dpr || 1.5));
     this.ox = FX_ + (FW - this.cell * this.cols) / 2;
     this.oy = FY_ + (FH - this.cell * this.rows) / 2;
     this.hits = [

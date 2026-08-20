@@ -563,13 +563,13 @@ export default {
     glassPanel(ctx, W / 2 - 300, 104, 600, 260, 28,
       this.over.win ? { top: 'rgba(30,60,44,.95)', bot: 'rgba(12,26,20,.97)', rim: 'rgba(120,240,150,.5)' }
                     : { top: 'rgba(60,20,36,.95)', bot: 'rgba(24,8,16,.97)', rim: 'rgba(240,90,120,.45)' });
-    strokeText(ctx, this.over.fled ? t('duelFled') : this.over.win ? t('duelWin') : t('duelLose'), W / 2, 170,
+    strokeText(ctx, this.over.fled ? t('duelFled') : this.over.win ? t('duelWin') : t('duelLose'), W / 2, this.over.win ? 170 : 152,
       { font: FONT.disp(46), fill: this.over.win ? '#8ef08a' : '#ff7a90', stroke: '#12060f', lw: 9, baseline: 'middle' });
     if (this.over.win)
       strokeText(ctx, `+${this.rewardGold} ${t('gold')}     +${this.rewardXp} EXP`, W / 2, 240,
         { font: FONT.disp(26), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
     else
-      strokeText(ctx, t('penalty', { g: this.penaltyGold || this.fleeGold || 0, x: 0 }), W / 2, 240,
+      strokeText(ctx, t('penalty', { g: this.penaltyGold || this.fleeGold || 0, x: 0 }), W / 2, 196,
         { font: FONT.disp(22), fill: '#ff9aa8', stroke: '#3a0008', lw: 5, baseline: 'middle' });
     if (this.over.win && this.matsGot) {
       const list = Object.entries(this.matsGot);
@@ -585,7 +585,7 @@ export default {
     // Thua thì trả về một thứ dùng được ở trận sau, chứ không chỉ trừ vàng.
     if (!this.over.win && !this.over.fled) {
       const D = this.foe.def;
-      const bx2 = W / 2 - 270, by2 = 268, bw3 = 540, bh2 = 76;
+      const bx2 = W / 2 - 270, by2 = 222, bw3 = 540, bh2 = 76;
       roundRect(ctx, bx2, by2, bw3, bh2, 16);
       ctx.fillStyle = 'rgba(28,20,10,.92)'; ctx.fill();
       ctx.strokeStyle = 'rgba(255,214,110,.75)'; ctx.lineWidth = 2.5; ctx.stroke();

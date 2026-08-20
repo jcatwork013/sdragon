@@ -6,7 +6,7 @@ import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect } from '../c
 import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, card, glassPanel, statBar, icon, matIcon, C, FONT, starBar } from '../ui/widgets.js';
 import { BREEDS, STAGES, TRAININGS, stageFor, nextStage } from '../data/characters.js';
-import { MATS, MAT_LIST, SLOTS, RECIPES, recipeById, canCraft, gearBonus } from '../data/gear.js';
+import { MATS, MAT_LIST, SLOTS, RECIPES, SHOP, recipeById, canCraft, gearBonus } from '../data/gear.js';
 import { heroPower } from '../data/duel.js';
 import { bleed } from '../core/layout.js';
 
@@ -53,10 +53,12 @@ export default {
           { act: () => this.craft(G, r) }));
       });
     } else {
+      // Bốn ô (thêm Khăn) mà vẫn dùng bước nhảy 120 của thời ba ô thì ô cuối
+      // chui xuống dưới bảng Tổng cộng. Thu thẻ lại và dời bảng tổng xuống.
       SLOTS.forEach((sl, i) =>
-        this.hits.push(new Hit('sl_' + sl.id, PX + 12, 162 + i * 120, PW - 24, 104,
+        this.hits.push(new Hit('sl_' + sl.id, PX + 12, 158 + i * 96, PW - 24, 86,
           { act: () => this.cycle(G, sl.id) })));
-      this.hits.push(new Hit('strip', PX + 12, 530, PW - 24, 48, { act: () => this.unequipAll(G) }));
+      this.hits.push(new Hit('strip', PX + 12, 550, PW - 24, 48, { act: () => this.unequipAll(G) }));
     }
   },
 
@@ -243,7 +245,9 @@ export default {
       ctx.restore();
     }
     G.hero.gear = { ...(G.save.equip || {}) };
-    G.hero.draw(ctx, dx, dy - 26, 200, 1);
+    // Bề ngang nhân vật ≈ 1.87×S. Cỡ cố định 200 làm nó thò sang cả bảng
+    // trang bị bên phải, nên tính theo đúng khoảng trống còn lại.
+    G.hero.draw(ctx, dx, dy - 26, clamp(((PX - 12) - (LX + 274)) / 2.35, 92, 200), 1);
     ring(true);
     if (this.evolveT > 1.2)
       strokeText(ctx, t('newStage'), dx, dy - 250,
@@ -357,28 +361,31 @@ export default {
     SLOTS.forEach((sl, i) => {
       const h = this.hits.find(x => x.id === 'sl_' + sl.id); if (!h) return;
       const r = recipeById(S.equip?.[sl.id]);
-      const owned = RECIPES.filter(x => x.slot === sl.id && S.crafted?.[x.id]).length;
+      // Đếm cả đồ MUA ở cửa hàng — trước chỉ đếm đồ chế nên đang mặc đồ mua
+      // mà vẫn hiện "đã có: 0", đọc ra như mặc một món không tồn tại.
+      const owned = RECIPES.filter(x => x.slot === sl.id && S.crafted?.[x.id]).length
+                  + SHOP.filter(x => x.slot === sl.id && S.owned?.[x.id]).length;
       textBtn(ctx, h.x, h.y, h.w, h.h, '', {
         press: h.press, hover: h.hover,
         colour: r ? '#3fbf4a' : '#4a4f66', dark: r ? '#1d6b24' : '#2b2f40', lite: r ? '#8ef08a' : '#7a8098' });
       const cy = h.y + h.press * 4;
-      ctx.save(); ctx.translate(h.x + 44, cy + 52);
-      gearIcon(ctx, sl.id, 52, r ? r.col : '#6b7086'); ctx.restore();
-      strokeText(ctx, tx(sl, 'name'), h.x + 84, cy + 30,
-        { font: FONT.ui(13, 800), fill: '#cfe6ff', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
-      strokeText(ctx, r ? tx(r, 'name') : t('empty'), h.x + 84, cy + 56,
-        { font: FONT.disp(23), fill: r ? '#fff' : '#9aa0b6', stroke: '#12263e', lw: 4, align: 'left', baseline: 'middle', shadow: null });
-      if (r) strokeText(ctx, Object.entries(r.add).map(([k, v]) => `${t('st_' + k)}+${v}`).join('   '), h.x + 84, cy + 80,
+      ctx.save(); ctx.translate(h.x + 40, cy + 43);
+      gearIcon(ctx, sl.id, 46, r ? r.col : '#6b7086'); ctx.restore();
+      strokeText(ctx, tx(sl, 'name'), h.x + 76, cy + 22,
+        { font: FONT.ui(12, 800), fill: '#cfe6ff', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      strokeText(ctx, r ? tx(r, 'name') : t('empty'), h.x + 76, cy + 45,
+        { font: FONT.disp(21), fill: r ? '#fff' : '#9aa0b6', stroke: '#12263e', lw: 4, align: 'left', baseline: 'middle', shadow: null });
+      if (r) strokeText(ctx, Object.entries(r.add).map(([k, v]) => `${t('st_' + k)}+${v}`).join('   '), h.x + 76, cy + 67,
         { font: FONT.ui(12, 700), fill: '#d8f0ff', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
-      strokeText(ctx, t('ownCount', { n: owned }), h.x + h.w - 16, cy + 30,
-        { font: FONT.ui(12, 700), fill: '#b0a4d0', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
+      strokeText(ctx, t('ownCount', { n: owned }), h.x + h.w - 14, cy + 22,
+        { font: FONT.ui(11, 700), fill: '#b0a4d0', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
     });
     // tổng cộng
-    glassPanel(ctx, PX + 12, 526, PW - 24, 56, 14);
+    glassPanel(ctx, PX + 12, 548, PW - 24, 52, 14);
     strokeText(ctx, `${t('gearTotal')}:  ${t('st_hp')}+${g.hp}   ${t('st_atk')}+${g.atk}   ${t('st_crit')}+${g.crit}%`,
-      PX + PW / 2, 554, { font: FONT.disp(19), fill: '#ffe066', stroke: '#3a1d6e', lw: 4, baseline: 'middle' });
+      PX + PW / 2, 574, { font: FONT.disp(19), fill: '#ffe066', stroke: '#3a1d6e', lw: 4, baseline: 'middle' });
     const st = this.hits.find(h => h.id === 'strip');
-    if (st) { st.x = PX + 12; st.y = 526; st.w = PW - 24; st.h = 56; }
+    if (st) { st.x = PX + 12; st.y = 548; st.w = PW - 24; st.h = 52; }
   },
 };
 
@@ -437,6 +444,19 @@ function gearIcon(ctx, slot, s, col) {
     ctx.fillStyle = 'rgba(255,255,255,.50)';
     ctx.beginPath(); ctx.ellipse(-s * .12, -s * .16, s * .16, s * .055, -.22, 0, TAU); ctx.fill();
 
+  } else if (slot === 'scarf') {
+    // Thiếu nhánh này thì ô Khăn rơi xuống nhánh cuối và hiện ra con dao.
+    ctx.beginPath();
+    ctx.moveTo(-s * .36, -s * .18);
+    ctx.quadraticCurveTo(0, -s * .34, s * .36, -s * .18);
+    ctx.quadraticCurveTo(s * .16, s * .02, s * .10, s * .34);
+    ctx.lineTo(-s * .04, s * .16);
+    ctx.lineTo(-s * .16, s * .34);
+    ctx.quadraticCurveTo(-s * .20, s * .00, -s * .36, -s * .18);
+    ctx.closePath();
+    ctx.fillStyle = col; ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = s * .05;
+    ctx.beginPath(); ctx.moveTo(-s * .22, -s * .14); ctx.quadraticCurveTo(0, -s * .26, s * .22, -s * .14); ctx.stroke();
   } else if (slot === 'armor') {
     // tấm giáp ngực có bờ vai
     ctx.beginPath();

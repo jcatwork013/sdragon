@@ -10,6 +10,7 @@ import { TAU, lerp, clamp, ease, rgba, shade, mix } from '../core/util.js';
 import { STAGES, SPECIES } from '../data/characters.js';
 import { recipeById } from '../data/gear.js';
 import { pickPoke } from '../data/beats.js';
+import { perf, Q } from '../core/perf.js';
 
 // ── tiện ích hình học ───────────────────────────────────────────────────────
 const bez = (a, b, c, d, t) => {
@@ -294,6 +295,13 @@ export class Cricket {
     ctx.rotate(shk * 0.004 + koK * 2.78 + taK * Math.sin(this.t * 2.6) * .05);
     ctx.scale(face, 1);
 
+    // MỨC CHI TIẾT theo sức máy. Máy yếu bỏ các lớp phụ (viền sáng, chớp
+    // sáng, bóng tiếp giáp, gân, vân) — bóng dáng và màu giữ nguyên nên nhìn
+    // vẫn ra đúng nhân vật, chỉ bớt lớp trang trí. Đây là chỗ tốn nhất vì
+    // nhân vật được vẽ ở gần như mọi màn.
+    const LOD = perf.quality;
+    const FINE = LOD === Q.HIGH, MID = LOD >= Q.MED;
+
     const ink   = mix(B.body, -.66, 1);
     const lite  = shade(B.body, .30);
     const LW    = S * .026;
@@ -306,6 +314,7 @@ export class Cricket {
     const hair = (a = .38) => { ctx.strokeStyle = mix(B.body, -.66, a); ctx.lineWidth = LW * .6; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke(); };
     /** Bóng tiếp giáp: vệt tối mềm ở chỗ hai khối chồng nhau. */
     const occlude = (cx0, cy0, rx, ry, rot = 0, a = .22) => {
+      if (!MID) return;
       ctx.save();
       ctx.globalCompositeOperation = 'multiply';
       const g = ctx.createRadialGradient(cx0, cy0, 0, cx0, cy0, Math.max(rx, ry));
@@ -319,6 +328,7 @@ export class Cricket {
      * ĐÃ DỜI xuống-phải → nét sáng chỉ còn dính ở rìa hướng về nguồn sáng.
      */
     const rim = (path, a = .55, w = 1.4) => {
+      if (!FINE) return;
       ctx.save();
       path(); ctx.clip();
       ctx.translate(LW * 1.5, LW * 1.7); path();
@@ -333,6 +343,7 @@ export class Cricket {
     };
     /** Vệt chớp sáng hình thoi — dùng cho mọi mảng vỏ bóng. */
     const gloss = (cx0, cy0, rx, ry, rot, a = .55) => {
+      if (!MID) return;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       const g = ctx.createRadialGradient(cx0, cy0, 0, cx0, cy0, Math.max(rx, ry));
@@ -374,17 +385,20 @@ export class Cricket {
     ctx.save();
     abdomen(); ctx.clip();
     // ngấn đốt bụng — mỗi ngấn = 1 nét tối + 1 nét sáng kề bên → thấy được khối
-    for (let i = 1; i <= 6; i++) {
-      const k = i / 7, bx = lerp(-S * .06, tailX * .92, k);
+    const SEG = FINE ? 6 : 3;
+    for (let i = 1; i <= SEG; i++) {
+      const k = i / (SEG + 1), bx = lerp(-S * .06, tailX * .92, k);
       const bow = S * .05 * (1 - k);
       ctx.beginPath();
       ctx.moveTo(bx + S * .05, -S * .26);
       ctx.quadraticCurveTo(bx - bow, S * .04, bx + S * .04, S * .36);
       hair(.34);
-      ctx.beginPath();
-      ctx.moveTo(bx + S * .05 + LW, -S * .26);
-      ctx.quadraticCurveTo(bx - bow + LW, S * .04, bx + S * .04 + LW, S * .36);
-      ctx.strokeStyle = mix(B.body, .70, .22); ctx.lineWidth = LW * .55; ctx.stroke();
+      if (FINE) {
+        ctx.beginPath();
+        ctx.moveTo(bx + S * .05 + LW, -S * .26);
+        ctx.quadraticCurveTo(bx - bow + LW, S * .04, bx + S * .04 + LW, S * .36);
+        ctx.strokeStyle = mix(B.body, .70, .22); ctx.lineWidth = LW * .55; ctx.stroke();
+      }
     }
     occlude(-S * .34, S * .24, S * .44, S * .17, 0, .34);          // bụng dưới tối lại
     occlude(-S * .06, -S * .12, S * .26, S * .22, 0, .30);         // chỗ ngực đè lên
@@ -442,7 +456,7 @@ export class Cricket {
     ctx.strokeStyle = mix(B.wing, -.55, .6); ctx.lineWidth = LW * .95; ctx.stroke();
     // gân cánh
     ctx.strokeStyle = mix(B.wing, .55, .40); ctx.lineWidth = LW * .55;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; FINE && i < 4; i++) {
       ctx.beginPath();
       ctx.moveTo(S * .08, -S * (.01 - i * .035));
       ctx.bezierCurveTo(-S * .18 * WING, -S * (.12 - i * .045), -S * .40 * WING, -S * (.14 - i * .05), -S * .60 * WING, -S * (.02 - i * .02));
@@ -674,7 +688,7 @@ export class Cricket {
 
     // 3 mắt đơn (ocelli) trên trán — chấm sáng nhỏ, thêm phần "có nghiên cứu"
     ctx.fillStyle = mix(B.eye, .45, .85);
-    for (const [ox, oy] of [[.52, -.62], [.20, -.74], [.78, -.40]]) {
+    for (const [ox, oy] of (FINE ? [[.52, -.62], [.20, -.74], [.78, -.40]] : [])) {
       ctx.beginPath(); ctx.arc(HR * ox, HR * oy, HR * .055, 0, TAU); ctx.fill();
     }
 
@@ -691,7 +705,7 @@ export class Cricket {
     }
     // xúc biện (palps) — hai sợi ngắn ngoáy ngoáy dưới miệng, rất "sống"
     ctx.strokeStyle = mix(B.horn, -.45, .9); ctx.lineWidth = LW * .6; ctx.lineCap = 'round';
-    for (const [d, ph] of [[1, 0], [1, 1.7]]) {
+    for (const [d, ph] of (MID ? [[1, 0], [1, 1.7]] : [])) {
       const w = Math.sin(t * 3.1 + ph) * .18;
       ctx.beginPath();
       ctx.moveTo(HR * .06, HR * .24);
@@ -969,7 +983,7 @@ export class Cricket {
     ctx.translate((hip.x + knee.x) / 2, (hip.y + knee.y) / 2); ctx.rotate(ang);
     // vân xương cá — dấu vân thật trên đùi dế, chạy chéo theo trục đùi
     ctx.strokeStyle = mix(B.body, -.70, near ? .30 : .20); ctx.lineWidth = W * .75; ctx.lineCap = 'round';
-    for (let i = -1; i <= 2; i++) {
+    for (let i = -1; perf.quality > Q.LOW && i <= 2; i++) {
       const px = i * len * .24 - len * .10;
       ctx.beginPath();
       ctx.moveTo(px - len * .09, -L * .30); ctx.lineTo(px + len * .05, 0); ctx.lineTo(px - len * .09, L * .30);

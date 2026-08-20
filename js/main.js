@@ -3,7 +3,7 @@
 // ║  Điểm khởi động: quản lý màn, vòng lặp, nhập liệu, co giãn theo màn hình ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { clamp } from './core/util.js';
-import { perf } from './core/perf.js';
+import { perf, Q } from './core/perf.js';
 import { computeLogical } from './core/layout.js';
 import * as Store from './core/state.js';
 import { getLang, setLang, toggleLang, onLangChange, t } from './core/i18n.js';
@@ -157,9 +157,13 @@ function resize() {
   W = next.W; H = next.H; CW = next.CW; CH = next.CH; OX = next.ox; OY = next.oy;
   G.W = W; G.H = H; G.CW = CW; G.CH = CH; G.OX = OX; G.OY = OY;
 
-  // Trần 1.5 thay vì 2: giảm ~44% số điểm ảnh phải tô, mắt thường gần như
-  // không thấy khác biệt trên game vẽ vector, nhưng máy mát hơn hẳn.
-  const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+  // ── SỐ ĐIỂM ẢNH PHẢI TÔ — nút thắt lớn nhất trên máy yếu ────────────────
+  // Mỗi khung hình có vài lượt tô kín màn hình (tranh nền, lớp phủ, vignette).
+  // Ở DPR 1.5 trên màn 2340×1080 là 2,5 triệu điểm ảnh MỖI LƯỢT. Hạ DPR là
+  // cách rẻ nhất để máy yếu thở được: 1.5 → 1.0 cắt luôn 56% khối lượng, mà
+  // game vẽ vector nên nhìn gần như không khác.
+  const cap = perf.quality === Q.HIGH ? 1.5 : perf.quality === Q.MED ? 1.25 : 1.0;
+  const dpr = Math.min(window.devicePixelRatio || 1, cap);
   // Cảm ứng thì dán sát mép (yêu cầu: luôn toàn màn hình). Chuột thì chừa 8px
   // cho thấy viền đổ bóng của khung, trông gọn hơn trong cửa sổ.
   const coarse = typeof matchMedia === 'function' && matchMedia('(pointer:coarse)').matches;
@@ -247,6 +251,7 @@ const STEP = 1 / FPS_CAP;
 let last = performance.now();
 let acc = 0;
 let showFps = false;
+let lastQ = perf.quality;
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -261,6 +266,8 @@ function frame(now) {
   acc = 0;
 
   perf.tick(dt);
+  // Đổi mức chất lượng thì phải dựng lại canvas cho khớp DPR mới.
+  if (perf.quality !== lastQ) { lastQ = perf.quality; resize(); }
   if (G.confirmPending > 0) G.confirmPending -= dt;
 
   // trạng thái nút

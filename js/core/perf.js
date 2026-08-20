@@ -4,7 +4,7 @@ export const Q = { LOW: 0, MED: 1, HIGH: 2 };
 
 class Perf {
   constructor() {
-    this.samples = new Float32Array(60);
+    this.samples = new Float32Array(36);
     this.i = 0; this.n = 0;
     this.ms = 16.7;
     this.quality = Q.HIGH;
@@ -27,8 +27,10 @@ class Perf {
 
     if (this.n < this.samples.length || this.t < this.lockUntil) return;
     // 22ms ≈ 45fps: bắt đầu hạ.  14ms ≈ 71fps: dư sức, nâng lên.
-    if (this.ms > 22 && this.quality > Q.LOW) { this.quality--; this.lockUntil = this.t + 3; }
-    else if (this.ms < 14 && this.quality < Q.HIGH) { this.quality++; this.lockUntil = this.t + 5; }
+    // 19ms ≈ 53fps: bắt đầu hạ — chờ tới 45fps là người chơi đã thấy giật rồi.
+    // Nâng lại phải chắc tay (12ms ≈ 83fps) và chờ lâu hơn, kẻo nhảy qua lại.
+    if (this.ms > 19 && this.quality > Q.LOW) { this.quality--; this.lockUntil = this.t + 4; }
+    else if (this.ms < 12 && this.quality < Q.HIGH) { this.quality++; this.lockUntil = this.t + 8; }
   }
   /** Hệ số nhân số lượng hạt theo mức chất lượng. */
   get particleScale() { return this.quality === Q.HIGH ? 1 : this.quality === Q.MED ? .6 : .3; }

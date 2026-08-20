@@ -4,6 +4,7 @@ import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, roundBtn, card, glassPanel, icon, C, FONT } from '../ui/widgets.js';
 import { EPISODES, ALL_LEVELS, REGIONS } from '../data/levels.js';
 import { bleed } from '../core/layout.js';
+import { perf, Q } from '../core/perf.js';
 
 const NODE_DX = 148, NODE_R = 36;
 const nodeX = (i) => 170 + i * NODE_DX;
@@ -182,30 +183,41 @@ export default {
     // đúng hướng đi — cái cuối mới là thứ khiến mắt đọc ra "con đường".
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    const trail = () => {
-      ctx.beginPath(); ctx.moveTo(nodeX(0), nodeY(0));
-      for (let i = 1; i < ALL_LEVELS.length; i++) {
+    // Đường mòn: dựng đường MỘT lần rồi stroke lại nhiều lần với nét khác nhau
+    // — canvas giữ nguyên đường cho tới lần beginPath kế tiếp, nên không phải
+    // dựng lại. Và chỉ dựng phần ĐANG NHÌN THẤY. Trước đây gọi lại hàm dựng
+    // đường cho từng lớp: 7 lớp × 45 đoạn cong = 315 lệnh mỗi khung, chỉ để vẽ
+    // một con đường đứng yên.
+    const i0 = Math.max(1, Math.floor((this.scroll - 200 - 170) / NODE_DX));
+    const i1 = Math.min(ALL_LEVELS.length - 1, Math.ceil((this.scroll + W + 200 - 170) / NODE_DX));
+    const road = () => {
+      ctx.beginPath();
+      ctx.moveTo(nodeX(i0 - 1), nodeY(i0 - 1));
+      for (let i = i0; i <= i1; i++) {
         const px = nodeX(i - 1), py = nodeY(i - 1), cx = nodeX(i), cy = nodeY(i);
         ctx.quadraticCurveTo((px + cx) / 2, py, cx, cy);
       }
     };
-    // dải đất cỏ hai bên đường
-    trail(); ctx.strokeStyle = 'rgba(126,178,92,.34)'; ctx.lineWidth = 128; ctx.stroke();
-    trail(); ctx.strokeStyle = 'rgba(150,196,110,.40)'; ctx.lineWidth = 92;  ctx.stroke();
-    // bóng đổ của đường lên dải đất
-    ctx.save();
-    ctx.translate(0, 7);
-    trail(); ctx.strokeStyle = 'rgba(24,14,40,.34)'; ctx.lineWidth = 46; ctx.stroke();
+    const lay = (col, wd) => { ctx.strokeStyle = col; ctx.lineWidth = wd; ctx.stroke(); };
+
+    road();                                      // ① lớp nền, không lệch
+    lay('rgba(126,178,92,.34)', 128);            // dải đất cỏ hai bên đường
+    lay('rgba(150,196,110,.40)', 92);
+
+    ctx.save(); ctx.translate(0, 7); road();     // ② bóng đổ của đường
+    lay('rgba(24,14,40,.34)', 46);
     ctx.restore();
-    // mép đường + mặt đường
-    trail(); ctx.strokeStyle = '#6d5330'; ctx.lineWidth = 44; ctx.stroke();
-    trail(); ctx.strokeStyle = '#a8895a'; ctx.lineWidth = 36; ctx.stroke();
-    trail(); ctx.strokeStyle = '#c8ab7c'; ctx.lineWidth = 30; ctx.stroke();
-    // vệt sáng men mép trên — cho mặt đường có độ cong
-    ctx.save();
-    ctx.translate(0, -6);
-    trail(); ctx.strokeStyle = 'rgba(255,240,205,.30)'; ctx.lineWidth = 13; ctx.stroke();
-    ctx.restore();
+
+    road();                                      // ③ thân đường
+    lay('#6d5330', 44);
+    lay('#a8895a', 36);
+    lay('#c8ab7c', 30);
+
+    if (perf.quality > Q.LOW) {                  // ④ vệt sáng mép trên
+      ctx.save(); ctx.translate(0, -6); road();
+      lay('rgba(255,240,205,.30)', 13);
+      ctx.restore();
+    }
     ctx.restore();
 
     // phiến đá lát — xoay theo tiếp tuyến, cỡ so le cho khỏi đều tăm tắp

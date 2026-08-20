@@ -406,12 +406,50 @@ export default {
     ctx.save();
     roundRect(ctx, FX_ + 8, FY_ + 8, FW - 16, FH - 16, 16); ctx.clip();
 
-    // vạch tử thần
-    const dy = BY + DEATH_Y;
+    // ── LÒNG HANG ─────────────────────────────────────────────────────
+    // Nền phẳng đen thui làm bàn cờ trông như cái hố. Thêm chuyển sáng từ
+    // trần xuống, vệt sáng rọi từ trên, và tối dần bốn góc → ra chiều sâu.
+    const cave = ctx.createLinearGradient(0, FY_, 0, FY_ + FH);
+    cave.addColorStop(0, '#2a1d4e'); cave.addColorStop(.45, '#150c2c'); cave.addColorStop(1, '#0a0518');
+    ctx.fillStyle = cave; ctx.fillRect(FX_, FY_, FW, FH);
     ctx.save();
-    ctx.strokeStyle = `rgba(255,90,110,${.45 + .3 * Math.sin(this.t * 4)})`;
+    ctx.globalCompositeOperation = 'lighter';
+    const beam = ctx.createRadialGradient(FX_ + FW / 2, FY_ - FH * .1, FW * .06, FX_ + FW / 2, FY_ + FH * .3, FW * .78);
+    beam.addColorStop(0, 'rgba(150,120,255,.20)'); beam.addColorStop(1, 'rgba(150,120,255,0)');
+    ctx.fillStyle = beam; ctx.fillRect(FX_, FY_, FW, FH);
+    ctx.restore();
+    const vig = ctx.createRadialGradient(FX_ + FW / 2, FY_ + FH * .45, FH * .22,
+                                         FX_ + FW / 2, FY_ + FH * .45, FH * .78);
+    vig.addColorStop(0, 'rgba(0,0,0,0)'); vig.addColorStop(1, 'rgba(0,0,0,.55)');
+    ctx.fillStyle = vig; ctx.fillRect(FX_, FY_, FW, FH);
+
+    // thanh trần — chỗ đá bám vào, cho biết trần ở đâu
+    const rail = ctx.createLinearGradient(0, FY_ + 8, 0, FY_ + 26);
+    rail.addColorStop(0, 'rgba(190,165,255,.55)'); rail.addColorStop(1, 'rgba(190,165,255,0)');
+    ctx.fillStyle = rail; ctx.fillRect(FX_ + 8, FY_ + 8, FW - 16, 18);
+
+    // ── DẢI TỬ THẦN ───────────────────────────────────────────────────
+    // Càng gần vạch thì càng đỏ và càng đập nhanh — cảnh báo phải cảm được
+    // trước khi đọc chữ.
+    const dy = BY + DEATH_Y;
+    const near = clamp((this.board.lowestY - (DEATH_Y - R * 6)) / (R * 6), 0, 1);
+    const beat = .35 + .4 * Math.sin(this.t * (3 + near * 7)) + near * .25;
+    ctx.save();
+    const dg = ctx.createLinearGradient(0, dy - 46, 0, dy);
+    dg.addColorStop(0, 'rgba(255,60,90,0)');
+    dg.addColorStop(1, `rgba(255,60,90,${.12 + near * .26})`);
+    ctx.fillStyle = dg; ctx.fillRect(FX_ + 8, dy - 46, FW - 16, 46);
+    ctx.strokeStyle = `rgba(255,90,110,${clamp(beat, 0, 1)})`;
     ctx.lineWidth = 3; ctx.setLineDash([12, 9]); ctx.lineDashOffset = -this.t * 30;
     ctx.beginPath(); ctx.moveTo(FX_ + 12, dy); ctx.lineTo(FX_ + FW - 12, dy); ctx.stroke();
+    ctx.setLineDash([]);
+    // mũi nhọn cảnh báo hai đầu vạch
+    ctx.fillStyle = `rgba(255,90,110,${clamp(beat, 0, 1)})`;
+    for (const sx of [FX_ + 14, FX_ + FW - 14]) {
+      ctx.beginPath();
+      ctx.moveTo(sx, dy - 9); ctx.lineTo(sx + (sx < FX_ + FW / 2 ? 13 : -13), dy); ctx.lineTo(sx, dy + 9);
+      ctx.closePath(); ctx.fill();
+    }
     ctx.restore();
 
     this.board.draw(ctx, BX, BY);
@@ -475,9 +513,12 @@ export default {
     let x = LAUNCH.x, y = LAUNCH.y;
     let vx = Math.cos(this.aim), vy = Math.sin(this.aim);
     const L = BX, Rr = BX + this.board.W;
+    // Đường ngắm ăn theo MÀU VIÊN ĐANG BẮN — liếc một cái là biết mình sắp
+    // bắn màu gì mà không phải nhìn xuống ống phóng.
+    const cur = ORB[this.board.next?.[0] ?? 0] || ORB[0];   // next = [đang bắn, kế tiếp]
     ctx.save();
     ctx.setLineDash([7, 9]); ctx.lineDashOffset = -this.t * 46;
-    ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+    ctx.lineCap = 'round';
     ctx.beginPath(); ctx.moveTo(x, y);
     let bounces = 0, guard = 0;
     while (guard++ < 400) {
@@ -495,8 +536,24 @@ export default {
       ctx.lineTo(x, y);
       if (hit) break;
     }
-    ctx.stroke();
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.strokeStyle = rgba(cur.base, .55); ctx.lineWidth = 9; ctx.stroke();
+    ctx.restore();
+    ctx.strokeStyle = rgba(cur.lite, .85); ctx.lineWidth = 3; ctx.stroke();
     ctx.setLineDash([]);
+    // đích ngắm: vòng nhịp + chữ thập nhỏ
+    ctx.save();
+    const pl = .5 + .5 * Math.sin(this.t * 6);
+    ctx.strokeStyle = rgba(cur.lite, .5 + .4 * pl); ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(x, y, R * (.62 + .12 * pl), 0, TAU); ctx.stroke();
+    ctx.lineWidth = 2;
+    for (const [dx2, dy2] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      ctx.beginPath();
+      ctx.moveTo(x + dx2 * R * .34, y + dy2 * R * .34);
+      ctx.lineTo(x + dx2 * R * .52, y + dy2 * R * .52); ctx.stroke();
+    }
+    ctx.restore();
     ctx.globalAlpha = .8;
     ctx.beginPath(); ctx.arc(x, y, R * .5, 0, TAU);
     ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = 2.5; ctx.stroke();

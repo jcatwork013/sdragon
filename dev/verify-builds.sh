@@ -21,7 +21,12 @@ check() {  # check <nhãn> <thư mục đã giải nén>
 
 T=$(mktemp -d)
 ROOT=$(pwd)
-APKFILE=$(ls "$ROOT"/dist/*.apk 2>/dev/null | head -1)
+# Lấy đúng bản APK của phiên bản ĐANG dựng. Trước đây lấy file .apk đầu tiên
+# theo thứ tự tên, nên khi dist/ còn bản cũ thì hoá ra đi so bản cũ với mã mới
+# rồi báo LỆCH — báo động giả.
+VER=$(node -p "require('$ROOT/package.json').version")
+APKFILE="$ROOT/dist/SDrakon-$VER.apk"
+[ -f "$APKFILE" ] || APKFILE=$(ls "$ROOT"/dist/*.apk 2>/dev/null | tail -1)
 if [ -n "$APKFILE" ]; then
   mkdir -p "$T/apk"
   ( cd "$T/apk" && unzip -q "$APKFILE" 'assets/public/*' )

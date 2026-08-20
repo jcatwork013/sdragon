@@ -112,7 +112,8 @@ export const REGIONS = [
 
 /** Danh sách phẳng, dùng cho bản đồ màn. */
 export const ALL_LEVELS = EPISODES.flatMap(ep =>
-  ep.levels.map(l => ({ ...l, ep: ep.id, epName: ep.name, sky: ep.sky, hill: ep.hill, mount: ep.mount }))
+  ep.levels.map(l => ({ ...l, ep: ep.id, epName: ep.name, epName_en: ep.name_en,
+                        sky: ep.sky, hill: ep.hill, mount: ep.mount }))
 );
 
 export const levelAt = (i) => ALL_LEVELS[Math.min(i, ALL_LEVELS.length - 1)];

@@ -224,5 +224,19 @@ export function t(key, vars) {
 }
 
 /** Lấy trường đã bản địa hoá từ object dữ liệu: tx(breed,'name') → name | name_en */
-export const tx = (obj, field) =>
-  (lang === 'en' ? (obj[field + '_en'] ?? obj[field]) : obj[field]) ?? '';
+/**
+ * Lấy chuỗi song ngữ từ một object dữ liệu.
+ *
+ * Repo có HAI quy ước cùng tồn tại:
+ *    { name: 'Rơm',  name_en: 'Reed' }      → hậu tố _en
+ *    { vi:   'hạt',  en:      'seeds' }     → cặp vi/en
+ * Bản cũ chỉ hiểu quy ước thứ nhất, nên `tx(obj,'vi')` khi chơi tiếng Anh đi
+ * tìm `vi_en`, không thấy, rồi rơi về `vi` — tức là trả nguyên tiếng Việt.
+ * Mọi câu thoại, tên đòn và đơn vị mục tiêu đều dính lỗi này.
+ */
+export const tx = (obj, field) => {
+  if (!obj) return '';
+  if (lang !== 'en') return obj[field] ?? '';
+  const en = obj[field + '_en'] ?? (field === 'vi' ? obj.en : undefined);
+  return en ?? obj[field] ?? '';
+};

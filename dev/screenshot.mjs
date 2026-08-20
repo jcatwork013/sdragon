@@ -96,6 +96,11 @@ run('7 · Đang combo',   40, 'sc7_combo.png', () => {
   G.fx.beam(640, 340, true, 280, '#ffd76b');
 });
 run('8 · Qua màn',      50, 'sc8_win.png',   () => { const s = G.scene; s.score = 9200; s.gold = 340; s.movesLeft = 6; s.finish(G, true); });
+run('7b · Đủ điểm',  90, 'sc7b_goal.png', () => { G.startLevel(2, true); const s2=G.scene;
+  s2.score = G.level.target + 800; s2.hitGoal = true; s2.movesLeft = 9; s2.timeLeft = 46;
+  s2.showFinishNow(G); });
+run('7c · Màn bravo', 40, 'sc7c_bravo.png', () => { G.startLevel(2, true); const s2=G.scene;
+  s2.score = G.level.target + 800; s2.movesLeft = 9; s2.timeLeft = 46; s2.startBravo(G, 'test'); });
 run('9 · Tạm dừng',     20, 'sc9_pause.png', () => { G.startLevel(3); G.scene.togglePause(G); });
 run('10 · Hướng dẫn tr1', 40, 'sc10_help1.png', () => { G.go('help', 'map'); });
 run('11 · Hướng dẫn tr2', 20, 'sc11_help2.png', () => { G.scene.page = 1; });

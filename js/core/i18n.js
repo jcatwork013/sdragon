@@ -95,6 +95,8 @@ const DICT = {
 
     // kết quả
     cleared: 'Qua màn!', failed: 'Thất bại', finalScore: 'Tổng điểm',
+    finishNow: 'QUA MÀN NGAY', bravoBlast: 'Nổ hết đá đặc biệt!',
+    bravoMoves: 'Lượt thừa → vàng', bravoShots: 'Phát thừa → vàng', bravoTime: 'Giờ thừa → vàng', bravoDone: 'Tuyệt vời!',
     loreNew: 'BÀI HỌC MỚI', loreKnown: 'ĐÃ BIẾT', duelRankHint: 'Mạnh hơn — nhưng rơi đồ nặng tay hơn',
     reward: 'Phần thưởng', next: 'Màn kế', retry: 'Thử lại', toMap: 'Về bản đồ',
     outOfMoves: 'Hết lượt đi', vitalityGone: 'Rồng kiệt sức',
@@ -189,6 +191,8 @@ const DICT = {
     lowVitality: 'Vitality low!',
 
     cleared: 'Level clear!', failed: 'Defeat', finalScore: 'Final score',
+    finishNow: 'FINISH NOW', bravoBlast: 'Blasting every special!',
+    bravoMoves: 'Spare moves → gold', bravoShots: 'Spare shots → gold', bravoTime: 'Spare time → gold', bravoDone: 'Bravo!',
     loreNew: 'NEW LESSON', loreKnown: 'KNOWN', duelRankHint: 'Stronger — but the loot is heavier too',
     reward: 'Reward', next: 'Next', retry: 'Retry', toMap: 'Map',
     outOfMoves: 'Out of moves', vitalityGone: 'Your hero collapsed',

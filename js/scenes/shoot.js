@@ -43,6 +43,7 @@ export default {
     this.timeMax = L.time + (G.save.stats.spirit || 0) * 6 + (G.save.breed === 'frost' ? 12 : 0);
     this.timeLeft = this.timeMax;
     this.over = null; this.overT = 0; this.paused = false;
+    this.bravo = null; this.bravoGold = 0;
     this.aim = -Math.PI / 2;
     this.praise = ''; this.praiseT = 0;
     this.shownScore = 0; this.warnT = 0;
@@ -143,6 +144,7 @@ export default {
       }
       if (!this.hitGoal && this.score >= G.level.target) {
         this.hitGoal = true; this.goalT = 1.6;
+        this.showFinishNow(G);
         G.sfx('levelup'); G.hero.breatheFire(.9); G.fx.shake(10); this.say(G, 'goalHit');
       }
       this.checkEnd(G);
@@ -157,14 +159,85 @@ export default {
     G.audio.setMusicVol(this.paused ? G.musicVol * .3 : G.musicVol);
   },
 
+  /** Bày nút QUA MÀN NGAY khi đã đủ điểm. */
+  showFinishNow(G) {
+    if (this.hits.some(h => h.id === 'finishNow')) return;
+    this.hits.push(new Hit('finishNow', HUDX + 16, 596, HUDW - 32, 52,
+      { act: () => this.startBravo(G, t('outOfShots')) }));
+  },
+
+  /**
+   * MÀN BRAVO — lưới bắn không có đá đặc biệt nên chỉ hai nhịp: phát bắn thừa
+   * và giờ thừa đổi ra vàng. Dùng chung nhãn với màn Ghép Đá cho nhất quán.
+   */
+  startBravo(G, why) {
+    if (this.over || this.bravo) return;
+    this.hits = this.hits.filter(h => h.id === 'pause');
+    this.bravo = {
+      why, t: 0, next: .35, stage: 1,
+      shots: Math.max(0, this.shotsLeft), time: Math.max(0, Math.floor(this.timeLeft)),
+      perShot: 16 + Math.round((G.level.index || 1) * .6), perSec: 4, gained: 0,
+    };
+    G.sfx('levelup');
+  },
+
+  tickBravo(G, dt) {
+    const b = this.bravo;
+    b.t += dt;
+    this.board.update(dt, this);
+    if (b.t < b.next) return;
+    const pay = (n, col) => {
+      this.gold += n; b.gained += n;
+      G.fx.float(FX_ + FW / 2, FY_ + FH * .30, `+${n}`, { size: 30, fill: col, stroke: '#4a2d00' });
+      G.sfx('coin');
+    };
+    if (b.stage === 1) {
+      if (b.shots > 0) {
+        const take = Math.max(1, Math.ceil(b.shots / 6));
+        b.shots -= take; this.shotsLeft = b.shots;
+        pay(take * b.perShot, '#ffe066'); b.next = b.t + .13;
+      } else { b.stage = 2; b.next = b.t + .30; }
+      return;
+    }
+    if (b.stage === 2) {
+      if (b.time > 0) {
+        const take = Math.max(1, Math.ceil(b.time / 8));
+        b.time -= take; this.timeLeft = b.time;
+        pay(take * b.perSec, '#8ef08a'); b.next = b.t + .10;
+      } else { b.stage = 3; b.next = b.t + .55; }
+      return;
+    }
+    this.bravoGold = b.gained;
+    this.bravo = null;
+    this.finish(G, true, b.why);
+  },
+
+  drawBravo(G, ctx) {
+    const b = this.bravo;
+    const lbl = b.stage === 1 ? t('bravoShots') : b.stage === 2 ? t('bravoTime') : t('bravoDone');
+    const k = ease.outBack(clamp(b.t / .3, 0, 1));
+    ctx.save();
+    ctx.translate(FX_ + FW / 2, FY_ + 58); ctx.scale(k, k);
+    ctx.font = FONT.disp(26);
+    const w = ctx.measureText(lbl).width + 56;
+    roundRect(ctx, -w / 2, -26, w, 52, 26);
+    ctx.fillStyle = 'rgba(12,7,26,.88)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,214,110,.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+    strokeText(ctx, lbl, 0, 0, { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a2000', lw: 5, baseline: 'middle' });
+    if (b.gained > 0) strokeText(ctx, `+${b.gained} ${t('gold')}`, 0, 44,
+      { font: FONT.disp(22), fill: '#fff', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
+    ctx.restore();
+  },
+
   checkEnd(G) {
-    if (this.over) return;
+    if (this.over || this.bravo) return;
     if (this.hp <= 0) return this.finish(G, false, t('foeKilled'));
     if (this.board.isClear) return this.finish(G, true);                      // dọn sạch = thắng luôn
     if (this.board.lowestY >= DEATH_Y) return this.finish(G, false, t('breached'));
-    if (this.timeLeft <= 0) return this.finish(G, this.score >= G.level.target, t('outOfTime'));
+    const won = this.score >= G.level.target;
+    if (this.timeLeft <= 0) return won ? this.startBravo(G, t('outOfTime')) : this.finish(G, false, t('outOfTime'));
     if (this.shotsLeft <= 0 && !this.board.shot)
-      return this.finish(G, this.score >= G.level.target, t('outOfShots'));
+      return won ? this.startBravo(G, t('outOfShots')) : this.finish(G, false, t('outOfShots'));
   },
 
   finish(G, win, why = '') {
@@ -215,6 +288,7 @@ export default {
     if (this.bubble) { this.bubble.t += dt; if (this.bubble.t >= this.bubble.dur) this.bubble = null; }
     if (this.goalT > 0) this.goalT -= dt;
     if (this.over) { this.overT += dt; this.board.update(dt); return; }
+    if (this.bravo) { this.tickBravo(G, dt); return; }
     if (this.paused) return;
 
     this.board.update(dt);
@@ -355,6 +429,7 @@ export default {
     strokeText(ctx, `${t('level')} ${L.index} · ${t('modeShoot')}`, FX_ + FW / 2, 24,
       { font: FONT.disp(22), fill: '#fff', stroke: '#2b1740', lw: 5, baseline: 'middle' });
 
+    if (this.bravo) this.drawBravo(G, ctx);
     G.fx.draw(ctx);
     if (this.praiseT > 0) {
       const k = 1 - this.praiseT / 1.2;
@@ -622,6 +697,18 @@ export default {
     if (this.foesLeft)
       strokeText(ctx, t('foesAlive', { n: this.foesLeft }), x + w / 2, y + 438,
         { font: FONT.ui(13, 700), fill: '#c0405a', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+
+    const fin = this.hits.find(h => h.id === 'finishNow');
+    if (fin) {
+      const puls = .5 + .5 * Math.sin(this.t * 4);
+      ctx.save();
+      ctx.globalAlpha = .30 + .35 * puls;
+      roundRect(ctx, fin.x - 5, fin.y - 5, fin.w + 10, fin.h + 10, 19);
+      ctx.fillStyle = '#8ef08a'; ctx.fill();
+      ctx.restore();
+      textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
+        { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
+    }
 
     for (const id of ['restart', 'resume']) {
       const h2 = this.hits.find(k => k.id === id); if (!h2) continue;

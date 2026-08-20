@@ -351,12 +351,12 @@ function drawSpecialMark(ctx, sp, d, t, g) {
     ctx.clip('evenodd');
     ctx.rotate(t * 1.15);
     ctx.globalCompositeOperation = 'lighter';
-    for (let i = 0; i < 12; i++) {
-      ctx.save(); ctx.rotate(i / 12 * TAU);
+    for (let i = 0; i < 18; i++) {
+      ctx.save(); ctx.rotate(i / 18 * TAU);
       const gg = ctx.createLinearGradient(0, 0, d * .38, 0);
-      gg.addColorStop(0, `hsla(${i * 30},100%,72%,0)`);
-      gg.addColorStop(.55, `hsla(${i * 30},100%,68%,${.85 * pulse})`);
-      gg.addColorStop(1, `hsla(${i * 30 + 20},100%,60%,0)`);
+      gg.addColorStop(0, `hsla(${i * 20},100%,74%,0)`);
+      gg.addColorStop(.55, `hsla(${i * 20},100%,70%,${.9 * pulse})`);
+      gg.addColorStop(1, `hsla(${i * 20 + 18},100%,62%,0)`);
       ctx.fillStyle = gg;
       ctx.beginPath(); ctx.moveTo(0, 0);
       ctx.arc(0, 0, d * .38, -0.16, 0.16); ctx.closePath(); ctx.fill();
@@ -374,25 +374,52 @@ function drawSpecialMark(ctx, sp, d, t, g) {
     // lõi trắng chói
     const wc = ctx.createRadialGradient(-d * .04, -d * .05, 0, 0, 0, d * .19);
     wc.addColorStop(0, `rgba(255,255,255,${pulse})`);
-    wc.addColorStop(.55, `rgba(226,214,255,${.85 * pulse})`);
-    wc.addColorStop(1, `rgba(170,140,255,${.35 * pulse})`);
+    wc.addColorStop(.42, `rgba(240,232,255,${.95 * pulse})`);
+    wc.addColorStop(1, `rgba(170,140,255,${.42 * pulse})`);
     ctx.fillStyle = wc; ctx.beginPath(); ctx.arc(0, 0, d * .19, 0, TAU); ctx.fill();
     ctx.fillStyle = `rgba(255,255,255,${.9 * pulse})`;
     ctx.beginPath(); ctx.ellipse(-d * .06, -d * .07, d * .045, d * .028, -.6, 0, TAU); ctx.fill();
     // 4 tia chớp toả RA NGOÀI vành, không đi qua lõi
+    // Tia chớp: 8 tia dài–ngắn xen kẽ, quay ngược chiều vành tán sắc. Hai lớp
+    // quay ngược nhau làm viên đá lúc nào cũng nhấp nháy, không bao giờ đứng im.
     ctx.save();
-    ctx.rotate(t * .5);
+    ctx.rotate(-t * .62);
     ctx.lineCap = 'round';
-    for (let i = 0; i < 4; i++) {
-      ctx.save(); ctx.rotate(i / 4 * TAU);
-      const sg2 = ctx.createLinearGradient(0, -d * .36, 0, -d * .52);
-      sg2.addColorStop(0, `rgba(255,255,255,${.85 * pulse})`);
+    for (let i = 0; i < 8; i++) {
+      const long = i % 2 === 0;
+      const r0 = d * .34, r1 = d * (long ? .56 : .45);
+      ctx.save(); ctx.rotate(i / 8 * TAU);
+      const sg2 = ctx.createLinearGradient(0, -r0, 0, -r1);
+      sg2.addColorStop(0, `rgba(255,255,255,${(long ? .92 : .62) * pulse})`);
       sg2.addColorStop(1, 'rgba(255,255,255,0)');
-      ctx.strokeStyle = sg2; ctx.lineWidth = d * .028;
-      ctx.beginPath(); ctx.moveTo(0, -d * .36); ctx.lineTo(0, -d * .52); ctx.stroke();
+      ctx.strokeStyle = sg2; ctx.lineWidth = d * (long ? .030 : .020);
+      ctx.beginPath(); ctx.moveTo(0, -r0); ctx.lineTo(0, -r1); ctx.stroke();
       ctx.restore();
     }
     ctx.restore();
+
+    // hạt lấp lánh bay quanh — mỗi hạt là một ngôi sao bốn cánh nhỏ
+    if (perf.wantShimmer) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 5; i++) {
+        const a = t * (.7 + i * .11) + i * 1.257;
+        const rr = d * (.40 + .07 * Math.sin(t * 2 + i));
+        const px = Math.cos(a) * rr, py = Math.sin(a) * rr * .9;
+        const tw = Math.pow(clamp(.5 + .5 * Math.sin(t * 3.4 + i * 2.1), 0, 1), 2);
+        if (tw < .04) continue;
+        const sz = d * .055 * (.55 + tw);
+        ctx.fillStyle = `hsla(${(i * 62 + t * 40) % 360},100%,82%,${tw})`;
+        ctx.beginPath();
+        for (let k = 0; k < 8; k++) {
+          const aa = k / 8 * TAU, r2 = k % 2 ? sz * .26 : sz;
+          k ? ctx.lineTo(px + Math.cos(aa) * r2, py + Math.sin(aa) * r2)
+            : ctx.moveTo(px + Math.cos(aa) * r2, py + Math.sin(aa) * r2);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
     ctx.restore();
     ctx.restore();
     return;

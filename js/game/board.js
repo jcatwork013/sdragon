@@ -117,7 +117,31 @@ export class Board {
       }
     };
     scan('h'); scan('v');
-    return runs;
+    return runs.concat(this.findSquares());
+  }
+
+  /**
+   * Bốn viên cùng loại xếp thành hình VUÔNG 2×2 cũng tính là một bộ trùng.
+   *
+   * Trả về cùng dạng với run thẳng (`dir: 'sq'`) nên groupRuns() gộp được với
+   * run cắt qua nó, và MỌI chỗ đang hỏi "có bộ trùng nào không?" — kiểm tra
+   * nước đi hợp lệ, dò hết nước, xáo bài lúc mở màn — đều tự hiểu luôn, không
+   * phải sửa thêm chỗ nào.
+   */
+  findSquares() {
+    const out = [];
+    for (let r = 0; r < this.rows - 1; r++) {
+      for (let c = 0; c < this.cols - 1; c++) {
+        const a = this.get(c, r), b = this.get(c + 1, r);
+        const d = this.get(c, r + 1), e = this.get(c + 1, r + 1);
+        if (!a || !b || !d || !e) continue;
+        if (a.pop >= 0 || b.pop >= 0 || d.pop >= 0 || e.pop >= 0) continue;
+        if (a.type !== b.type || a.type !== d.type || a.type !== e.type) continue;
+        out.push({ dir: 'sq', type: a.type,
+                   cells: [this.idx(c, r), this.idx(c + 1, r), this.idx(c, r + 1), this.idx(c + 1, r + 1)] });
+      }
+    }
+    return out;
   }
 
   /** Gộp các run giao nhau thành "nhóm" → quyết định gem đặc biệt (L/T, 4, 5). */
@@ -147,11 +171,16 @@ export class Board {
 
   /** Loại gem đặc biệt mà một nhóm sinh ra. */
   specialFor(g) {
-    const hasH = g.runs.some(r => r.dir === 'h'), hasV = g.runs.some(r => r.dir === 'v');
-    const maxLen = Math.max(...g.runs.map(r => r.cells.length));
+    // Chỉ tính theo RUN THẲNG. Hình vuông có 4 ô, nếu gộp chung vào phép đo
+    // chiều dài thì một hình vuông trơ trọi cũng ra "4 viên" và đẻ ra đá đặc
+    // biệt — đá đặc biệt sẽ tràn lan, hỏng cân bằng đã tinh chỉnh sẵn.
+    const lines = g.runs.filter(r => r.dir !== 'sq');
+    if (!lines.length) return SP.NONE;                 // vuông trơ → nổ thôi
+    const hasH = lines.some(r => r.dir === 'h'), hasV = lines.some(r => r.dir === 'v');
+    const maxLen = Math.max(...lines.map(r => r.cells.length));
     if (hasH && hasV) return SP.CROSS;                 // hình L / T
     if (maxLen >= 5)  return SP.BOMB;                  // 5 thẳng hàng
-    if (maxLen === 4) return g.runs[0].dir === 'h' ? SP.LINE_H : SP.LINE_V;
+    if (maxLen === 4) return lines[0].dir === 'h' ? SP.LINE_H : SP.LINE_V;
     return SP.NONE;
   }
 

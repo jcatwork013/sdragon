@@ -42,6 +42,7 @@ export default {
     this.t = 0;
     this.score = 0; this.gold = 0; this.movesLeft = L.moves;
     this.over = null; this.overT = 0; this.paused = false;
+    this.bravo = null; this.bravoGold = 0;
     this.praiseT = 0; this.praise = ''; this.toastT = 0; this.toast = '';
     this.shownScore = 0;
     this.hammer = 2; this.shuffleUse = 1; this.hammerMode = false;
@@ -185,6 +186,9 @@ export default {
         this.hitGoal = true; this.goalT = 1.6;
         G.sfx('levelup'); G.hero.breatheFire(.9); G.fx.shake(10);
         this.say(G, 'goalHit');
+        // Đủ điểm rồi thì cho quyền chốt ngay. Ai muốn cày thêm sao vẫn chơi
+        // tiếp được — giờ và lượt còn thừa lát nữa đổi ra thưởng, không phí.
+        this.showFinishNow(G);
       }
 
       let cx = 0, cy = 0, n = 0;
@@ -293,12 +297,117 @@ export default {
   // ── điều kiện thắng / thua ────────────────────────────────────────────────
   get foesLeft() { return this.enemies.filter(e => e.alive).length; },
 
+  /** Bày nút QUA MÀN NGAY. Tách ra thành hàm riêng để công cụ dev dựng lại
+   *  được đúng trạng thái này mà không phải chơi thật cho đủ điểm. */
+  showFinishNow(G) {
+    if (this.hits.some(h => h.id === 'finishNow')) return;
+    this.hits.push(new Hit('finishNow', HUDX + 16, 596, HUDW - 32, 52,
+      { act: () => this.startBravo(G, t('outOfMoves')) }));
+  },
+
+  /** Biểu ngữ lúc chốt màn — cho biết đang nổ gì và đổi được bao nhiêu. */
+  drawBravo(G, ctx) {
+    const b = this.bravo;
+    const lbl = b.stage === 0 ? t('bravoBlast') : b.stage === 1 ? t('bravoMoves')
+              : b.stage === 2 ? t('bravoTime') : t('bravoDone');
+    const k = ease.outBack(clamp(b.t / .3, 0, 1));
+    ctx.save();
+    ctx.translate(FX_ + FW / 2, FY_ + 66);
+    ctx.scale(k, k);
+    ctx.font = FONT.disp(26);
+    const w = ctx.measureText(lbl).width + 56;
+    roundRect(ctx, -w / 2, -26, w, 52, 26);
+    ctx.fillStyle = 'rgba(12,7,26,.88)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(255,214,110,.85)'; ctx.lineWidth = 2.5; ctx.stroke();
+    strokeText(ctx, lbl, 0, 0,
+      { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a2000', lw: 5, baseline: 'middle' });
+    if (b.gained > 0)
+      strokeText(ctx, `+${b.gained} ${t('gold')}`, 0, 44,
+        { font: FONT.disp(22), fill: '#fff', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
+    ctx.restore();
+  },
+
   checkEnd(G) {
-    if (this.over) return;
+    if (this.over || this.bravo) return;
     if (this.hp <= 0) return this.finish(G, false, t('foeKilled'));
-    if (this.timeLeft <= 0) return this.finish(G, this.score >= G.level.target, t('outOfTime'));
+    const won = this.score >= G.level.target;
+    if (this.timeLeft <= 0) return won ? this.startBravo(G, t('outOfTime')) : this.finish(G, false, t('outOfTime'));
     // Chơi trọn số lượt rồi mới kết toán — nhờ vậy mốc 1★/2★/3★ mới khác nhau.
-    if (this.movesLeft <= 0) return this.finish(G, this.score >= G.level.target, t('outOfMoves'));
+    if (this.movesLeft <= 0) return won ? this.startBravo(G, t('outOfMoves')) : this.finish(G, false, t('outOfMoves'));
+  },
+
+  /**
+   * MÀN BRAVO — chốt màn cho ra chốt màn.
+   *
+   * Ba nhịp: (1) mọi viên đá đặc biệt còn trên bàn tự nổ hết, (2) số LƯỢT còn
+   * thừa đổi ra vàng, (3) số GIÂY còn thừa đổi ra vàng. Nhờ vậy chơi giỏi tới
+   * mức thừa lượt/thừa giờ không còn là công cốc, và người chơi có lý do để
+   * bấm "qua màn ngay" thay vì ngồi ghép cho hết lượt.
+   */
+  startBravo(G, why) {
+    if (this.over || this.bravo) return;
+    this.board.locked = true;
+    this.hammerMode = false;
+    this.hits = this.hits.filter(h => h.id === 'pause');
+    const sp = [];
+    this.board.grid.forEach((c, i) => { if (c && c.sp) sp.push(i); });
+    this.bravo = {
+      why, t: 0, next: .30, stage: sp.length ? 0 : 1, sp,
+      moves: Math.max(0, this.movesLeft), time: Math.max(0, Math.floor(this.timeLeft)),
+      perMove: 14 + Math.round((G.level.index || 1) * .6), perSec: 4, gained: 0,
+    };
+    G.sfx('levelup');
+  },
+
+  tickBravo(G, dt) {
+    const b = this.bravo;
+    b.t += dt;
+    this.board.update(dt);
+    if (b.t < b.next) return;
+
+    const pay = (n, label, col) => {
+      this.gold += n; b.gained += n;
+      G.fx.float(FX_ + FW / 2, FY_ + FH * .34, label,
+        { size: 30, fill: col, stroke: '#4a2d00' });
+      G.sfx('coin');
+    };
+
+    if (b.stage === 0) {                       // ① nổ hết đá đặc biệt
+      const i = b.sp.shift();
+      const cell = i != null ? this.board.grid[i] : null;
+      if (cell && cell.sp) {
+        const px = BX + cell.px + CELL / 2, py = BY + cell.py + CELL / 2;
+        G.fx.ring(px, py, '#ffe9a8', 8, 150, .42, 11);
+        G.fx.shake(12);
+        G.sfx('special');
+        const out = new Set(); this.board.detonate(i, out);
+        this.board._beginPop([...out], null);
+      }
+      b.next = b.t + .18;
+      if (!b.sp.length) { b.stage = 1; b.next = b.t + .45; }
+      return;
+    }
+    if (b.stage === 1) {                       // ② lượt thừa → vàng
+      if (b.moves > 0) {
+        const take = Math.max(1, Math.ceil(b.moves / 6));
+        b.moves -= take; this.movesLeft = b.moves;
+        pay(take * b.perMove, `+${take * b.perMove}`, '#ffe066');
+        b.next = b.t + .13;
+      } else { b.stage = 2; b.next = b.t + .30; }
+      return;
+    }
+    if (b.stage === 2) {                       // ③ giây thừa → vàng
+      if (b.time > 0) {
+        const take = Math.max(1, Math.ceil(b.time / 8));
+        b.time -= take; this.timeLeft = b.time;
+        pay(take * b.perSec, `+${take * b.perSec}`, '#8ef08a');
+        b.next = b.t + .10;
+      } else { b.stage = 3; b.next = b.t + .55; }
+      return;
+    }
+    this.bravoGold = b.gained;                 // ④ kết toán
+    this.bravo = null;
+    this.finish(G, true, b.why);
   },
 
   finish(G, win, why = '') {
@@ -361,6 +470,7 @@ export default {
     if (this.skillFx) { this.skillFx.t += dt; if (this.skillFx.t >= this.skillFx.dur) this.skillFx = null; }
     if (this.bubble) { this.bubble.t += dt; if (this.bubble.t >= this.bubble.dur) this.bubble = null; }
     if (this.over) { this.overT += dt; return; }
+    if (this.bravo) { this.tickBravo(G, dt); return; }
     if (this.paused) return;
 
     this.board.update(dt);
@@ -555,6 +665,7 @@ export default {
     strokeText(ctx, `${t('level')} ${L.index} · ${tx(G.episodeOf(G.levelIndex), 'name')}`, FX_ + FW / 2, 24,
       { font: FONT.disp(22), fill: '#fff', stroke: '#2b1740', lw: 5, baseline: 'middle' });
 
+    if (this.bravo) this.drawBravo(G, ctx);
     if (this.skillFx) this.drawSkillFx(ctx);
     if (this.tut && this.tutMove) this.drawTutor(ctx);
 
@@ -797,6 +908,19 @@ export default {
         { font: FONT.ui(13, 700), fill: '#c0405a', stroke: null, lw: 0, baseline: 'middle', shadow: null });
 
     // 2 nút tròn
+    // nút QUA MÀN NGAY — chỉ hiện khi đã đủ điểm
+    const fin = this.hits.find(h => h.id === 'finishNow');
+    if (fin) {
+      const puls = .5 + .5 * Math.sin(this.t * 4);
+      ctx.save();
+      ctx.globalAlpha = .30 + .35 * puls;
+      roundRect(ctx, fin.x - 5, fin.y - 5, fin.w + 10, fin.h + 10, 19);
+      ctx.fillStyle = '#8ef08a'; ctx.fill();
+      ctx.restore();
+      textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
+        { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
+    }
+
     for (const id of ['restart', 'resume']) {
       const h2 = this.hits.find(k => k.id === id); if (!h2) continue;
       roundBtn(ctx, h2.x + 32, h2.y + 32, 32,

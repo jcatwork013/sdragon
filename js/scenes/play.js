@@ -153,6 +153,7 @@ export default {
     const b = this.board;
     b.on.match = ({ count, cascade, cells, tokens }) => {
       const mult = 1 + (cascade - 1) * .55;
+      if (cascade > (G.sess.combo || 0)) G.sess.combo = cascade;   // cho câu nói bám đúng lúc
       const gained = Math.round(count * 42 * mult);
       this.score += gained;
       const g = Math.round(count * 1.8 * mult);
@@ -433,6 +434,7 @@ export default {
       if (G.levelIndex + 1 >= S.unlocked) S.unlocked = Math.min(G.levelIndex + 2, G.totalLevels);
       G.hero.xp = S.xp;
       G.persist();
+      G.sess.wins++; G.sess.streak++; G.sess.losses = 0;
       G.sfx('win'); G.hero.react('happy', 2.4); G.fx.shake(10); G.music('nest');
       this.say(G, 'win');
     } else {
@@ -444,6 +446,7 @@ export default {
       S.xp = Math.max(0, S.xp - this.penaltyXp);
       G.hero.xp = S.xp;
       G.persist();
+      G.sess.losses++; G.sess.streak = 0;
       G.sfx('lose'); G.hero.react('hurt', 2); G.fx.shake(16);
       this.say(G, 'lose');
     }

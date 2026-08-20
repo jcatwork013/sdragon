@@ -66,7 +66,7 @@ export default {
     S.equip = S.equip || {};
     S.equip[g.slot] = S.equip[g.slot] === g.id ? null : g.id;
     this.preview = { ...S.equip };
-    G.persist(); G.sfx('button');
+    G.persist(); G.sfx('button'); G.sess.gearAt = performance.now();
     if (g.aura && S.equip[g.slot] === g.id) G.fx.ring(G.W * .16, G.H * .52, g.aura, 10, 220, .5, 14);
   },
 

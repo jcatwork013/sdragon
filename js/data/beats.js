@@ -116,6 +116,76 @@ export const OUCH = [
 ];
 export const pickOuch = () => OUCH[(Math.random() * OUCH.length) | 0];
 
+/**
+ * CÂU XÀ LƠ — thỉnh thoảng bật lên giữa lúc chơi cho vui.
+ *
+ * NGUYÊN TẮC VIẾT: bâng quơ, tự giễu, KHÔNG đụng chạm ai — không chính trị,
+ * không giới tính, không vùng miền, không tục. Câu nào đọc lên mà một người
+ * lạ có thể thấy bị nhắm vào thì bỏ. Vui kiểu bạn bè nói xàm, thế thôi.
+ *
+ * CÓ ĐỌC TÌNH HUỐNG: mỗi câu có thể kèm `when(c)`. Câu khớp hoàn cảnh được ưu
+ * tiên hơn câu chung chung, nên người chơi thấy con dế "biết mình đang làm gì"
+ * chứ không phải cái máy phát ngẫu nhiên — đó mới là thứ giữ chân được người.
+ *
+ * `c` gồm: { scene, sessMin, hour, gold, lowTime, retries, wins, losses,
+ *            streak, combo, stage, gearNew, near }
+ */
+const Q = (vi, en, when = null) => ({ vi, en, when });
+
+export const QUIPS = [
+  // ── chung chung ─────────────────────────────────────────────────────────
+  Q('Ghép đẹp đó nha. Nhưng đừng tự tin quá.',   'Nice one. Don’t let it go to your head.'),
+  Q('Dế này chạy bằng cơm, không phải bằng pin.', 'This cricket runs on rice, not batteries.'),
+  Q('Chậm mà chắc. Chắc là chậm.',               'Slow but steady. Mostly slow.'),
+  Q('Cỏ vẫn xanh, dế vẫn gáy, đời vẫn ổn.',      'Grass is green, cricket’s chirping, all good.'),
+  Q('Một nước đi hay hơn mười lời than.',        'One good move beats ten complaints.'),
+  Q('Bình tĩnh. Viên đá không chạy đi đâu mất.', 'Relax. The gems aren’t going anywhere.'),
+  Q('Giữ tay vào đây thì tui chưa đi đâu hết nha.', 'Hold your finger here and I’ll stick around.'),
+  Q('Tui đứng đây cổ vũ thôi, không ghép giùm được.', 'I’m just here cheering. Can’t play for you.'),
+  Q('Đừng hỏi tui luật, tui chỉ là con dế.',     'Don’t ask me the rules. I’m just a cricket.'),
+
+  // ── theo hoàn cảnh ──────────────────────────────────────────────────────
+  Q('Ngồi lâu rồi đó. Đứng dậy vươn vai cái coi.', 'You’ve been sat a while. Go stretch.',
+    c => c.sessMin >= 25),
+  Q('Khuya rồi. Ghép nốt màn này rồi ngủ nha.',  'It’s late. Finish this one and sleep.',
+    c => c.hour >= 23 || c.hour < 5),
+  Q('Sáng sớm mà đã ghép đá. Nể.',               'Matching gems this early? Respect.',
+    c => c.hour >= 5 && c.hour < 8),
+  Q('Đá quý nhiều vậy mà vẫn nghèo. Lạ thật.',   'So many gems, still broke. Curious.',
+    c => c.gold < 300),
+  Q('Giàu vậy mà chưa chịu đi sắm đồ hả?',       'That rich and still not shopping?',
+    c => c.gold >= 3000),
+  Q('Đồng hồ nó không chờ ai đâu nha.',          'That clock waits for nobody.',
+    c => c.lowTime),
+  Q('Màn này khó thiệt. Không phải tại bạn đâu.', 'This one’s genuinely hard. Not your fault.',
+    c => c.retries >= 2),
+  Q('Thua vài lần là chuyện thường. Tui thua suốt.', 'Losing a few is normal. I lose constantly.',
+    c => c.losses >= 2),
+  Q('Thắng liên tiếp luôn hả? Hôm nay có gì vui à?', 'On a winning run? Good day, huh?',
+    c => c.streak >= 3),
+  Q('Combo đó tui xem mà nổi da gà.',            'That combo gave me goosebumps.',
+    c => c.combo >= 4),
+  Q('Đồ mới đẹp ghê. Xoay một vòng coi.',        'Sharp new gear. Give us a twirl.',
+    c => c.gearNew),
+  Q('Sắp tới đích rồi. Đừng run tay.',           'Almost there. Steady hands.',
+    c => c.near),
+  Q('Đi bản đồ mà cũng lạc hả trời.',            'Lost? On a map? Really?',
+    c => c.scene === 'map' && c.sessMin >= 10),
+];
+
+/**
+ * Chọn câu hợp hoàn cảnh. Ưu tiên câu có `when` khớp (70%), và không lặp lại
+ * câu vừa nói — lặp là lộ ngay ra máy móc, mất hết vẻ tự nhiên.
+ */
+let _lastQuip = null;
+export function pickQuip(c = {}) {
+  const fit = QUIPS.filter(q => q.when && q.when(c) && q !== _lastQuip);
+  const any = QUIPS.filter(q => !q.when && q !== _lastQuip);
+  const pool = (fit.length && Math.random() < .7) ? fit : (any.length ? any : QUIPS);
+  const pick = pool[(Math.random() * pool.length) | 0];
+  _lastQuip = pick;
+  return pick;
+}
 /** Danh từ mục tiêu theo chương — để "điểm" có nghĩa trong truyện. */
 export const GOAL_NOUN = {
   shellbreak: { vi: 'hạt',  en: 'seeds' },

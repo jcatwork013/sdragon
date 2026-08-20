@@ -6,7 +6,7 @@ import { clamp } from './core/util.js';
 import { perf, Q } from './core/perf.js';
 import { computeLogical } from './core/layout.js';
 import * as Store from './core/state.js';
-import { getLang, setLang, toggleLang, onLangChange, t } from './core/i18n.js';
+import { getLang, setLang, toggleLang, onLangChange, t, tx } from './core/i18n.js';
 import { Chiptune } from './audio/chiptune.js';
 import { SONGS, trackForLevel } from './audio/songs.js';
 import { FX } from './game/fx.js';
@@ -18,6 +18,7 @@ import { buildOrbSprites } from './game/bubble.js';
 import { Cricket } from './game/cricket.js';
 import { BREEDS } from './data/characters.js';
 import { EPISODES, ALL_LEVELS, TOTAL_LEVELS } from './data/levels.js';
+import { pickQuip } from './data/beats.js';
 import { actAt, currentAct } from './data/story.js';
 
 import titleScene from './scenes/title.js';
@@ -64,6 +65,9 @@ function readSafeArea() {
 
 const G = {
   W, H, CW, CH, OX, OY, canvas, ctx,
+  // Sổ theo dõi phiên chơi — chỉ sống trong bộ nhớ, không lưu xuống máy.
+  // Dùng để câu nói bám đúng hoàn cảnh chứ không bắn ngẫu nhiên.
+  sess: { start: performance.now(), wins: 0, losses: 0, retries: 0, streak: 0, combo: 0, gearAt: -1e9 },
   audio: new Chiptune(),
   songs: SONGS,
   fx: new FX(),
@@ -87,6 +91,8 @@ const G = {
     G.scene.enter(G, arg);
   },
   startLevel(i, skipStory = false) {
+    G.sess.retries = (i === G.sess.lastLv) ? G.sess.retries + 1 : 0;
+    G.sess.lastLv = i;
     G.levelIndex = clamp(i, 0, TOTAL_LEVELS - 1);
     G.level = ALL_LEVELS[G.levelIndex];
     // Hoạt cảnh chỉ chạy lần đầu tới hồi đó; xem rồi thì vào thẳng màn.
@@ -126,6 +132,36 @@ const G = {
     if (!m) G.audio.sfx('button');
   },
   toggleLang() { toggleLang(); G.audio.sfx('button'); },
+
+  /**
+   * CÂU XÀ LƠ — hiện ở đáy màn hình, 5 giây rồi mờ dần đi.
+   *
+   * GIỮ NGÓN TAY vào là đồng hồ dừng, thả ra mới chạy tiếp — ai đọc chậm, hay
+   * đang bận nước cờ, thì không bị hụt mất câu. Đặt ở tầng toàn cục để màn nào
+   * cũng dùng được và không màn nào phải tự đếm giờ.
+   */
+  quip(text) {
+    if (G.quipBox) return;
+    const line = text || tx(pickQuip(G.quipCtx()), 'vi');
+    G.quipBox = { text: line, t: 0, held: false, box: null };
+  },
+
+  /** Ảnh chụp hoàn cảnh lúc này — đầu vào cho việc chọn câu. */
+  quipCtx() {
+    const sc = G.scene, s = G.sess;
+    const L = G.level;
+    return {
+      scene: sc?.name,
+      sessMin: (performance.now() - s.start) / 60000,
+      hour: new Date().getHours(),
+      gold: G.save.gold,
+      lowTime: (sc?.timeLeft ?? 999) < 25,
+      retries: s.retries, wins: s.wins, losses: s.losses, streak: s.streak,
+      combo: s.combo, stage: G.hero?.stage?.id ?? 0,
+      gearNew: performance.now() - s.gearAt < 90000,
+      near: !!(L && sc?.score >= L.target * .8 && sc?.score < L.target),
+    };
+  },
 
   /**
    * Hộp chọn ngôn ngữ có cờ. Đặt ở tầng TOÀN CỤC chứ không nằm trong scene:
@@ -236,6 +272,12 @@ canvas.addEventListener('pointerdown', (e) => {
   canvas.setPointerCapture?.(e.pointerId);
   canvas.classList.add('grabbing');
   const [x, y] = pt(e);
+  const qb = G.quipBox?.box;
+  if (qb && x >= qb.x && x <= qb.x + qb.w && y >= qb.y && y <= qb.y + qb.h) {
+    G.quipBox.held = true;
+    captured = 'quip';
+    return;                                   // đè lên câu thì không lọt xuống màn
+  }
   activeHit = hitAt(x, y);
   if (activeHit) { captured = 'hit'; activeHit.down = true; }
   else if (G.modal) { captured = 'modal'; }
@@ -252,6 +294,11 @@ canvas.addEventListener('pointermove', (e) => {
 const endPointer = (e) => {
   const [x, y] = pt(e);
   canvas.classList.remove('grabbing');
+  if (captured === 'quip') {
+    // Thả tay ra thì cho nó mờ đi nốt, không bắt đọc lại từ đầu.
+    if (G.quipBox) { G.quipBox.held = false; G.quipBox.t = Math.max(G.quipBox.t, QUIP_LIFE - 1.2); }
+    captured = null; return;
+  }
   if (captured === 'hit' && activeHit) {
     activeHit.down = false;
     if (activeHit.contains(x, y)) activeHit.act?.();
@@ -259,7 +306,7 @@ const endPointer = (e) => {
   activeHit = null; captured = null;
 };
 canvas.addEventListener('pointerup', endPointer);
-canvas.addEventListener('pointercancel', () => { if (activeHit) activeHit.down = false; activeHit = null; captured = null; });
+canvas.addEventListener('pointercancel', () => { if (activeHit) activeHit.down = false; if (G.quipBox) G.quipBox.held = false; activeHit = null; captured = null; });
 canvas.addEventListener('wheel', (e) => { e.preventDefault(); G.scene?.wheel?.(G, e.deltaY + e.deltaX); }, { passive: false });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 window.addEventListener('keydown', (e) => {
@@ -281,6 +328,8 @@ let last = performance.now();
 let acc = 0;
 let showFps = false;
 let lastQ = perf.quality;
+let quipAt = 40 + Math.random() * 40;
+const QUIP_LIFE = 5, QUIP_FADE = .7;
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -293,6 +342,19 @@ function frame(now) {
   if (acc < STEP * 0.92) return;                     // bỏ khung thừa của màn tần số cao
   const dt = Math.min(acc, 0.05);
   acc = 0;
+
+  // Thỉnh thoảng bật một câu cho vui — chỉ ở màn có người chơi thật sự ngồi
+  // lâu, không chen vào lúc chuyển cảnh hay đang xem kết quả.
+  const chatty = G.scene?.name === 'play' || G.scene?.name === 'shoot' || G.scene?.name === 'map';
+  if (chatty && !G.quipBox && !G.modal && !G.scene?.over) {
+    quipAt -= dt;
+    if (quipAt <= 0) { quipAt = 55 + Math.random() * 70; G.quip(); }
+  }
+  if (G.quipBox) {
+    const q = G.quipBox;
+    if (!q.held) q.t += dt;
+    if (q.t > QUIP_LIFE + QUIP_FADE) G.quipBox = null;
+  }
 
   perf.tick(dt);
   // Đổi mức chất lượng thì phải dựng lại canvas cho khớp DPR mới.
@@ -314,6 +376,7 @@ function frame(now) {
   if (G.scene?.name !== 'play') G.fx.draw(ctx);      // màn chơi tự vẽ hạt đúng lớp
   ctx.restore();
 
+  if (G.quipBox) drawQuip();
   if (G.modal) drawModal();
 
   if (showFps) {
@@ -363,7 +426,44 @@ function drawModal() {
   ctx.restore();
 }
 
-G.drawModal = drawModal;   // để công cụ chụp ảnh dev vẽ được lớp này
+/**
+ * Vẽ câu xà lơ. Ghi lại vùng chạm vào q.box để lớp nhập liệu biết ngón tay có
+ * đang đè lên nó không.
+ */
+function drawQuip() {
+  const q = G.quipBox;
+  const fade = q.t <= QUIP_LIFE ? 1 : 1 - (q.t - QUIP_LIFE) / QUIP_FADE;
+  const rise = 1 - Math.pow(1 - Math.min(1, q.t / .3), 3);
+  ctx.save();
+  ctx.globalAlpha = clamp(fade, 0, 1);
+  ctx.font = FONT.ui(16, 700);
+  const w = Math.min(W - 80, ctx.measureText(q.text).width + 60);
+  const h = 48, x = (W - w) / 2, y = H - 122 - rise * 10;
+  q.box = { x, y, w, h };
+  roundRect(ctx, x, y + 4, w, h, 24);
+  ctx.fillStyle = 'rgba(8,4,18,.45)'; ctx.fill();
+  roundRect(ctx, x, y, w, h, 24);
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, 'rgba(46,32,80,.96)'); g.addColorStop(1, 'rgba(22,14,44,.97)');
+  ctx.fillStyle = g; ctx.fill();
+  ctx.strokeStyle = q.held ? 'rgba(255,214,110,.95)' : 'rgba(170,145,255,.55)';
+  ctx.lineWidth = q.held ? 3 : 2; ctx.stroke();
+  // đồng hồ cạn dần chạy dọc mép dưới — giữ tay thì nó đứng lại
+  const left = clamp(1 - q.t / QUIP_LIFE, 0, 1);
+  if (left > 0) {
+    ctx.save();
+    roundRect(ctx, x, y, w, h, 24); ctx.clip();
+    ctx.fillStyle = q.held ? 'rgba(255,214,110,.85)' : 'rgba(170,145,255,.65)';
+    ctx.fillRect(x, y + h - 4, w * left, 4);
+    ctx.restore();
+  }
+  strokeText(ctx, q.text, W / 2, y + h / 2 - 1,
+    { font: FONT.ui(16, 700), fill: '#efe8ff', stroke: 'rgba(0,0,0,.55)', lw: 3, baseline: 'middle', shadow: null });
+  ctx.restore();
+}
+
+G.drawModal = drawModal;
+G.drawQuip = drawQuip;   // để công cụ chụp ảnh dev vẽ được lớp này
 
 // ── khởi động ───────────────────────────────────────────────────────────────
 (async function boot() {

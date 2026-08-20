@@ -14,11 +14,11 @@ Chạy bằng **HTML5 Canvas + Web Audio**, **không dùng thư viện ngoài, k
 
 | File trong `dist/` | Nền tảng |
 |---|---|
-| `SDrakon-1.5.0.apk` | **Android 7+** — chép vào máy, bật "cài từ nguồn không xác định" |
-| `SDrakon Setup 1.5.0.exe` | **Windows** — bộ cài |
-| `SDrakon 1.5.0.exe` | **Windows** — bản portable, chạy thẳng |
-| `SDrakon-1.5.0-arm64.dmg` | **macOS** Apple Silicon |
-| `SDrakon-1.5.0.dmg` | **macOS** Intel |
+| `SDrakon-1.6.0.apk` | **Android 7+** — chép vào máy, bật "cài từ nguồn không xác định" |
+| `SDrakon Setup 1.6.0.exe` | **Windows** — bộ cài |
+| `SDrakon 1.6.0.exe` | **Windows** — bản portable, chạy thẳng |
+| `SDrakon-1.6.0-arm64.dmg` | **macOS** Apple Silicon |
+| `SDrakon-1.6.0.dmg` | **macOS** Intel |
 
 Dựng lại: `npm run apk` (Android) · `npm run build:mac` · `npm run build:win`.
 Đổi phiên bản: `npm run version -- 1.1.0` (tự đồng bộ package.json · sw.js · Android).

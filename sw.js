@@ -1,6 +1,6 @@
 // ── Service worker: chơi được hoàn toàn ngoại tuyến sau lần mở đầu ──────────
 // Đổi CACHE khi phát hành bản mới → bản cũ tự bị dọn.
-const CACHE = 'sdrakon-v1.5.0';
+const CACHE = 'sdrakon-v1.6.0';
 
 const SHELL = [
   './',
@@ -29,6 +29,7 @@ const SHELL = [
   './js/game/gems.js',
   './js/main.js',
   './js/render/background.js',
+  './js/scenes/chapter.js',
   './js/scenes/duel.js',
   './js/scenes/egg.js',
   './js/scenes/help.js',

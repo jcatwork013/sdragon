@@ -108,6 +108,8 @@ run('7d · Câu xà lơ', 30, 'sc7d_quip.png', () => { G.startLevel(2, true);
 run('29 · Ghép Đôi',  50, 'sc29_pair.png', () => { G.save.unlocked=20; G.startLevel(6, true);
   const s2=G.scene; s2.cards[0].up=1; s2.cards[3].up=1; s2.cards[5].matched=true; s2.cards[5].up=1;
   for (let i=0;i<8;i++) s2.cards[i].seed=i; });
+run('7e · Nổi nộ', 14, 'sc7e_fury.png', () => { G.startLevel(2, true);
+  const s2=G.scene; s2.score=2400; s2.rage=.94; s2.hot=6; s2.addRage(G, .1); });
 run('9 · Tạm dừng',     20, 'sc9_pause.png', () => { G.startLevel(3); G.scene.togglePause(G); });
 run('10 · Hướng dẫn tr1', 40, 'sc10_help1.png', () => { G.go('help', 'map'); });
 run('11 · Hướng dẫn tr2', 20, 'sc11_help2.png', () => { G.scene.page = 1; });

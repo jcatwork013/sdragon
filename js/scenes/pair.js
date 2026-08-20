@@ -235,8 +235,9 @@ export default {
     const y = 470;
     this.hits = [];
     if (win) {
-      this.hits.push(new Hit('next', G.W / 2 - 210, y, 190, 62, { act: () => G.startLevel(Math.min(G.levelIndex + 1, G.totalLevels - 1)) }));
-      this.hits.push(new Hit('map', G.W / 2 + 20, y, 190, 62, { act: () => G.go('map') }));
+      this.hits.push(new Hit('next',  G.W / 2 - 256, y, 160, 62, { act: () => G.startLevel(Math.min(G.levelIndex + 1, G.totalLevels - 1)) }));
+      this.hits.push(new Hit('again', G.W / 2 -  80, y, 160, 62, { act: () => G.startLevel(G.levelIndex, true) }));
+      this.hits.push(new Hit('map',   G.W / 2 +  96, y, 160, 62, { act: () => G.go('map') }));
     } else {
       this.hits.push(new Hit('retry', G.W / 2 - 210, y, 190, 62, { act: () => G.startLevel(G.levelIndex) }));
       this.hits.push(new Hit('map', G.W / 2 + 20, y, 190, 62, { act: () => G.go('map') }));
@@ -482,9 +483,10 @@ export default {
         { font: FONT.ui(19, 600), fill: '#ffc0cf', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     ctx.restore();
     if (k >= 1) for (const h of this.hits) {
-      if (h.id === 'next') textBtn(ctx, h.x, h.y, h.w, h.h, t('next') + ' ›', { press: h.press, hover: h.hover, font: FONT.disp(24) });
-      if (h.id === 'retry') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(24) });
-      if (h.id === 'map') textBtn(ctx, h.x, h.y, h.w, h.h, t('toMap'), { press: h.press, hover: h.hover, colour: '#7a5fae', dark: '#3b2263', lite: '#c0a0ff', font: FONT.disp(24) });
+      if (h.id === 'next') textBtn(ctx, h.x, h.y, h.w, h.h, t('next') + ' ›', { press: h.press, hover: h.hover, font: FONT.disp(21) });
+      if (h.id === 'again') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(21) });
+      if (h.id === 'retry') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(22) });
+      if (h.id === 'map') textBtn(ctx, h.x, h.y, h.w, h.h, t('toMap'), { press: h.press, hover: h.hover, colour: '#7a5fae', dark: '#3b2263', lite: '#c0a0ff', font: FONT.disp(21) });
     }
   },
 };

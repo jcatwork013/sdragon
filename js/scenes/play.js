@@ -46,6 +46,14 @@ export default {
     this.score = 0; this.gold = 0; this.movesLeft = L.moves;
     this.over = null; this.overT = 0; this.paused = false;
     this.bravo = null; this.bravoGold = 0;
+    // ── THANH NỘ ────────────────────────────────────────────────────────
+    // Nạp từ CẢ HAI phía: ăn điểm và ăn đòn. Chỉ nạp khi ghép được thì người
+    // chơi đang thắng lại càng thắng; cho ăn đòn cũng nạp thì lúc bị dồn vào
+    // thế bí mới có đường lật ngược — đó mới là chỗ hồi hộp.
+    this.rage = 0;      // 0..1
+    this.hot = 0;       // số nước ghép trúng liên tiếp
+    this.fury = 0;      // giây còn lại của trạng thái nổi nộ
+    this.furyT = 0;
     this.praiseT = 0; this.praise = ''; this.toastT = 0; this.toast = '';
     this.shownScore = 0;
     this.hammer = 2; this.shuffleUse = 1; this.hammerMode = false;
@@ -155,8 +163,13 @@ export default {
   wire(G) {
     const b = this.board;
     b.on.match = ({ count, cascade, cells, tokens }) => {
-      const mult = 1 + (cascade - 1) * .55;
+      const mult = (1 + (cascade - 1) * .55) * (this.fury > 0 ? 2 : 1);
       if (cascade > (G.sess.combo || 0)) G.sess.combo = cascade;   // cho câu nói bám đúng lúc
+      if (cascade === 1) {
+        this.hot++;
+        if (this.hot === 5) { G.sfx('levelup'); G.hero.react('proud', 1.4); this.say(G, 'combo'); }
+      }
+      this.addRage(G, .09 + (cascade - 1) * .05 + Math.min(count, 8) * .006);
       const gained = Math.round(count * 42 * mult);
       this.score += gained;
       const g = Math.round(count * 1.8 * mult);
@@ -331,6 +344,45 @@ export default {
     ctx.restore();
   },
 
+  /** Nạp thanh nộ; đầy thì tự bùng. */
+  addRage(G, n) {
+    if (this.over || this.fury > 0) return;
+    this.rage = clamp(this.rage + n, 0, 1);
+    if (this.rage >= 1) this.burstFury(G);
+  },
+
+  /**
+   * NỔI NỘ — nổ tung màn hình rồi giáng đòn.
+   *
+   * Phải có phần thưởng THẬT chứ không chỉ đẹp mắt: quét sạch một phần bàn cờ,
+   * giáng đòn lên mọi thiên địch, và nhân đôi điểm trong mấy giây sau. Hiệu ứng
+   * hoành tráng mà không đổi được cục diện thì lần thứ hai đã hết thiêng.
+   */
+  burstFury(G) {
+    this.rage = 0; this.fury = 6; this.furyT = 0;
+    G.sfx('bomb'); G.fx.shake(34);
+    G.hero.react('proud', 2.2); G.hero.breatheFire(1.4);
+    const cx = FX_ + FW / 2, cy = FY_ + FH / 2;
+    for (let i = 0; i < 3; i++)
+      G.fx.ring(cx, cy, ['#ffe066', '#ff7a3a', '#ff2f4e'][i], 14, FW * (.7 + i * .35), .55 + i * .12, 18);
+    for (let k = 0; k < 26; k++)
+      G.fx.burst(cx, cy, { lite: '#ffd0a0', base: '#ff5f3a', dark: '#7a1400', spark: '#fff' }, 8, 1.9);
+    G.fx.float(cx, cy - 40, t('furyGo'), { size: 54, fill: '#ffe066', stroke: '#7a1400' });
+    // giáng đòn lên toàn bộ thiên địch
+    for (const e of this.enemies) if (e.alive) {
+      const d = Math.round(40 + (G.save.stats?.might || 0) * 9);
+      e.damage(d);
+      G.fx.float(FX_ + FW * ((this.enemies.indexOf(e) + .5) / this.enemies.length), FY_ + 40,
+        '-' + d, { size: 34, fill: '#fff', stroke: '#5c0010' });
+    }
+    // foesLeft là getter — nó tự đếm lại, không gán tay được.
+    // nổ một dải ngang giữa bàn
+    const row = (this.board.rows / 2) | 0;
+    const out = new Set();
+    for (let c = 0; c < this.board.cols; c++) out.add(this.board.idx(c, row));
+    this.board._beginPop([...out], null);
+  },
+
   checkEnd(G) {
     if (this.over || this.bravo) return;
     if (this.hp <= 0) return this.finish(G, false, t('foeKilled'));
@@ -456,8 +508,11 @@ export default {
     this.hits = this.hits.filter(h => h.id === 'pause');
     const y = 470;
     if (win) {
-      this.hits.push(new Hit('next', G.W / 2 - 210, y, 190, 62, { act: () => G.startLevel(Math.min(G.levelIndex + 1, G.totalLevels - 1)) }));
-      this.hits.push(new Hit('map',  G.W / 2 +  20, y, 190, 62, { act: () => G.go('map') }));
+      // Ba nút: qua màn kế · chơi lại màn này · về bản đồ. Thắng rồi mà muốn
+      // cày thêm sao thì trước đây phải quay ra bản đồ rồi bấm lại vào.
+      this.hits.push(new Hit('next',  G.W / 2 - 256, y, 160, 62, { act: () => G.startLevel(Math.min(G.levelIndex + 1, G.totalLevels - 1)) }));
+      this.hits.push(new Hit('again', G.W / 2 -  80, y, 160, 62, { act: () => G.startLevel(G.levelIndex, true) }));
+      this.hits.push(new Hit('map',   G.W / 2 +  96, y, 160, 62, { act: () => G.go('map') }));
     } else {
       this.hits.push(new Hit('retry', G.W / 2 - 210, y, 190, 62, { act: () => G.startLevel(G.levelIndex) }));
       this.hits.push(new Hit('map',   G.W / 2 +  20, y, 190, 62, { act: () => G.go('map') }));
@@ -482,6 +537,7 @@ export default {
     this.board.update(dt);
     this.updateEnemies(G, dt);
     if (this.hitFlash > 0) this.hitFlash -= dt;
+    if (this.fury > 0) { this.fury -= dt; this.furyT += dt; if (this.fury <= 0) this.hot = 0; }
 
     if (this.tut) {
       this.tutT += dt;
@@ -545,6 +601,8 @@ export default {
       G.hero.react('hurt', .8);
       G.fx.float(FX_ + FW / 2, FY_ + FH * .5, note, { size: 26, fill: '#ff9aa8', stroke: '#5c0010', max: 1.3 });
       G.fx.beam(ex, ENEMY_Y + 30, false, 120, '#ff5470');
+      this.hot = 0;
+      this.addRage(G, .16);          // ăn đòn nạp mạnh hơn ghép trúng
       if (this.hp <= 0) { this.finish(G, false, t('foeKilled')); return; }
     }
   },
@@ -671,6 +729,21 @@ export default {
     strokeText(ctx, `${t('level')} ${L.index} · ${tx(G.episodeOf(G.levelIndex), 'name')}`, FX_ + FW / 2, 24,
       { font: FONT.disp(22), fill: '#fff', stroke: '#2b1740', lw: 5, baseline: 'middle' });
 
+    // ── ĐANG NỘ: viền lửa quanh màn + ám đỏ ─────────────────────────────
+    if (this.fury > 0) {
+      const k = clamp(this.fury / 6, 0, 1);
+      const flash = this.furyT < .35 ? 1 - this.furyT / .35 : 0;
+      ctx.save();
+      if (flash > 0) { ctx.globalAlpha = flash * .55; ctx.fillStyle = '#ff4a2a'; ctx.fillRect(...bleed(G)); }
+      ctx.globalAlpha = 1;
+      const [bx2, by2, bw2, bh2] = bleed(G);
+      const eg = ctx.createRadialGradient(bx2 + bw2 / 2, by2 + bh2 / 2, bh2 * .34,
+                                          bx2 + bw2 / 2, by2 + bh2 / 2, bh2 * .82);
+      eg.addColorStop(0, 'rgba(255,60,40,0)');
+      eg.addColorStop(1, `rgba(255,60,40,${.30 * k * (.8 + .2 * Math.sin(this.t * 9))})`);
+      ctx.fillStyle = eg; ctx.fillRect(bx2, by2, bw2, bh2);
+      ctx.restore();
+    }
     if (this.bravo) this.drawBravo(G, ctx);
     if (this.skillFx) this.drawSkillFx(ctx);
     if (this.tut && this.tutMove) this.drawTutor(ctx);
@@ -914,6 +987,36 @@ export default {
         { font: FONT.ui(13, 700), fill: '#c0405a', stroke: null, lw: 0, baseline: 'middle', shadow: null });
 
     // 2 nút tròn
+    // ── THANH NỘ ────────────────────────────────────────────────────────
+    {
+      const rx = HUDX + 18, ry = 470, rw = HUDW - 36, rh = 26;
+      const on = this.fury > 0;
+      roundRect(ctx, rx, ry + 3, rw, rh, rh / 2);
+      ctx.fillStyle = 'rgba(90,30,10,.55)'; ctx.fill();
+      roundRect(ctx, rx, ry, rw, rh, rh / 2);
+      ctx.fillStyle = 'rgba(40,20,30,.85)'; ctx.fill();
+      ctx.save(); roundRect(ctx, rx + 2, ry + 2, rw - 4, rh - 4, (rh - 4) / 2); ctx.clip();
+      const v = on ? 1 : this.rage;
+      const rg = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+      if (on) { rg.addColorStop(0, '#fff2a8'); rg.addColorStop(.5, '#ff9a2b'); rg.addColorStop(1, '#ff2f4e'); }
+      else { rg.addColorStop(0, '#ff7a3a'); rg.addColorStop(1, '#ff2f4e'); }
+      ctx.fillStyle = rg; ctx.fillRect(rx + 2, ry + 2, (rw - 4) * v, rh - 4);
+      if (on) {                                    // sọc chạy khi đang nộ
+        ctx.globalAlpha = .35; ctx.fillStyle = '#fff';
+        for (let i = -2; i < rw / 16 + 2; i++)
+          ctx.fillRect(rx + i * 16 + ((this.t * 60) % 16), ry, 7, rh);
+        ctx.globalAlpha = 1;
+      }
+      ctx.fillStyle = 'rgba(255,255,255,.45)';
+      roundRect(ctx, rx + 5, ry + 4, Math.max(0, (rw - 10) * v), rh * .32, rh * .16); ctx.fill();
+      ctx.restore();
+      const puls = on ? 1 : this.rage >= .999 ? 1 : .55 + .45 * Math.sin(this.t * 6) * (this.rage > .7 ? 1 : 0);
+      ctx.strokeStyle = `rgba(255,150,60,${.5 + .5 * puls})`; ctx.lineWidth = 2.4;
+      roundRect(ctx, rx, ry, rw, rh, rh / 2); ctx.stroke();
+      strokeText(ctx, on ? t('furyOn') : t('rage'), rx + rw / 2, ry + rh / 2 + 1,
+        { font: FONT.ui(13, 800), fill: '#fff', stroke: '#5c1000', lw: 3, baseline: 'middle', shadow: null });
+    }
+
     // nút QUA MÀN NGAY — chỉ hiện khi đã đủ điểm
     const fin = this.hits.find(h => h.id === 'finishNow');
     if (fin) {
@@ -1247,9 +1350,10 @@ export default {
     ctx.restore();
 
     if (k >= 1) for (const h of this.hits) {
-      if (h.id === 'next')  textBtn(ctx, h.x, h.y, h.w, h.h, t('next') + ' ›', { press: h.press, hover: h.hover, font: FONT.disp(24) });
-      if (h.id === 'retry') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(24) });
-      if (h.id === 'map')   textBtn(ctx, h.x, h.y, h.w, h.h, t('toMap'), { press: h.press, hover: h.hover, colour: '#7a5fae', dark: '#3b2263', lite: '#c0a0ff', font: FONT.disp(24) });
+      if (h.id === 'next')  textBtn(ctx, h.x, h.y, h.w, h.h, t('next') + ' ›', { press: h.press, hover: h.hover, font: FONT.disp(21) });
+      if (h.id === 'again') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(21) });
+      if (h.id === 'retry') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(22) });
+      if (h.id === 'map')   textBtn(ctx, h.x, h.y, h.w, h.h, t('toMap'), { press: h.press, hover: h.hover, colour: '#7a5fae', dark: '#3b2263', lite: '#c0a0ff', font: FONT.disp(21) });
     }
   },
 

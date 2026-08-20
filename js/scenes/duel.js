@@ -604,7 +604,7 @@ export default {
       if (ln) ctx.fillText(ln, bx2 + 18, yy2);
       ctx.restore();
     }
-    strokeText(ctx, this.over.win ? t('duelTipWin') : t('duelTipLose'), W / 2, 366,
+    strokeText(ctx, this.over.win ? t('duelTipWin') : t('duelTipLose'), W / 2, 330,
       { font: FONT.ui(15, 600), fill: '#c9b8ff', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     ctx.restore();
     if (k >= 1) {

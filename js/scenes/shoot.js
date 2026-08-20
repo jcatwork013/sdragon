@@ -271,8 +271,9 @@ export default {
     this.hits = this.hits.filter(h => h.id === 'pause');
     const y = 470;
     if (win) {
-      this.hits.push(new Hit('next', G.W / 2 - 210, y, 190, 62, { act: () => G.startLevel(Math.min(G.levelIndex + 1, G.totalLevels - 1)) }));
-      this.hits.push(new Hit('map', G.W / 2 + 20, y, 190, 62, { act: () => G.go('map') }));
+      this.hits.push(new Hit('next',  G.W / 2 - 256, y, 160, 62, { act: () => G.startLevel(Math.min(G.levelIndex + 1, G.totalLevels - 1)) }));
+      this.hits.push(new Hit('again', G.W / 2 -  80, y, 160, 62, { act: () => G.startLevel(G.levelIndex, true) }));
+      this.hits.push(new Hit('map',   G.W / 2 +  96, y, 160, 62, { act: () => G.go('map') }));
     } else {
       this.hits.push(new Hit('retry', G.W / 2 - 210, y, 190, 62, { act: () => G.startLevel(G.levelIndex) }));
       this.hits.push(new Hit('map', G.W / 2 + 20, y, 190, 62, { act: () => G.go('map') }));
@@ -815,7 +816,7 @@ export default {
     {
       strokeText(ctx, `+${this.gold} ${t('gold')}     +${this.xpGain} EXP`, W / 2, 402,
         { font: FONT.disp(24), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
-      if (this.matsGot) drawMatsRow(ctx, W / 2, 436, this.matsGot);
+      if (this.matsGot) drawMatsRow(ctx, W / 2, 424, this.matsGot);
     }
     else
       strokeText(ctx, this.over.why, W / 2, 400,
@@ -823,9 +824,10 @@ export default {
     ctx.restore();
 
     if (k >= 1) for (const h of this.hits) {
-      if (h.id === 'next') textBtn(ctx, h.x, h.y, h.w, h.h, t('next') + ' ›', { press: h.press, hover: h.hover, font: FONT.disp(24) });
-      if (h.id === 'retry') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(24) });
-      if (h.id === 'map') textBtn(ctx, h.x, h.y, h.w, h.h, t('toMap'), { press: h.press, hover: h.hover, colour: '#7a5fae', dark: '#3b2263', lite: '#c0a0ff', font: FONT.disp(24) });
+      if (h.id === 'next') textBtn(ctx, h.x, h.y, h.w, h.h, t('next') + ' ›', { press: h.press, hover: h.hover, font: FONT.disp(21) });
+      if (h.id === 'again') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(21) });
+      if (h.id === 'retry') textBtn(ctx, h.x, h.y, h.w, h.h, t('retry'), { press: h.press, hover: h.hover, colour: C.orange, dark: C.orangeDark, lite: C.orangeLite, font: FONT.disp(22) });
+      if (h.id === 'map') textBtn(ctx, h.x, h.y, h.w, h.h, t('toMap'), { press: h.press, hover: h.hover, colour: '#7a5fae', dark: '#3b2263', lite: '#c0a0ff', font: FONT.disp(21) });
     }
   },
 };

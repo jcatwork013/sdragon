@@ -244,7 +244,7 @@ export const icon = {
     ctx.beginPath(); ctx.arc(r * .16, r * .3, r * .26, 0, TAU); ctx.fill();
   },
   star(ctx, s) {
-    const R = s * .5, r = R * .45;
+    const R = s * .5, r = R * .58;
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {
       const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r : R;
@@ -253,19 +253,19 @@ export const icon = {
     ctx.closePath();
     const g = ctx.createLinearGradient(0, -R, 0, R);
     g.addColorStop(0, '#fff2a8'); g.addColorStop(.5, C.gold); g.addColorStop(1, '#f09a10');
+    ctx.strokeStyle = '#7a4f00'; ctx.lineWidth = s * .17; ctx.lineJoin = 'round'; ctx.stroke();
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = '#7a4f00'; ctx.lineWidth = s * .07; ctx.lineJoin = 'round'; ctx.stroke();
   },
   starEmpty(ctx, s) {
-    const R = s * .5, r = R * .45;
+    const R = s * .5, r = R * .58;
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {
       const a = -Math.PI / 2 + i * Math.PI / 5, rr = i % 2 ? r : R;
       i ? ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr) : ctx.moveTo(Math.cos(a) * rr, Math.sin(a) * rr);
     }
     ctx.closePath();
+    ctx.strokeStyle = 'rgba(255,255,255,.32)'; ctx.lineWidth = s * .17; ctx.lineJoin = 'round'; ctx.stroke();
     ctx.fillStyle = 'rgba(20,12,36,.55)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(255,255,255,.35)'; ctx.lineWidth = s * .07; ctx.lineJoin = 'round'; ctx.stroke();
   },
   hammer(ctx, s) {
     ctx.save();
@@ -601,7 +601,9 @@ export function sunburst(ctx, cx, cy, r, t, col, n = 18, alpha = .42) {
  * tròn mọi góc, vừa ra viền vừa ra hình. Rẻ hơn và không bao giờ lệch.
  */
 export function bigStar(ctx, s, o = {}) {
-  const R = s * .5, r = R * .48;
+  // r/R càng lớn thì sao càng mập. .48 ra sao nhọn hoắt kiểu ngôi sao trên
+  // cờ; .60 cộng nét viền dày mới ra sao bầu bĩnh kiểu game trẻ em.
+  const R = s * .5, r = R * .60;
   const on = o.on !== false;
   const path = () => {
     ctx.beginPath();
@@ -617,7 +619,7 @@ export function bigStar(ctx, s, o = {}) {
     // Ô sao chưa ăn được: vẫn phải ĐỌC RA là một ngôi sao cùng cỡ, không thì
     // nhìn như sao bé hơn và người chơi tưởng mình được 2 sao rưỡi.
     path();
-    ctx.strokeStyle = 'rgba(255,255,255,.30)'; ctx.lineWidth = s * .20; ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,.30)'; ctx.lineWidth = s * .26; ctx.stroke();
     ctx.fillStyle = 'rgba(20,14,40,.55)'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,255,255,.42)'; ctx.lineWidth = s * .045; ctx.stroke();
     ctx.restore();
@@ -625,12 +627,12 @@ export function bigStar(ctx, s, o = {}) {
   }
   // bóng đổ
   ctx.save(); ctx.translate(0, s * .05);
-  path(); ctx.strokeStyle = 'rgba(90,44,0,.35)'; ctx.lineWidth = s * .22; ctx.stroke();
+  path(); ctx.strokeStyle = 'rgba(90,44,0,.35)'; ctx.lineWidth = s * .28; ctx.stroke();
   ctx.fillStyle = 'rgba(90,44,0,.35)'; ctx.fill();
   ctx.restore();
   // viền dày bo tròn
   path();
-  ctx.strokeStyle = o.ink || '#8a4a00'; ctx.lineWidth = s * .20; ctx.stroke();
+  ctx.strokeStyle = o.ink || '#8a4a00'; ctx.lineWidth = s * .26; ctx.stroke();
   // mặt sao
   const g = ctx.createLinearGradient(0, -R, 0, R);
   g.addColorStop(0, o.lite || '#fff0a8');
@@ -683,10 +685,12 @@ export function resultBanner(ctx, o) {
     const pop = on ? ease.outBack(clamp((anim - .35 - i * .22) / .35, 0, 1)) : 1;
     const mid = i === 1;
     ctx.save();
-    ctx.translate(cx + (i - 1) * 86, top + 152 - (mid ? 12 : 0));
+    // Sao bo tròn thì chiếm chỗ rộng hơn sao nhọn cùng cỡ — phải hạ xuống và
+    // thu lại, nếu không nó trùm lên dòng chữ lớn phía trên.
+    ctx.translate(cx + (i - 1) * 84, top + 164 - (mid ? 10 : 0));
     ctx.scale(pop, pop);
     if (on) ctx.rotate(Math.sin(t * 3 + i) * .05);
-    bigStar(ctx, mid ? 94 : 82, { on });
+    bigStar(ctx, mid ? 86 : 76, { on });
     ctx.restore();
   }
 }

@@ -107,6 +107,28 @@ export const EPISODES = [
  * 9 mảnh còn lại để "???" và sẽ mở dần theo lịch phát hành ở ROADMAP.md.
  * Thêm mảnh mới = điền tên + danh sách episode vào đây, engine không phải sửa.
  */
+/**
+ * Mảnh đất nào chứa màn thứ i, và i có phải màn CUỐI của mảnh đó không.
+ * Mảnh 1 hiện ôm cả ba chương (45 màn); các mảnh sau chưa có màn nào, nên
+ * hàm này trả về mảnh cuối cùng có nội dung.
+ */
+export function regionOf(i) {
+  let n = 0;
+  for (const r of REGIONS) {
+    const cnt = (r.episodes || []).reduce(
+      (a2, id) => a2 + (EPISODES.find(e => e.id === id)?.levels.length || 0), 0);
+    if (cnt && i < n + cnt) return { region: r, from: n, to: n + cnt - 1 };
+    n += cnt;
+  }
+  return null;
+}
+export const isRegionEnd = (i) => { const r = regionOf(i); return !!r && i === r.to; };
+export const nextRegion = (i) => {
+  const r = regionOf(i); if (!r) return null;
+  const k = REGIONS.indexOf(r.region);
+  return REGIONS[k + 1] || null;
+};
+
 export const REGIONS = [
   { id: 'r1',  open: true,  name: 'Bờ Cỏ Nhà',  name_en: 'Home Grass Bank',
     episodes: ['shellbreak', 'ashmeadow', 'quartz'], hue: '#7fb861' },

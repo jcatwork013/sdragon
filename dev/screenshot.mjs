@@ -54,7 +54,7 @@ process.on('uncaughtException', e => { console.error('UNCAUGHT:', e.stack.split(
 
 const ROOT = new URL('../js/', import.meta.url).href;
 const { SHOP: SHOPI } = await import(ROOT + 'data/gear.js');
-const { EPISODES: EPS } = await import(ROOT + 'data/levels.js');
+const { EPISODES: EPS, REGIONS: REG } = await import(ROOT + 'data/levels.js');
 await import(ROOT + 'main.js');
 await new Promise(r => setTimeout(r, 120));            // chờ boot() xong
 const G = globalThis.window.SDRAKON || globalThis.SDRAKON;
@@ -65,6 +65,7 @@ EPS.forEach(e => { G.save.seenEp[e.id] = true; });
 
 function run(name, frames, file, setup) {
   try {
+    G.save.fed = 100;                 // chụp liên tiếp thì dế đói thật, no lại trước mỗi ảnh
     if (setup) setup();
     for (let i = 0; i < frames; i++) {
       G.scene?.update?.(G, 1 / 60);
@@ -149,6 +150,10 @@ run('28c · Tủ đồ', 20, 'sc28c_bag.png', () => { G.save.gold=1240;
   G.go('shop', { after(){}, mode:'bag' }); });
 run('30 · Mở chương', 40, 'sc30_chapter.png', () => { G.save.unlocked=20;
   G.go('chapter', { ep: EPS[1], after(){} }); });
+run('31 · Chuyển vùng ①', 40, 'sc31a_region.png', () => { G.go('region', { done: REG[0], next: REG[1], after(){} }); });
+run('31 · Chuyển vùng ②', 100, 'sc31b_region.png', () => { G.scene.t = 3.6; });
+run('31 · Chuyển vùng ③', 40, 'sc31c_region.png', () => { G.scene.t = 6.4; });
+run('32 · Dế đói',  30, 'sc32_hungry.png', () => { G.go('map'); G.save.fed = 0; G.save.food = 2; });
 run('26 · Bản đồ thế giới', 40, 'sc26_world.png', () => { G.save.unlocked=20; G.go('world', { after: () => {} }); });
 run('17 · Búa giáng',  1, 'sc17_hammer.png', () => { G.startLevel(2); G.scene.skillFx = { kind:'hammer', t:.235, dur:.78, x:640, y:340 }; });
 run('18 · Lửa quét',   1, 'sc18_fire.png',   () => { G.startLevel(2); G.scene.skillFx = { kind:'fire', t:.40, dur:.95, row:4, y:400 }; });

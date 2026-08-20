@@ -65,6 +65,7 @@ export default {
   // ── hành động ─────────────────────────────────────────────────────────────
   feed(G) {
     if (G.save.food <= 0) { G.sfx('invalid'); this.say(t('notEnough'), true); return; }
+    G.save.fed = 100;                      // ăn xong là no căng
     G.save.food--; this.gainXp(G, 420);
     G.hero.react('eat', .8); G.sfx('gulp');
     G.fx.sparkle(HEROX, G.H * .52, '#b6ffd8', 14);

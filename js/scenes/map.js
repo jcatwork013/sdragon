@@ -440,6 +440,33 @@ export default {
     };
     res(24, icon.pouch, G.save.gold);
     res(186, icon.flame, G.save.food);
+
+    // ── ĐỘ NO ───────────────────────────────────────────────────────────
+    // Đặt ngay cạnh túi tiền để người chơi thấy trước khi bấm vào màn, chứ
+    // không phải bấm rồi mới bị đuổi về.
+    {
+      // Xuống hàng dưới hai túi tiền — để cùng hàng thì nó chen vào tiêu đề.
+      const fx2 = 24, fy2 = 86, fw2 = 324, fh2 = 44;
+      const v = clamp((G.save.fed ?? 100) / 100, 0, 1);
+      const low = v <= .25;
+      ctx.save(); glassPanel(ctx, fx2, fy2, fw2, fh2, 16); ctx.restore();
+      const bx2 = fx2 + 78, by2 = fy2 + 13, bw2 = fw2 - 92, bh2 = 18;
+      roundRect(ctx, bx2, by2, bw2, bh2, bh2 / 2);
+      ctx.fillStyle = 'rgba(10,6,20,.7)'; ctx.fill();
+      ctx.save(); roundRect(ctx, bx2 + 2, by2 + 2, bw2 - 4, bh2 - 4, (bh2 - 4) / 2); ctx.clip();
+      const fg2 = ctx.createLinearGradient(bx2, 0, bx2 + bw2, 0);
+      if (low) { fg2.addColorStop(0, '#e8384f'); fg2.addColorStop(1, '#ff9aa8'); }
+      else { fg2.addColorStop(0, '#f5a51e'); fg2.addColorStop(1, '#8ef08a'); }
+      ctx.fillStyle = fg2; ctx.fillRect(bx2 + 2, by2 + 2, (bw2 - 4) * v, bh2 - 4);
+      ctx.restore();
+      ctx.strokeStyle = low ? `rgba(255,90,110,${.6 + .4 * Math.sin(this.t * 6)})` : 'rgba(255,255,255,.35)';
+      ctx.lineWidth = 2; roundRect(ctx, bx2, by2, bw2, bh2, bh2 / 2); ctx.stroke();
+      strokeText(ctx, `${t('fed')} ${Math.round(v * 100)}%`, fx2 + 16, fy2 + fh2 / 2,
+        { font: FONT.ui(13, 800), fill: low ? '#ff9aa8' : '#e6dcff', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      if (G.hungry)
+        strokeText(ctx, t('hungryHint'), fx2 + 4, fy2 + fh2 + 16,
+          { font: FONT.ui(13, 800), fill: '#ff9aa8', stroke: '#3a0010', lw: 3, align: 'left', baseline: 'middle' });
+    }
     strokeText(ctx, t('mapTitle'), W / 2, 50, { font: FONT.disp(34), fill: '#fff', stroke: '#3a1d6e', lw: 7, baseline: 'middle' });
 
     for (const h of this.hits) {

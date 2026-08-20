@@ -5,6 +5,7 @@ export const blank = () => ({
   v: 2,
   breed: null,                                   // id giống rồng đã chọn
   xp: 0, gold: 250, food: 3,
+  fed: 100,                                      // độ no 0..100; hết là dế không chơi nổi
   stats: { might: 0, spirit: 0, fortune: 0, breath: 0 },
   stars: {},                                     // levelId → 0..3
   best:  {},                                     // levelId → điểm cao nhất

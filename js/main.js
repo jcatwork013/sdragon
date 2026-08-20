@@ -17,7 +17,7 @@ import { buildGemSprites } from './game/gems.js';
 import { buildOrbSprites } from './game/bubble.js';
 import { Cricket } from './game/cricket.js';
 import { BREEDS } from './data/characters.js';
-import { EPISODES, ALL_LEVELS, TOTAL_LEVELS } from './data/levels.js';
+import { EPISODES, ALL_LEVELS, TOTAL_LEVELS, isRegionEnd, regionOf, nextRegion } from './data/levels.js';
 import { pickQuip } from './data/beats.js';
 import { actAt, currentAct } from './data/story.js';
 
@@ -34,6 +34,7 @@ import worldScene from './scenes/world.js';
 import shopScene  from './scenes/shop.js';
 import pairScene  from './scenes/pair.js';
 import chapterScene from './scenes/chapter.js';
+import regionScene  from './scenes/region.js';
 
 // Khung logic tính từ tỉ lệ màn hình thật (xem js/core/layout.js).
 //   W,H      = DẢI GIAO DIỆN, mọi scene dựng bố cục trên đây (cao luôn 720)
@@ -75,7 +76,7 @@ const G = {
   fx: new FX(),
   world: new World(W, H, OX, OY, CW, CH),
   save: Store.load(),
-  scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene, shop: shopScene, pair: pairScene, chapter: chapterScene },
+  scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene, shop: shopScene, pair: pairScene, chapter: chapterScene, region: regionScene },
   scene: null,
   level: null, levelIndex: 0,
   totalLevels: TOTAL_LEVELS,
@@ -92,7 +93,33 @@ const G = {
     G.scene.hits = [];
     G.scene.enter(G, arg);
   },
+  /** Mỗi màn ngốn bấy nhiêu độ no. */
+  FED_COST: 15,
+  get hungry() { return (G.save.fed ?? 100) <= 0; },
+
+  /**
+   * Cho ăn: đổi một phần thức ăn lấy đầy bụng.
+   * @returns true nếu ăn được
+   */
+  feedHero() {
+    if ((G.save.food || 0) <= 0) { G.sfx('invalid'); return false; }
+    G.save.food--; G.save.fed = 100;
+    G.persist();
+    G.sfx('levelup');
+    G.hero.react('eat', 1.8);
+    return true;
+  },
+
   startLevel(i, skipStory = false) {
+    // ĐÓI thì không đi được. Chặn ngay ở cửa vào chứ không để vào màn rồi mới
+    // báo — vào rồi mới đuổi ra thì bực hơn nhiều.
+    if (G.hungry) {
+      G.sfx('invalid');
+      G.quipBox = null;
+      G.quip(t('hungryBlock'));
+      G.go('nest');
+      return;
+    }
     G.sess.retries = (i === G.sess.lastLv) ? G.sess.retries + 1 : 0;
     G.sess.lastLv = i;
     G.levelIndex = clamp(i, 0, TOTAL_LEVELS - 1);
@@ -120,8 +147,28 @@ const G = {
       return;
     }
     G._justDueled = false;
+    // Trừ độ no đúng lúc VÀO màn, không trừ lúc thắng — thua cũng phải tốn
+    // sức, nếu không thì thua vô hạn mà chẳng mất gì.
+    G.save.fed = Math.max(0, (G.save.fed ?? 100) - G.FED_COST);
+    G.persist();
     G.go(G.level.mode === 'shoot' ? 'shoot' : G.level.mode === 'pair' ? 'pair' : 'play');
   },
+  /**
+   * Qua màn CUỐI của một mảnh đất → chạy hoạt cảnh chuyển vùng thay vì vào
+   * thẳng màn kế. Chinh phục cả một vùng là chuyện lớn, bảng kết quả màn
+   * thường quá ngắn để đánh dấu.
+   */
+  goNextLevel(i) {
+    if (isRegionEnd(i)) {
+      G.go('region', {
+        done: regionOf(i)?.region, next: nextRegion(i),
+        after: () => G.go('map'),
+      });
+      return;
+    }
+    G.startLevel(Math.min(i + 1, TOTAL_LEVELS - 1));
+  },
+
   /** Xem lại một hồi bất kỳ (dùng ở bản đồ). */
   replayAct(act) { G.go('story', { act, after: () => G.go('map') }); },
   episodeOf(i) { return EPISODES[Math.min(Math.floor(i / 15), EPISODES.length - 1)]; },

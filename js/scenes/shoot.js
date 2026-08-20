@@ -271,7 +271,7 @@ export default {
     this.hits = this.hits.filter(h => h.id === 'pause');
     const y = 470;
     if (win) {
-      this.hits.push(new Hit('next',  G.W / 2 - 256, y, 160, 62, { act: () => G.startLevel(Math.min(G.levelIndex + 1, G.totalLevels - 1)) }));
+      this.hits.push(new Hit('next',  G.W / 2 - 256, y, 160, 62, { act: () => G.goNextLevel(G.levelIndex) }));
       this.hits.push(new Hit('again', G.W / 2 -  80, y, 160, 62, { act: () => G.startLevel(G.levelIndex, true) }));
       this.hits.push(new Hit('map',   G.W / 2 +  96, y, 160, 62, { act: () => G.go('map') }));
     } else {

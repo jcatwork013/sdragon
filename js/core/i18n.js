@@ -5,7 +5,7 @@ export const LANGS = { vi: 'Tiếng Việt', en: 'English' };
 
 const DICT = {
   vi: {
-    tagline: 'Proto-Cricket Realm',
+    tagline: 'Miền Cỏ Cháy',
     tapStart: 'Chạm để bắt đầu',
     newGame: 'Chơi mới', continueGame: 'Chơi tiếp', settings: 'Cài đặt',
     confirmReset: 'Bấm lần nữa để xoá tiến trình',
@@ -128,7 +128,7 @@ const DICT = {
     praise: ['Tốt!', 'Hay lắm!', 'Tuyệt vời!', 'Xuất sắc!', 'Bùng nổ!', 'CUỒNG LONG!'],
   },
   en: {
-    tagline: 'Proto-Cricket Realm',
+    tagline: 'The Burnt Grass Realm',
     tapStart: 'Tap to begin',
     newGame: 'New Game', continueGame: 'Continue', settings: 'Settings',
     confirmReset: 'Tap again to erase progress',

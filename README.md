@@ -1,4 +1,4 @@
-# SDrakon — Proto-Dragon Realm
+# CRICKO — Miền Cỏ Cháy
 
 > **Truyện gốc “Mùa Cỏ Cháy” — 7 hồi, có nhân vật, có mất mát, có bài học.**
 > Nhạc và bảng màu tự đổi theo cảm xúc từng hồi: vui · buồn · cao trào · gấp rút.
@@ -14,11 +14,11 @@ Chạy bằng **HTML5 Canvas + Web Audio**, **không dùng thư viện ngoài, k
 
 | File trong `dist/` | Nền tảng |
 |---|---|
-| `SDrakon-1.7.1.apk` | **Android 7+** — chép vào máy, bật "cài từ nguồn không xác định" |
-| `SDrakon Setup 1.7.1.exe` | **Windows** — bộ cài |
-| `SDrakon 1.7.1.exe` | **Windows** — bản portable, chạy thẳng |
-| `SDrakon-1.7.1-arm64.dmg` | **macOS** Apple Silicon |
-| `SDrakon-1.7.1.dmg` | **macOS** Intel |
+| `Cricko-1.7.1.apk` | **Android 7+** — chép vào máy, bật "cài từ nguồn không xác định" |
+| `Cricko Setup 1.7.1.exe` | **Windows** — bộ cài |
+| `Cricko 1.7.1.exe` | **Windows** — bản portable, chạy thẳng |
+| `Cricko-1.7.1-arm64.dmg` | **macOS** Apple Silicon |
+| `Cricko-1.7.1.dmg` | **macOS** Intel |
 
 Dựng lại: `npm run apk` (Android) · `npm run build:mac` · `npm run build:win`.
 Đổi phiên bản: `npm run version -- 1.1.0` (tự đồng bộ package.json · sw.js · Android).

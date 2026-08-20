@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">SDrakon</string>
-    <string name="title_activity_main">SDrakon</string>
-    <string name="package_name">com.sdrakon.game</string>
-    <string name="custom_url_scheme">com.sdrakon.game</string>
+    <string name="app_name">Cricko</string>
+    <string name="title_activity_main">Cricko</string>
+    <string name="package_name">com.9bricks.cricko</string>
+    <string name="custom_url_scheme">com.9bricks.cricko</string>
 </resources>

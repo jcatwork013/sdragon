@@ -1,7 +1,7 @@
 {
-  "name": "sdrakon",
+  "name": "cricko",
   "version": "1.7.1",
-  "description": "SDrakon — Proto-Dragon Realm · match-3 nuôi rồng, Canvas 2D + Web Audio, không phụ thuộc thư viện ngoài",
+  "description": "CRICKO \u2014 Mi\u1ec1n C\u1ecf Ch\u00e1y \u00b7 match-3 nu\u00f4i d\u1ebf, Canvas 2D + Web Audio, kh\u00f4ng ph\u1ee5 thu\u1ed9c th\u01b0 vi\u1ec7n ngo\u00e0i",
   "private": true,
   "type": "module",
   "scripts": {
@@ -30,9 +30,9 @@
   },
   "main": "desktop/main.cjs",
   "build": {
-    "appId": "com.sdrakon.game",
-    "productName": "SDrakon",
-    "copyright": "SDrakon — Proto-Dragon Realm",
+    "appId": "com.9bricks.cricko",
+    "productName": "Cricko",
+    "copyright": "CRICKO \u2014 Mi\u1ec1n C\u1ecf Ch\u00e1y \u00b7 9bricks",
     "directories": {
       "output": "dist",
       "buildResources": "icons"
@@ -98,7 +98,7 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "shortcutName": "SDrakon"
+      "shortcutName": "Cricko"
     },
     "linux": {
       "target": [

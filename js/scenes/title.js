@@ -494,7 +494,7 @@ export default {
  *   4. NHỊP — mỗi chữ cái nhún lệch pha nhau, nên logo không bao giờ đứng im.
  */
 function logoMark(ctx, cx, cy, T, W) {
-  const TITLE = 'SDRAKON';
+  const TITLE = 'CRICKO';
   const size = Math.min(112, W * .086);
   const font = `${size}px "Bungee","Baloo 2",sans-serif`;
   ctx.save();

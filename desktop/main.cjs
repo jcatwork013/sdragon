@@ -36,7 +36,7 @@ function createWindow() {
     width: 1320, height: 800,
     minWidth: 900, minHeight: 560,
     backgroundColor: '#0b0716',
-    title: 'SDrakon — Proto-Dragon Realm',
+    title: 'CRICKO — Miền Cỏ Cháy',
     icon: process.platform === 'linux' ? path.join(ROOT, 'icons/icon-512.png') : undefined,
     autoHideMenuBar: true,
     show: false,

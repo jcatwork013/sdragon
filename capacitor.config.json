@@ -1,6 +1,6 @@
 {
-  "appId": "com.sdrakon.game",
-  "appName": "SDrakon",
+  "appId": "com.9bricks.cricko",
+  "appName": "Cricko",
   "webDir": "www",
   "android": {
     "allowMixedContent": false,

@@ -4,7 +4,7 @@ android {
     namespace = "com.sdrakon.game"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "com.sdrakon.game"
+        applicationId "com.9bricks.cricko"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 10701

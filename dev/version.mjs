@@ -26,7 +26,7 @@ export const VERSION = '${V}';
 // Đổi tên cache của service worker → người chơi cũ nhận bản mới thay vì bản cache
 const swPath = path.join(root, 'sw.js');
 let sw = fs.readFileSync(swPath, 'utf8');
-sw = sw.replace(/const CACHE = 'sdrakon-v[^']*';/, `const CACHE = 'sdrakon-v${V}';`);
+sw = sw.replace(/const CACHE = '(?:sdrakon|cricko)-v[^']*';/, `const CACHE = 'cricko-v${V}';`);
 fs.writeFileSync(swPath, sw);
 
 // ── Sinh lại danh sách cache offline từ CÂY THƯ MỤC THẬT ──────────────────
@@ -54,7 +54,7 @@ fs.writeFileSync(swPath, sw);
 const readme = path.join(root, 'README.md');
 if (fs.existsSync(readme)) {
   const before = fs.readFileSync(readme, 'utf8');
-  const after = before.replace(/(SDrakon[ -](?:Setup )?)\d+\.\d+\.\d+/g, `$1${V}`);
+  const after = before.replace(/((?:SDrakon|Cricko)[ -](?:Setup )?)\d+\.\d+\.\d+/g, `$1${V}`);
   if (after !== before) { fs.writeFileSync(readme, after); console.log('  · README.md → tên file bản ' + V); }
 }
 
@@ -73,4 +73,4 @@ if (fs.existsSync(gradle)) {
 console.log(`✓ phiên bản ${V}`);
 console.log('  · package.json');
 console.log('  · js/core/version.js');
-console.log("  · sw.js  → cache 'sdrakon-v" + V + "', " + shell.length + ' file offline');
+console.log("  · sw.js  → cache 'cricko-v" + V + "', " + shell.length + ' file offline');

@@ -84,6 +84,49 @@ export default {
         ctx.stroke();
       }
 
+    // ── NƯỚC TRONG ĐẤT LIỀN ───────────────────────────────────────────
+    // Có đất thì phải có nước. Bản đồ chỉ toàn đồi núi nhìn khô khốc, mà thêm
+    // hồ với sông vào là mắt tự đọc ra "đây là một vùng có người ở".
+    const LX = M, LY = 76, LW = W - M * 2, LH = H - 176;
+    const wx = (u) => LX + u * LW, wy = (v) => LY + v * LH;
+
+    // sông: chảy từ góc trên-phải xuống hoà vào biển
+    const river = (wd, col) => {
+      ctx.beginPath();
+      ctx.moveTo(wx(.88), wy(-.02));
+      ctx.bezierCurveTo(wx(.80), wy(.24), wx(.72), wy(.34), wx(.62), wy(.52));
+      ctx.bezierCurveTo(wx(.55), wy(.66), wx(.52), wy(.78), wx(.50), wy(1.02));
+      ctx.strokeStyle = col; ctx.lineWidth = wd; ctx.lineCap = 'round'; ctx.stroke();
+    };
+    river(19, 'rgba(120,150,150,.35)');            // bờ sông
+    river(13, '#9fc4c9');
+    river(5,  'rgba(255,255,255,.35)');
+
+    // hồ và ao — vị trí cố định, kèm bãi cạn sáng quanh mép
+    const LAKES = [[.17, .34, .085, .052], [.40, .22, .055, .034],
+                   [.74, .66, .070, .044], [.30, .70, .048, .030]];
+    for (const [u, v, rw, rh] of LAKES) {
+      const cx0 = wx(u), cy0 = wy(v), a0 = LW * rw, b0 = LH * rh;
+      ctx.beginPath(); ctx.ellipse(cx0, cy0, a0 * 1.12, b0 * 1.16, 0, 0, TAU);
+      ctx.fillStyle = 'rgba(198,214,180,.55)'; ctx.fill();          // bãi cạn
+      ctx.beginPath(); ctx.ellipse(cx0, cy0, a0, b0, 0, 0, TAU);
+      const wg = ctx.createRadialGradient(cx0 - a0 * .3, cy0 - b0 * .3, b0 * .1, cx0, cy0, a0);
+      wg.addColorStop(0, '#bfe0e2'); wg.addColorStop(1, '#7fb0b6');
+      ctx.fillStyle = wg; ctx.fill();
+      ctx.strokeStyle = 'rgba(90,120,120,.5)'; ctx.lineWidth = 1.6; ctx.stroke();
+      // gợn nước lăn tăn — chạy chậm cho khỏi rối mắt
+      ctx.strokeStyle = 'rgba(255,255,255,.55)'; ctx.lineWidth = 1.4; ctx.lineCap = 'round';
+      for (let i = 0; i < 3; i++) {
+        const yy = cy0 + (i - 1) * b0 * .42 + Math.sin(T * .8 + i) * 1.5;
+        const ww = a0 * (.52 - Math.abs(i - 1) * .16);
+        ctx.beginPath();
+        ctx.moveTo(cx0 - ww, yy);
+        ctx.quadraticCurveTo(cx0 - ww * .5, yy - 3, cx0, yy);
+        ctx.quadraticCurveTo(cx0 + ww * .5, yy + 3, cx0 + ww, yy);
+        ctx.stroke();
+      }
+    }
+
     // dãy núi vẽ nét kiểu bản đồ cổ
     ctx.strokeStyle = 'rgba(90,70,40,.55)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
     for (let i = 0; i < 22; i++) {

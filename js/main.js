@@ -33,6 +33,7 @@ import duelScene  from './scenes/duel.js';
 import worldScene from './scenes/world.js';
 import shopScene  from './scenes/shop.js';
 import pairScene  from './scenes/pair.js';
+import chapterScene from './scenes/chapter.js';
 
 // Khung logic tính từ tỉ lệ màn hình thật (xem js/core/layout.js).
 //   W,H      = DẢI GIAO DIỆN, mọi scene dựng bố cục trên đây (cao luôn 720)
@@ -74,7 +75,7 @@ const G = {
   fx: new FX(),
   world: new World(W, H, OX, OY, CW, CH),
   save: Store.load(),
-  scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene, shop: shopScene, pair: pairScene },
+  scenes: { title: titleScene, egg: eggScene, map: mapScene, nest: nestScene, play: playScene, help: helpScene, shoot: shootScene, story: storyScene, duel: duelScene, world: worldScene, shop: shopScene, pair: pairScene, chapter: chapterScene },
   scene: null,
   level: null, levelIndex: 0,
   totalLevels: TOTAL_LEVELS,
@@ -100,6 +101,14 @@ const G = {
     const act = actAt(G.levelIndex);
     if (act && !skipStory && !G.save.seenStory[act.id]) {
       G.go('story', { act, after: () => G.startLevel(G.levelIndex, true) });
+      return;
+    }
+    // ── MỞ CHƯƠNG: lần đầu bước sang một vùng đất mới thì dừng lại một nhịp
+    // để đánh dấu cột mốc, rồi mới vào màn.
+    const ep = G.episodeOf(G.levelIndex);
+    if (ep && !skipStory && !G.save.seenEp[ep.id]) {
+      G.save.seenEp[ep.id] = true; G.persist();
+      G.go('chapter', { ep, after: () => G.startLevel(G.levelIndex, true) });
       return;
     }
     G.act = currentAct(G.levelIndex);

@@ -11,6 +11,7 @@ export const blank = () => ({
   unlocked: 1,                                   // số màn đã mở khoá
   music: true, sfx: true,
   seenStory: {},
+  seenEp: {},                                    // id chương → đã xem màn mở chương
   seenHelp: false, seenTut: false,
   choices: {},                                   // lựa chọn cốt truyện
   mats: {},                                      // kho nguyên liệu
@@ -31,7 +32,8 @@ export function load() {
       stats: { ...base.stats, ...(s.stats || {}) },
       equip: { ...base.equip, ...(s.equip || {}) },
       mats:  { ...(s.mats || {}) }, crafted: { ...(s.crafted || {}) }, choices: { ...(s.choices || {}) },
-      lore:  { ...(s.lore || {}) }, owned: { ...(s.owned || {}) } };
+      lore:  { ...(s.lore || {}) }, owned: { ...(s.owned || {}) },
+      seenEp: { ...(s.seenEp || {}) } };
   } catch { return blank(); }
 }
 

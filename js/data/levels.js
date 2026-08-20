@@ -74,18 +74,27 @@ function makeLevels(ep, baseMoves, colours, epBump = 0, vitScale = 1, epOffset =
 
 export const EPISODES = [
   {
+    hook: 'Bờ cỏ nhà. Nắng đẹp, hàng xóm lắm chuyện, và một cái kho trống trơn.',
+    hook_en: 'Home grass bank. Nice sun, nosy neighbours, and a completely empty pantry.',
+    tag: 'Dễ thở — cứ ghép rồi tính', tag_en: 'Easy going — just match and see',
     id: 'shellbreak', name_en: 'Shellbreak', story_en: 'The egg you chose just trembled. The shell splits — a tiny creature looks at you, hungry.', week: 1, name: 'Nứt Vỏ', latin: 'Shellbreak',
     sky: ['#ffd7a8', '#b9d8f5', '#8fb8e8'], hill: '#7fb861', mount: '#9a94c8',
     story: 'Quả trứng bạn chọn vừa rung lên. Vỏ nứt — một sinh vật bé xíu nhìn bạn, đói.',
     levels: makeLevels('shellbreak', 26, 5, 0,     1.00, 0),
   },
   {
+    hook: 'Cỏ cháy hết rồi. Tro bay đầy trời, mà đám kiến vẫn đòi thu thuế.',
+    hook_en: 'The grass all burned. Ash everywhere, and the ants still want their cut.',
+    tag: 'Nóng hơn — địch bắt đầu hỗn', tag_en: 'Hotter — the locals get pushy',
     id: 'ashmeadow', name_en: 'Ashmeadow', story_en: 'Here the grass grows on ash. Your hatchling smells something still burning past the horizon.', week: 2, name: 'Đồng Cỏ Tro', latin: 'Ashmeadow',
     sky: ['#f7c6a0', '#cfa9c9', '#7f7fb0'], hill: '#8a9a5b', mount: '#7d6f9c',
     story: 'Cỏ ở đây mọc trên tro. Rồng con ngửi thấy thứ gì đó cháy dở phía chân trời.',
     levels: makeLevels('ashmeadow',  34, 6, 0.090, 1.35, 15),
   },
   {
+    hook: 'Hang đá lạnh ngắt. Có tiếng nhỏ giọt, và có thứ gì đó đang nhìn.',
+    hook_en: 'A cold quartz cave. Something drips. Something watches.',
+    tag: 'Căng — nhìn kỹ rồi hãy đi', tag_en: 'Tense — look before you move',
     id: 'quartz', name_en: 'Quartz Hollow', story_en: 'The cavern walls hold a thousand dragons. It roars — a thousand roars answer back.', week: 3, name: 'Hang Thạch Anh', latin: 'Quartz Hollow',
     sky: ['#c9d6ff', '#a5b4f0', '#6f7fd4'], hill: '#6a7fa8', mount: '#5a5f96',
     story: 'Vách hang phản chiếu ngàn con rồng. Nó gầm — ngàn tiếng gầm đáp lại.',

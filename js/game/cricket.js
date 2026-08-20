@@ -345,26 +345,26 @@ export class Cricket {
     const gr = (slot) => recipeById(this.gear?.[slot]);
 
     // ── CHÂN & CÀNG BÊN XA — vẽ trước, tông tối để lùi ra sau ──────────────
-    this._walkLeg(ctx, S * .04, S * .19, S * .32, mix(B.body, -.74, 1), mix(B.body, -.34, 1), LW * 1.15, t * 1.7 + 1.9);
-    this._walkLeg(ctx, S * .24, S * .17, S * .29, mix(B.body, -.74, 1), mix(B.body, -.34, 1), LW * 1.15, t * 1.7 + .7);
-    this._hindLeg(ctx, -S * .30, S * .06, S * .78 * SPC.fem, B, LW, t, this.bounce, -1);
+    this._walkLeg(ctx, S * .04, S * .21, S * .26, mix(B.body, -.74, 1), mix(B.body, -.34, 1), LW * 1.30, t * 1.7 + 1.9);
+    this._walkLeg(ctx, S * .22, S * .19, S * .23, mix(B.body, -.74, 1), mix(B.body, -.34, 1), LW * 1.30, t * 1.7 + .7);
+    this._hindLeg(ctx, -S * .24, S * .06, S * .60 * SPC.fem, B, LW, t, this.bounce, -1);
 
     // hốc háng — chỗ đùi cắm vào thân, vệt tối nhỏ cho ra khớp
     ctx.save();
     ctx.globalCompositeOperation = 'multiply';
-    const hs = ctx.createRadialGradient(-S * .34, S * .12, 0, -S * .34, S * .12, S * .17);
-    hs.addColorStop(0, mix(B.body, -.70, .40)); hs.addColorStop(1, mix(B.body, -.70, 0));
+    const hs = ctx.createRadialGradient(-S * .28, S * .13, 0, -S * .28, S * .13, S * .16);
+    hs.addColorStop(0, mix(B.body, -.70, .36)); hs.addColorStop(1, mix(B.body, -.70, 0));
     ctx.fillStyle = hs;
-    ctx.beginPath(); ctx.arc(-S * .34, S * .12, S * .17, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(-S * .28, S * .13, S * .16, 0, TAU); ctx.fill();
     ctx.restore();
 
     // ── BỤNG nhiều đốt, thon dần ───────────────────────────────────────────
-    const AB = SPC.abd, tailX = -S * .80 * AB;        // mút bụng
+    const AB = SPC.abd, tailX = -S * .68 * AB;        // mút bụng
     const abdomen = () => {
       ctx.beginPath();
-      ctx.moveTo(-S * .04, -S * .19);
-      ctx.bezierCurveTo(-S * .38 * AB, -S * .24, tailX * .86, -S * .17, tailX, S * .06 + sway * S * .025);
-      ctx.bezierCurveTo(tailX * .84, S * .28, -S * .34 * AB, S * .32, -S * .02, S * .27);
+      ctx.moveTo(-S * .04, -S * .21);
+      ctx.bezierCurveTo(-S * .34 * AB, -S * .28, tailX * .90, -S * .20, tailX, S * .04 + sway * S * .025);
+      ctx.bezierCurveTo(tailX * .90, S * .30, -S * .30 * AB, S * .34, -S * .02, S * .29);
       ctx.closePath();
     };
     ctx.save();
@@ -468,10 +468,10 @@ export class Cricket {
     // ── NGỰC + TẤM MAI (pronotum) như áo giáp ─────────────────────────────
     const pronotum = () => {
       ctx.beginPath();
-      ctx.moveTo(S * .31, -S * .22);
-      ctx.bezierCurveTo(S * .36, S * .04, S * .30, S * .20, S * .12, S * .25);
-      ctx.bezierCurveTo(-S * .06, S * .28, -S * .16, S * .12, -S * .15, -S * .06);
-      ctx.bezierCurveTo(-S * .14, -S * .24, -S * .02, -S * .31, S * .13, -S * .30);
+      ctx.moveTo(S * .30, -S * .26);
+      ctx.bezierCurveTo(S * .36, S * .02, S * .30, S * .22, S * .12, S * .27);
+      ctx.bezierCurveTo(-S * .08, S * .30, -S * .18, S * .12, -S * .17, -S * .08);
+      ctx.bezierCurveTo(-S * .16, -S * .28, -S * .02, -S * .35, S * .13, -S * .34);
       ctx.closePath();
     };
     pronotum();
@@ -567,13 +567,13 @@ export class Cricket {
 
     // ── CỔ — khớp nối đầu với ngực, để đầu không bị "dán" lên thân ────────
     ctx.beginPath();
-    ctx.ellipse(S * .33, -S * .14, S * .090, S * .110, -.3, 0, TAU);
+    ctx.ellipse(S * .30, -S * .18, S * .105, S * .125, -.3, 0, TAU);
     ctx.fillStyle = shade(B.body, -.40); ctx.fill();
     ctx.strokeStyle = mix(B.body, -.66, .8); ctx.lineWidth = LW * .8; ctx.stroke();
 
     // ── CHÂN GIỮA + CHÂN TRƯỚC (bên gần) ──────────────────────────────────
-    this._walkLeg(ctx, S * .07, S * .21, S * .34, ink, lite, LW * 1.25, t * 1.7 + 1.2);
-    this._walkLeg(ctx, S * .27, S * .19, S * .30, ink, lite, LW * 1.25, t * 1.7);
+    this._walkLeg(ctx, S * .07, S * .23, S * .27, ink, lite, LW * 1.45, t * 1.7 + 1.2);
+    this._walkLeg(ctx, S * .25, S * .21, S * .24, ink, lite, LW * 1.45, t * 1.7);
     const weapon = gr('weapon');
     if (weapon) {
       ctx.save();
@@ -622,8 +622,8 @@ export class Cricket {
     }
 
     // ── ĐẦU ────────────────────────────────────────────────────────────────
-    const HR = S * .24 * (1 + young * .16) * SPC.head;
-    const hx = S * .48, hy = -S * .20 - proud * S * .05 + Math.sin(t * 2.3 + 1.2) * S * .012;
+    const HR = S * .315 * (1 + young * .12) * SPC.head;
+    const hx = S * .44, hy = -S * .25 - proud * S * .05 + Math.sin(t * 2.3 + 1.2) * S * .012;
     ctx.save();
     ctx.translate(hx, hy);
     ctx.rotate(-.10 - proud * .22 + this.mouth * .10 + Math.sin(t * 1.1) * .03);
@@ -683,9 +683,9 @@ export class Cricket {
     ctx.translate(HR * .78, HR * .40); ctx.rotate(this.mouth * .5);
     for (const d of [0, 1]) {
       ctx.beginPath();
-      ctx.moveTo(0, -HR * .10 + d * HR * .14);
-      ctx.quadraticCurveTo(HR * .34, -HR * .02 + d * HR * .16, HR * .44, HR * .14 + d * HR * .12);
-      ctx.quadraticCurveTo(HR * .18, HR * .16 + d * HR * .12, 0, HR * .10 + d * HR * .12);
+      ctx.moveTo(0, -HR * .07 + d * HR * .10);
+      ctx.quadraticCurveTo(HR * .21, -HR * .01 + d * HR * .11, HR * .27, HR * .10 + d * HR * .09);
+      ctx.quadraticCurveTo(HR * .12, HR * .11 + d * HR * .09, 0, HR * .07 + d * HR * .09);
       ctx.closePath();
       ctx.fillStyle = shade(B.horn, -d * .18); ctx.fill(); line(.65);
     }
@@ -695,7 +695,7 @@ export class Cricket {
       const w = Math.sin(t * 3.1 + ph) * .18;
       ctx.beginPath();
       ctx.moveTo(HR * .06, HR * .24);
-      ctx.quadraticCurveTo(HR * .28, HR * (.44 + w) * d, HR * .40, HR * (.58 + w * .6) * d);
+      ctx.quadraticCurveTo(HR * .20, HR * (.34 + w) * d, HR * .28, HR * (.44 + w * .6) * d);
       ctx.stroke();
     }
     ctx.restore();
@@ -739,7 +739,7 @@ export class Cricket {
 
     // MẮT KÉP to, bóng
     const open = 1 - this.blink;
-    const ex = HR * .40, ey = -HR * .34, er = HR * .40;
+    const ex = HR * .38, ey = -HR * .30, er = HR * .46;
     // mắt bên xa — chỉ ló một mảnh tối, đủ để đầu có bề dày
     ctx.save();
     ctx.globalAlpha = .5;
@@ -844,7 +844,7 @@ export class Cricket {
     ctx.restore();   // hết đầu
 
     // ── CÀNG SAU bên gần — vẽ sau cùng, luôn nhìn thấy ────────────────────
-    this._hindLeg(ctx, -S * .34, S * .14, S * .78 * SPC.fem, B, LW, t, this.bounce, 1);
+    this._hindLeg(ctx, -S * .28, S * .15, S * .62 * SPC.fem, B, LW, t, this.bounce, 1);
 
     // ── SÓNG ÂM khi gáy — thấy được tiếng kêu ────────────────────────────
     if (this.mood === 'chirp' && this.moodT > 0) {
@@ -923,8 +923,10 @@ export class Cricket {
 
     // Càng co lại khi bật nhảy: gối hạ xuống, bàn chân thu vào.
     const hip  = { x: 0, y: 0 };
-    const knee = { x: -L * .40, y: -L * (.70 - crouch * .24) + idle * L };
-    const foot = { x: -L * (.78 - crouch * .10), y: L * (.42 - crouch * .12) };
+    // Thân chibi ngắn nên bàn chân phải thu vào, để thò ra xa là thành cái que
+    // chìa khỏi bóng dáng.
+    const knee = { x: -L * .38, y: -L * (.72 - crouch * .24) + idle * L };
+    const foot = { x: -L * (.58 - crouch * .08), y: L * (.62 - crouch * .14) };
 
     // Bên xa: tối lại + lùi vào, KHÔNG dùng alpha thấp (trong suốt trông như lỗi,
     // tối màu mới đọc ra là "đang ở trong bóng").
@@ -940,7 +942,7 @@ export class Cricket {
     if (!near) ctx.scale(.94, .94);
 
     // ── ĐÙI: khối thon một đầu, phình ở 1/3 phía hông ────────────────────
-    const wHip = L * .19, wKnee = L * .075, bulge = L * .070;
+    const wHip = L * .21, wKnee = L * .085, bulge = L * .085;
     const wAt = (u) => lerp(wHip, wKnee, u) + bulge * Math.sin(Math.PI * Math.pow(clamp(u, 0, 1), .7));
     const femur = () => taperShape(ctx, hip.x, hip.y, knee.x, knee.y, wAt);
     const ang = Math.atan2(knee.y - hip.y, knee.x - hip.x);

@@ -94,6 +94,7 @@ const DICT = {
 
     // kết quả
     cleared: 'Qua màn!', failed: 'Thất bại', finalScore: 'Tổng điểm',
+    loreNew: 'BÀI HỌC MỚI', loreKnown: 'ĐÃ BIẾT', duelRankHint: 'Mạnh hơn — nhưng rơi đồ nặng tay hơn',
     reward: 'Phần thưởng', next: 'Màn kế', retry: 'Thử lại', toMap: 'Về bản đồ',
     outOfMoves: 'Hết lượt đi', vitalityGone: 'Rồng kiệt sức',
     newStage: 'Rồng của bạn tiến hóa!',
@@ -186,6 +187,7 @@ const DICT = {
     lowVitality: 'Vitality low!',
 
     cleared: 'Level clear!', failed: 'Defeat', finalScore: 'Final score',
+    loreNew: 'NEW LESSON', loreKnown: 'KNOWN', duelRankHint: 'Stronger — but the loot is heavier too',
     reward: 'Reward', next: 'Next', retry: 'Retry', toMap: 'Map',
     outOfMoves: 'Out of moves', vitalityGone: 'Your hero collapsed',
     newStage: 'Your hero evolved!',

@@ -28,7 +28,8 @@
         <div class="boot-title">SDrakon</div>
         <div class="boot-sub">Proto-Dragon Realm</div>
         <div class="boot-bar"><i></i></div>
-        <div class="boot-hint" id="bootHint">đang nung lò rồng…</div>
+        <div class="boot-dots"><span></span><span></span><span></span></div>
+        <div class="boot-hint" id="bootHint">đang thắp đèn ngoài bờ cỏ…</div>
       </div>
     </div>
   </div>
@@ -45,6 +46,32 @@
 
   <script type="module" src="js/main.js"></script>
   <script>
+  // ── Mẹo chơi đổi vòng trong lúc chờ — biến thời gian chết thành thời gian
+  // dạy luật. Chạy bằng JS thường (không phải module) nên hiện ngay lập tức,
+  // không phải đợi bundle game tải xong.
+  (function () {
+    var vi = navigator.language && navigator.language.slice(0, 2) === 'en' ? 0 : 1;
+    var TIPS = [
+      ['Chains of 4 or more leave a special gem behind.', 'Ghép từ 4 viên trở lên là để lại một viên đá đặc biệt.'],
+      ['The clock never stops — grab the CLOCK badges.', 'Đồng hồ chạy không ngừng — nhớ nhặt huy hiệu ĐỒNG HỒ.'],
+      ['A wrong swap still costs you a move.', 'Đi sai nước vẫn mất một lượt như thường.'],
+      ['Losing a duel teaches you the foe’s habit.', 'Thua một trận tỉ thí là học được thói quen của đối thủ.'],
+      ['Craft gear at the Nest — it counts in duels too.', 'Chế đồ ở Tổ dế — mặc vào là mạnh thật trong trận tỉ thí.'],
+      ['Tap the cricket. It has opinions.', 'Chạm vào con dế xem nó nói gì. Nó lắm mồm lắm.'],
+    ];
+    var el = document.getElementById('bootHint'), i = 0;
+    if (!el) return;
+    el.textContent = TIPS[0][vi];
+    setInterval(function () {
+      el.style.opacity = 0;
+      setTimeout(function () {
+        i = (i + 1) % TIPS.length;
+        el.textContent = TIPS[i][vi];
+        el.style.opacity = 1;
+      }, 350);
+    }, 2600);
+  })();
+
   // ── Service worker: chơi ngoại tuyến. Bỏ qua khi mở bằng file:// hoặc trong Electron.
   if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
     addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));

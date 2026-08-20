@@ -4,8 +4,9 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rand, rgba, shade, strokeText, roundRect, poly } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, textBtn, card, glassPanel, roundBtn, icon, matIcon, sunburst, C, FONT } from '../ui/widgets.js';
-import { MOVES, beats, makeFoe, heroPower } from '../data/duel.js';
+import { Hit, textBtn, card, glassPanel, roundBtn, icon, matIcon, sunburst, pillTag, C, FONT } from '../ui/widgets.js';
+import { MOVES, beats, makeFoe, heroPower, rankById } from '../data/duel.js';
+import { pickOuch } from '../data/beats.js';
 import { Enemy, ENEMIES } from '../game/enemy.js';
 import { BREEDS, stageFor } from '../data/characters.js';
 import { rollMats, addMats, MATS } from '../data/gear.js';
@@ -35,7 +36,7 @@ export default {
     this.introT = 0; this.clashT = 0; this.impacted = false;
     this.pickMine = null; this.pickFoe = null;
     this.phaseT = 0; this.log = []; this.over = null; this.overT = 0;
-    this.lungeMe = 0; this.lungeFoe = 0; this.flash = 0;
+    this.lungeMe = 0; this.lungeFoe = 0; this.flash = 0; this.ouch = null;
     this.history = [];                        // đòn địch đã ra, dùng để "đọc bài" nhẹ
 
     this.hits = [
@@ -66,14 +67,23 @@ export default {
     G.sfx('select');
   },
 
-  /** Địch chọn phần lớn ngẫu nhiên, nhưng hơi nghiêng về khắc chế đòn bạn hay dùng. */
+  /**
+   * Địch ra đòn theo `lean` khai báo trong data/duel.js — đúng cái mà "bài học"
+   * nói ra. Nếu để hoàn toàn ngẫu nhiên thì bài học là lời nói dối, người chơi
+   * áp dụng vào lại thua, mất niềm tin ngay.
+   */
   foeChoice() {
-    if (this.history.length >= 3 && Math.random() < 0.34) {
-      const count = {};
-      for (const h of this.history.slice(-6)) count[h] = (count[h] || 0) + 1;
-      const fav = Object.entries(count).sort((a, b) => b[1] - a[1])[0][0];
-      const counter = MOVES.find(m => m.beats === fav);
-      if (counter) return counter.id;
+    const L = this.foe.def.lean, W = this.foe.def.leanW || 0;
+    if (L === 'read') {                       // chuyên bắt bài đòn bạn hay dùng
+      if (this.history.length >= 2 && Math.random() < W) {
+        const count = {};
+        for (const h of this.history.slice(-5)) count[h] = (count[h] || 0) + 1;
+        const fav = Object.keys(count).sort((a, b) => count[b] - count[a])[0];
+        const counter = MOVES.find(m => m.beats === fav);
+        if (counter) return counter.id;
+      }
+    } else if (L && Math.random() < W) {
+      return L;
     }
     return MOVES[(Math.random() * MOVES.length) | 0].id;
   },
@@ -109,9 +119,20 @@ export default {
       this.lungeFoe = 1; this.flash = .35;
       this.push((isCrit ? t('duelCrit') + ' ' : '') + `-${d}`, '#ff7a90');
       G.fx.float(this.pos(G).hx, GY - 120, '-' + d, { size: isCrit ? 42 : 32, fill: '#ffb0bc', stroke: '#5c0010' });
-      G.fx.shake(11);
-      G.sfx('invalid');
-      G.hero.react('hurt', .7);
+      // Đòn NẶNG (mất ≥18% máu trong một nhịp) thì phản ứng khác hẳn đòn thường:
+      // kêu lên, rung mạnh, loé đỏ. Bật ở mọi cú trúng thì thành ồn và mất tác dụng.
+      const heavy = d >= this.maxHp * .18;
+      if (heavy) {
+        this.ouch = { p: pickOuch(), t: 0 };
+        this.flash = .55;
+        G.fx.shake(22);
+        G.sfx('bomb');
+        G.hero.react('hurt', 1.3);
+      } else {
+        G.fx.shake(11);
+        G.sfx('invalid');
+        G.hero.react('hurt', .7);
+      }
       this.streak = 0;
       this.charge = Math.max(0, this.charge - .12);
     }
@@ -137,16 +158,21 @@ export default {
     this.over = { win, fled }; this.overT = 0;
     const S = G.save;
     if (win) {
-      this.rewardGold = 120 + Math.round(this.foe.power * 3.2);
-      this.rewardXp = 150 + this.foe.power * 2;
+      const RK = this.foe.rank || rankById('norm');
+      this.rewardGold = Math.round((120 + this.foe.power * 3.2) * RK.reward);
+      this.rewardXp = Math.round((150 + this.foe.power * 2) * RK.reward);
       S.gold += this.rewardGold; S.xp += this.rewardXp;
       if (Math.random() < .45) S.food += 1;
-      this.matsGot = addMats(S, rollMats(1 + Math.round(this.foe.ratio * 2), this.me.stage * 8));
+      this.matsGot = addMats(S, rollMats(1 + Math.round(this.foe.ratio * 2) + RK.mats, this.me.stage * 8));
       G.hero.xp = S.xp; G.persist();
       G.sfx('win'); G.hero.react('happy', 2.2); G.hero.setPose('taunt'); G.music('nest');
     } else if (!fled) {
       this.penaltyGold = Math.round(S.gold * .12);
       S.gold = Math.max(0, S.gold - this.penaltyGold);
+      // Thua thì học được thói quen của nó — lần sau vào trận là đã biết trước.
+      S.lore = S.lore || {};
+      this.lessonNew = !S.lore[this.foe.def.id];
+      S.lore[this.foe.def.id] = true;
       G.persist();
       G.sfx('lose'); G.hero.react('hurt', 2); G.hero.setPose('ko');
     }
@@ -162,6 +188,7 @@ export default {
     this.lungeFoe = Math.max(0, this.lungeFoe - dt * 2.6);
     this.flash = Math.max(0, this.flash - dt * 2.2);
     for (const l of this.log) l.t += dt;
+    if (this.ouch) { this.ouch.t += dt; if (this.ouch.t > 1.9) this.ouch = null; }
     if (this.over) { this.overT += dt; return; }
 
     if (this.phase === 'intro') {
@@ -341,6 +368,27 @@ export default {
         { press: fl.press, hover: fl.hover, colour: '#5b5f74', dark: '#33374a', lite: '#9aa0b6', font: FONT.disp(19) });
     }
 
+    // ── BONG BÓNG "UI DA" ────────────────────────────────────────────────
+    if (this.ouch) {
+      const o = this.ouch, txt = tx(o.p, 'vi');
+      const k2 = ease.outBack(clamp(o.t / .2, 0, 1));
+      const fade = clamp((1.9 - o.t) / .45, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      const bx4 = P.hx, by4 = GY + DROP - 210 - Math.sin(o.t * 9) * 4;
+      ctx.translate(bx4, by4); ctx.scale(k2, k2); ctx.translate(-bx4, -by4);
+      ctx.font = FONT.disp(22);
+      const bw4 = ctx.measureText(txt).width + 44;
+      roundRect(ctx, bx4 - bw4 / 2, by4 - 26, bw4, 50, 16);
+      ctx.fillStyle = 'rgba(60,10,20,.95)'; ctx.fill();
+      ctx.strokeStyle = '#ff7a90'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(bx4 - 12, by4 + 23); ctx.lineTo(bx4 + 2, by4 + 42); ctx.lineTo(bx4 + 12, by4 + 23);
+      ctx.closePath(); ctx.fillStyle = 'rgba(60,10,20,.95)'; ctx.fill();
+      strokeText(ctx, txt, bx4, by4, { font: FONT.disp(22), fill: '#ffd0d8', stroke: '#3a0008', lw: 5, baseline: 'middle' });
+      ctx.restore();
+    }
+
     if (this.flash > 0) {
       ctx.save(); ctx.globalAlpha = this.flash * .45;
       ctx.fillStyle = this.lungeFoe > this.lungeMe ? '#ff2040' : '#ffffff';
@@ -422,6 +470,30 @@ export default {
       { font: FONT.disp(40), fill: '#fff', stroke: '#062a55', lw: 8, baseline: 'middle' });
     strokeText(ctx, tx(this.foe.def, 'name'), W * .74, H * .20,
       { font: FONT.disp(40), fill: '#fff', stroke: '#4a0512', lw: 8, baseline: 'middle' });
+    // nhãn bậc — gặp con mạnh là biết ngay, và biết luôn là thưởng nặng tay hơn
+    const RK = this.foe.rank || rankById('norm');
+    if (RK.id !== 'norm') {
+      const lbl2 = tx(RK, 'name');
+      ctx.font = FONT.disp(22);
+      const bw2 = ctx.measureText(lbl2).width + 46;
+      pillTag(ctx, W * .74 - bw2 / 2, H * .255, bw2, 38,
+        { lite: shade(RK.col, .4), base: RK.col, rim: 'rgba(60,20,0,.7)' });
+      strokeText(ctx, lbl2, W * .74, H * .255 + 19,
+        { font: FONT.disp(22), fill: '#2b1740', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+      strokeText(ctx, t('duelRankHint'), W * .74, H * .32,
+        { font: FONT.ui(13, 700), fill: 'rgba(255,255,255,.8)', stroke: 'rgba(0,0,0,.5)', lw: 3, baseline: 'middle' });
+    }
+    // đã từng thua nó → hiện luôn thói quen đã học được
+    if (G.save.lore?.[this.foe.def.id]) {
+      const tip = tx(this.foe.def, 'tell');
+      ctx.font = FONT.ui(15, 700);
+      const tw2 = ctx.measureText(tip).width + 52;
+      roundRect(ctx, W / 2 - tw2 / 2, H * .70, tw2, 44, 14);
+      ctx.fillStyle = 'rgba(10,6,22,.72)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,214,110,.8)'; ctx.lineWidth = 2; ctx.stroke();
+      strokeText(ctx, tip, W / 2, H * .70 + 22,
+        { font: FONT.ui(15, 700), fill: '#ffe066', stroke: '#3a2000', lw: 3, baseline: 'middle' });
+    }
     strokeText(ctx, '“' + tx(this.foe.def, 'taunt') + '”', W / 2, H * .84,
       { font: FONT.ui(17, 600), fill: 'rgba(255,255,255,.85)', stroke: 'rgba(0,0,0,.55)', lw: 4, baseline: 'middle' });
 
@@ -510,7 +582,29 @@ export default {
           { font: FONT.disp(20), fill: '#fff', stroke: '#1a0f30', lw: 4, baseline: 'middle' });
       });
     }
-    strokeText(ctx, this.over.win ? t('duelTipWin') : t('duelTipLose'), W / 2, 322,
+    // Thua thì trả về một thứ dùng được ở trận sau, chứ không chỉ trừ vàng.
+    if (!this.over.win && !this.over.fled) {
+      const D = this.foe.def;
+      const bx2 = W / 2 - 270, by2 = 268, bw3 = 540, bh2 = 76;
+      roundRect(ctx, bx2, by2, bw3, bh2, 16);
+      ctx.fillStyle = 'rgba(28,20,10,.92)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(255,214,110,.75)'; ctx.lineWidth = 2.5; ctx.stroke();
+      strokeText(ctx, `${this.lessonNew ? t('loreNew') : t('loreKnown')} · ${tx(D, 'trait')}`, bx2 + 18, by2 + 22,
+        { font: FONT.disp(17), fill: '#ffd23f', stroke: '#3a2000', lw: 4, align: 'left', baseline: 'middle' });
+      ctx.save();
+      ctx.font = FONT.ui(14, 600); ctx.fillStyle = '#efe4c8';
+      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      const words = String(tx(D, 'tell')).split(' ');
+      let ln = '', yy2 = by2 + 48;
+      for (const wd of words) {
+        const test = ln ? ln + ' ' + wd : wd;
+        if (ctx.measureText(test).width > bw3 - 36 && ln) { ctx.fillText(ln, bx2 + 18, yy2); yy2 += 19; ln = wd; }
+        else ln = test;
+      }
+      if (ln) ctx.fillText(ln, bx2 + 18, yy2);
+      ctx.restore();
+    }
+    strokeText(ctx, this.over.win ? t('duelTipWin') : t('duelTipLose'), W / 2, 366,
       { font: FONT.ui(15, 600), fill: '#c9b8ff', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     ctx.restore();
     if (k >= 1) {

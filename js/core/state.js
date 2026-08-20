@@ -16,6 +16,7 @@ export const blank = () => ({
   mats: {},                                      // kho nguyên liệu
   crafted: {},                                   // id món đã chế → true
   equip: { helm: null, armor: null, weapon: null },
+  lore: {},                                      // id đối thủ → đã rút được bài học
 });
 
 export function load() {
@@ -28,7 +29,8 @@ export function load() {
     return { ...base, ...s,
       stats: { ...base.stats, ...(s.stats || {}) },
       equip: { ...base.equip, ...(s.equip || {}) },
-      mats:  { ...(s.mats || {}) }, crafted: { ...(s.crafted || {}) }, choices: { ...(s.choices || {}) } };
+      mats:  { ...(s.mats || {}) }, crafted: { ...(s.crafted || {}) }, choices: { ...(s.choices || {}) },
+      lore:  { ...(s.lore || {}) } };
   } catch { return blank(); }
 }
 

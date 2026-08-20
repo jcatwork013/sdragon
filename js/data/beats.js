@@ -102,6 +102,20 @@ export const POKES = [
 ];
 export const pickPoke = () => POKES[(Math.random() * POKES.length) | 0];
 
+/**
+ * Câu kêu khi ăn một đòn NẶNG. Chỉ bật khi mất nhiều máu trong một nhịp — bật
+ * mọi lần trúng đòn thì thành ồn ào và mất luôn tác dụng cảnh báo.
+ */
+export const OUCH = [
+  { vi: 'Ui da! Đau quá đau quá!',      en: 'Owww! That really hurt!' },
+  { vi: 'Á! Nó chơi thật rồi!',         en: 'Agh! It is playing for keeps!' },
+  { vi: 'Oái! Gãy càng mất thôi!',      en: 'Yeow! My leg, my leg!' },
+  { vi: 'Hự… hoa hết cả mắt.',          en: 'Ungh… seeing stars here.' },
+  { vi: 'Trời ơi cú đó nặng quá!',      en: 'Blimey, that one landed hard!' },
+  { vi: 'Ui! Chờ tí, chờ tí đã!',       en: 'Ow! Hang on, hang on!' },
+];
+export const pickOuch = () => OUCH[(Math.random() * OUCH.length) | 0];
+
 /** Danh từ mục tiêu theo chương — để "điểm" có nghĩa trong truyện. */
 export const GOAL_NOUN = {
   shellbreak: { vi: 'hạt',  en: 'seeds' },

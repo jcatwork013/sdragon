@@ -1,6 +1,6 @@
 // ── Service worker: chơi được hoàn toàn ngoại tuyến sau lần mở đầu ──────────
 // Đổi CACHE khi phát hành bản mới → bản cũ tự bị dọn.
-const CACHE = 'sdrakon-v1.0.0';
+const CACHE = 'sdrakon-v1.1.0';
 
 const SHELL = [
   './',

@@ -1,6 +1,6 @@
 {
   "name": "sdrakon",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "SDrakon — Proto-Dragon Realm · match-3 nuôi rồng, Canvas 2D + Web Audio, không phụ thuộc thư viện ngoài",
   "private": true,
   "type": "module",

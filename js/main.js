@@ -83,7 +83,7 @@ const G = {
 
   // ── điều hướng ────────────────────────────────────────────────────────────
   go(name, arg) {
-    G.modal = null;                             // đổi màn thì bỏ hộp đang mở
+    G.modal = null; G.quipBox = null;           // đổi màn thì bỏ hộp và câu đang hiện
     if (G.scene?.exit) G.scene.exit(G);
     G.fx.clear();
     G.scene = G.scenes[name];

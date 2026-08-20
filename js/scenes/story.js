@@ -18,6 +18,7 @@ export default {
     this.act = arg?.act;
     this.after = arg?.after || (() => G.go('map'));
     this.t = 0; this.line = 0; this.chars = 0; this.done = false;
+    setTimeout(() => this.emote(), 0);   // biểu cảm mở hồi, sau khi hero đã dựng
     this.picked = null;              // id lựa chọn người chơi đã chọn
     this._choices = G.save.choices || {};
     this.R = mulberry32(1234);
@@ -76,7 +77,7 @@ export default {
     if (this.awaitingChoice) return;          // phải chọn xong mới đi tiếp
     const full = this.lines[this.line] || '';
     if (this.chars < full.length) { this.chars = full.length; return; }   // bấm lần 1: hiện hết câu
-    if (this.line < this.lines.length - 1) { this.line++; this.chars = 0; G.sfx('select'); }
+    if (this.line < this.lines.length - 1) { this.line++; this.chars = 0; G.sfx('select'); this.emote(); }
     else this.finish(G);
   },
   finish(G) {
@@ -98,6 +99,36 @@ export default {
     for (const m of this.motes) { m.y -= m.v * dt; if (m.y < -.05) { m.y = 1.05; m.x = Math.random(); } }
   },
 
+  /**
+   * Vẽ nhân vật kèm LÚC LẮC. Nhịp lắc đổi theo tông của hồi: vui thì nhún nảy,
+   * buồn thì gục gặc chậm, gấp gáp thì run. Cùng một hình vẽ, chỉ khác nhịp —
+   * mà nhìn ra ngay là nó đang có tâm trạng gì.
+   */
+  wob(ctx, x, y, s, face = 1) {
+    const M = this.act.mood;
+    const fast = M === 'urgent' || M === 'climax';
+    const low  = M === 'sad' || M === 'solemn';
+    const sp = fast ? 6.2 : low ? 1.1 : 2.4;
+    const amp = fast ? .055 : low ? .022 : .040;
+    const T = this.t;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(Math.sin(T * sp) * amp);
+    ctx.translate(0, -Math.abs(Math.sin(T * sp * .5)) * s * (low ? .01 : .035));
+    this.hero.draw(ctx, 0, 0, s, face);
+    ctx.restore();
+  },
+
+  /** Biểu cảm khớp tông của hồi — gọi lại mỗi lần sang câu mới. */
+  emote() {
+    const M = this.act.mood;
+    const m = M === 'joy' || M === 'warm' ? 'happy'
+            : M === 'sad' ? 'hurt'
+            : M === 'urgent' || M === 'climax' ? 'proud'
+            : 'idle';
+    if (m !== 'idle') this.hero.react(m, 1.4);
+  },
+
   draw(G, ctx) {
     const { W, H } = G, A = this.act, T = this.t;
 
@@ -105,6 +136,11 @@ export default {
     const sky = ctx.createLinearGradient(0, 0, 0, H);
     sky.addColorStop(0, A.sky[0]); sky.addColorStop(.5, A.sky[1]); sky.addColorStop(1, A.sky[2]);
     ctx.fillStyle = sky; ctx.fillRect(...bleed(G));
+
+    // Nhân vật thời tiết — mặt trời / mây / trăng CÓ MẶT, lúc lắc và đổi biểu
+    // cảm theo tông của hồi. Vẽ sau bầu trời và trước cảnh vật để nó ở trên
+    // trời chứ không đè lên đồi núi.
+    drawWeather(ctx, W, H, T, A.weather || A.mood);
 
     PAINT[A.scene]?.call(this, G, ctx, W, H, T);
 
@@ -229,7 +265,7 @@ const PAINT = {
     ctx.beginPath(); ctx.arc(W * .74, H * .48, 78, Math.PI, TAU); ctx.stroke();
     // Rơm đứng lặng
     ctx.save(); ctx.globalAlpha = .95;
-    this.hero.draw(ctx, W * .26, H * .58, 122, 1); ctx.restore();
+    this.wob(ctx, W * .26, H * .58, 122, 1); ctx.restore();
   },
   road(G, ctx, W, H, T) {
     for (let k = 0; k < 3; k++) {
@@ -269,7 +305,7 @@ const PAINT = {
     for (const sx of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * 9, -56, 5.5, 0, TAU); ctx.fill(); }
     ctx.restore();
     ctx.save(); ctx.globalAlpha = .9;
-    this.hero.draw(ctx, W * .24, H * .60, 118, 1); ctx.restore();
+    this.wob(ctx, W * .24, H * .60, 118, 1); ctx.restore();
     bug(ctx, W * .34, H * .62, 13, 'rgba(30,50,30,.9)');
     bug(ctx, W * .42, H * .65, 12, 'rgba(40,30,70,.9)');
   },
@@ -298,17 +334,14 @@ const PAINT = {
     ctx.restore();
     ctx.save();
     ctx.translate(Math.sin(T * 22) * 3, 0);
-    this.hero.draw(ctx, W * .30, H * .62, 126, 1);
+    this.wob(ctx, W * .30, H * .62, 126, 1);
     ctx.restore();
     bug(ctx, W * .43, H * .64, 13, 'rgba(20,10,6,.9)');
     bug(ctx, W * .52, H * .66, 12, 'rgba(20,10,6,.9)');
   },
   well(G, ctx, W, H, T) {
-    const mx = W * .76, my = H * .20;
-    const mg = ctx.createRadialGradient(mx, my, 0, mx, my, 190);
-    mg.addColorStop(0, 'rgba(230,238,255,.55)'); mg.addColorStop(1, 'rgba(200,215,255,0)');
-    ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(mx, my, 190, 0, TAU); ctx.fill();
-    ctx.fillStyle = '#f2f6ff'; ctx.beginPath(); ctx.arc(mx, my, 44, 0, TAU); ctx.fill();
+    // Mặt trăng trơn ở đây đã bỏ — drawWeather() vẽ trăng CÓ MẶT ở gần đúng
+    // chỗ này, để cả hai thì thành hai mặt trăng chồng lên nhau.
     hillPath(ctx, W, H * 1.05, H * .52, 16, 21); ctx.fillStyle = '#2e3a4a'; ctx.fill();
     // giếng đá
     ctx.fillStyle = '#4a5566';
@@ -332,7 +365,7 @@ const PAINT = {
       ctx.fillStyle = '#3f4a2c';
     }
     ctx.restore();
-    this.hero.draw(ctx, W * .26, H * .60, 116, 1);
+    this.wob(ctx, W * .26, H * .60, 116, 1);
   },
   newgrass(G, ctx, W, H, T) {
     for (let k = 0; k < 3; k++) {
@@ -354,11 +387,172 @@ const PAINT = {
       ctx.beginPath(); ctx.moveTo(x, H * .68);
       ctx.quadraticCurveTo(x + sw * .5, H * .62, x + sw, H * .56); ctx.stroke();
     }
-    this.hero.draw(ctx, W * .30, H * .62, 128, 1);
+    this.wob(ctx, W * .30, H * .62, 128, 1);
     bug(ctx, W * .46, H * .64, 13, '#3d6f8e');
     bug(ctx, W * .56, H * .66, 13, '#33693c');
   },
 };
+
+/**
+ * NHÂN VẬT THỜI TIẾT.
+ *
+ * Cùng một bộ khung — thân tròn, hai mắt, một miệng — nhưng đổi hình dáng và
+ * nét mặt theo tông của hồi. Nhờ vậy bầu trời cũng "diễn" chứ không chỉ là
+ * mảng gradient, mà chỉ tốn thêm một hàm.
+ *
+ *   joy/warm  mặt trời cười, tia sáng quay
+ *   hope      mặt trời ló sau mây, mỉm cười
+ *   sad       mây xám mắt rũ, mưa lất phất
+ *   urgent    mây giông cau mày, chớp giật
+ *   climax    mây tím mắt trợn
+ *   solemn    trăng lim dim
+ */
+const WEATHER = {
+  joy:    { kind: 'sun',   col: '#ffd23f', face: 'smile' },
+  warm:   { kind: 'sun',   col: '#ffc46a', face: 'smile' },
+  hope:   { kind: 'peek',  col: '#ffd88a', face: 'soft'  },
+  sad:    { kind: 'rain',  col: '#9aa4bd', face: 'droop' },
+  urgent: { kind: 'storm', col: '#8a7fb0', face: 'angry' },
+  climax: { kind: 'storm', col: '#7a6aa8', face: 'wide'  },
+  solemn: { kind: 'moon',  col: '#e8e2ff', face: 'calm'  },
+  // Nắng cháy: mặt trời đỏ quạch, cau mày, tia sáng gắt.
+  drought:{ kind: 'sun',   col: '#ff9a2b', face: 'angry' },
+};
+
+/** Nét mặt — mắt, chân mày, miệng, má hồng. */
+function wface(ctx, r, kind, T, ink) {
+  const open = Math.sin(T * .9) > .97 ? 0 : 1;        // chớp mắt thưa
+  const ex = r * .34, ey = -r * .06;
+  for (const d of [-1, 1]) {
+    ctx.save();
+    ctx.translate(d * ex, ey);
+    ctx.fillStyle = ink;
+    if (!open || kind === 'calm') {
+      ctx.strokeStyle = ink; ctx.lineWidth = r * .07; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-r * .12, 0); ctx.quadraticCurveTo(0, -r * .10, r * .12, 0); ctx.stroke();
+    } else if (kind === 'droop') {
+      ctx.beginPath(); ctx.ellipse(0, 0, r * .085, r * .062, 0, 0, TAU); ctx.fill();
+    } else if (kind === 'wide') {
+      ctx.beginPath(); ctx.arc(0, 0, r * .13, 0, TAU); ctx.fillStyle = '#fff'; ctx.fill();
+      ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(0, 0, r * .065, 0, TAU); ctx.fill();
+    } else {
+      ctx.beginPath(); ctx.ellipse(0, 0, r * .085, r * .10, 0, 0, TAU); ctx.fill();
+    }
+    ctx.restore();
+  }
+  if (kind === 'angry' || kind === 'droop') {
+    ctx.strokeStyle = ink; ctx.lineWidth = r * .075; ctx.lineCap = 'round';
+    const up = kind === 'angry' ? -1 : 1;
+    for (const d of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(d * (ex - r * .15), ey - r * .22 + up * r * .05);
+      ctx.lineTo(d * (ex + r * .13), ey - r * .30 - up * r * .05);
+      ctx.stroke();
+    }
+  }
+  ctx.strokeStyle = ink; ctx.lineWidth = r * .075; ctx.lineCap = 'round';
+  ctx.beginPath();
+  const my = r * .30;
+  if (kind === 'smile') ctx.arc(0, my - r * .10, r * .20, .25, Math.PI - .25);
+  else if (kind === 'soft') ctx.arc(0, my - r * .06, r * .14, .35, Math.PI - .35);
+  else if (kind === 'droop') ctx.arc(0, my + r * .12, r * .18, Math.PI + .3, -.3);
+  else if (kind === 'angry') { ctx.moveTo(-r * .18, my); ctx.lineTo(r * .18, my - r * .06); }
+  else if (kind === 'wide') { ctx.ellipse(0, my, r * .11, r * .14, 0, 0, TAU); }
+  else { ctx.moveTo(-r * .12, my); ctx.lineTo(r * .12, my); }
+  ctx.stroke();
+  ctx.save(); ctx.globalAlpha = .30; ctx.fillStyle = '#ff7d9c';
+  for (const d of [-1, 1]) { ctx.beginPath(); ctx.ellipse(d * r * .58, r * .18, r * .13, r * .08, 0, 0, TAU); ctx.fill(); }
+  ctx.restore();
+}
+
+function drawWeather(ctx, W, H, T, mood) {
+  const w = WEATHER[mood] || WEATHER.joy;
+  const cx = W * .80, cy = H * .19, r = Math.min(W, H) * .085;
+  const bob = Math.sin(T * 1.4) * r * .10;             // lúc lắc
+  ctx.save();
+  ctx.translate(cx, cy + bob);
+  ctx.rotate(Math.sin(T * .9) * .07);
+
+  if (w.kind === 'sun' || w.kind === 'peek' || w.kind === 'moon') {
+    const glow = w.kind === 'moon' ? '#e8e2ff' : w.col;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    const gl = ctx.createRadialGradient(0, 0, r * .6, 0, 0, r * 3.1);
+    gl.addColorStop(0, rgba(glow, .38)); gl.addColorStop(1, rgba(glow, 0));
+    ctx.fillStyle = gl; ctx.beginPath(); ctx.arc(0, 0, r * 3.1, 0, TAU); ctx.fill();
+    ctx.restore();
+    if (w.kind !== 'moon') {
+      ctx.save(); ctx.rotate(T * .25);
+      ctx.strokeStyle = rgba(w.col, .8); ctx.lineWidth = r * .12; ctx.lineCap = 'round';
+      for (let i = 0; i < 10; i++) {
+        const a = i / 10 * TAU, k = 1 + .1 * Math.sin(T * 3 + i);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * r * 1.22, Math.sin(a) * r * 1.22);
+        ctx.lineTo(Math.cos(a) * r * 1.55 * k, Math.sin(a) * r * 1.55 * k);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU);
+    const sg = ctx.createRadialGradient(-r * .3, -r * .35, r * .1, 0, 0, r);
+    if (w.kind === 'moon') { sg.addColorStop(0, '#fffef8'); sg.addColorStop(1, '#e2d9c0'); }
+    else { sg.addColorStop(0, '#fffdf0'); sg.addColorStop(1, w.col); }
+    ctx.fillStyle = sg; ctx.fill();
+    ctx.strokeStyle = shade(w.kind === 'moon' ? '#e2d9c0' : w.col, -.35);
+    ctx.lineWidth = r * .07; ctx.stroke();
+    if (w.kind === 'moon') {
+      ctx.fillStyle = 'rgba(190,175,150,.40)';
+      for (const [ox, oy, rr] of [[-.34, -.24, .17], [.30, .26, .12]]) {
+        ctx.beginPath(); ctx.arc(ox * r, oy * r, rr * r, 0, TAU); ctx.fill();
+      }
+    }
+    if (w.kind !== 'peek') wface(ctx, r, w.face, T, w.kind === 'moon' ? '#6b5a3a' : '#7a4a05');
+  }
+
+  if (w.kind !== 'sun' && w.kind !== 'moon') {
+    const base = w.kind === 'peek' ? '#ffffff' : w.col;
+    const PUFF = [[-.78, .18, .60], [0, -.20, .80], [.80, .16, .56], [0, .34, .70]];
+    ctx.fillStyle = base;
+    ctx.beginPath();
+    for (const [ox, oy, rr] of PUFF) ctx.arc(ox * r, oy * r, rr * r, 0, TAU);
+    ctx.fill();
+    ctx.strokeStyle = shade(base, -.30); ctx.lineWidth = r * .06;
+    for (const [ox, oy, rr] of PUFF.slice(0, 3)) {
+      ctx.beginPath(); ctx.arc(ox * r, oy * r, rr * r, 0, TAU); ctx.stroke();
+    }
+    if (w.kind !== 'peek') wface(ctx, r * .9, w.face, T, shade(base, -.55));
+  }
+  ctx.restore();
+
+  // mưa / chớp vẽ NGOÀI phép xoay để hạt rơi thẳng đứng
+  if (w.kind === 'rain') {
+    ctx.save();
+    ctx.strokeStyle = 'rgba(170,200,240,.7)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+    for (let i = 0; i < 10; i++) {
+      const k = (T * .8 + i / 10) % 1;
+      const rx = cx + (i - 4.5) * r * .24, ry = cy + r * .9 + k * r * 2.6;
+      ctx.globalAlpha = Math.sin(k * Math.PI);
+      ctx.beginPath(); ctx.moveTo(rx, ry); ctx.lineTo(rx - r * .05, ry + r * .22); ctx.stroke();
+    }
+    ctx.restore();
+  } else if (w.kind === 'storm') {
+    const flash = Math.pow(Math.max(0, Math.sin(T * 1.6)), 26);
+    if (flash > .02) {
+      ctx.save();
+      ctx.globalAlpha = flash; ctx.fillStyle = '#fff6c4';
+      ctx.beginPath();
+      ctx.moveTo(cx + r * .10, cy + r * .9);
+      ctx.lineTo(cx - r * .25, cy + r * 1.7);
+      ctx.lineTo(cx + r * .02, cy + r * 1.7);
+      ctx.lineTo(cx - r * .18, cy + r * 2.5);
+      ctx.lineTo(cx + r * .40, cy + r * 1.5);
+      ctx.lineTo(cx + r * .10, cy + r * 1.5);
+      ctx.lineTo(cx + r * .38, cy + r * .9);
+      ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+}
 
 function wrap(ctx, text, x, y, maxW, lh, font, fill) {
   ctx.save();

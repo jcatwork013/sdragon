@@ -27,7 +27,9 @@ export const ACTS = [
     ],
   },
   {
-    id: 'raid', at: 4, scene: 'raid', mood: 'sad', music: 'sad',
+    // Hạn hán thì phải là MẶT TRỜI GAY GẮT, không phải mây mưa — tông 'sad'
+    // nói đúng cảm xúc nhưng sai hiện tượng, nên hồi này ghi đè.
+    id: 'raid', at: 4, scene: 'raid', mood: 'sad', weather: 'drought', music: 'sad',
     sky: ['#e8b78a', '#c9a08e', '#8a7f92'], hill: '#a89a52', mount: '#8b7f8f',
     title: 'Hồi II — Cơn Nắng Lớn', title_en: 'Act II — The Long Drought',
     lines: [
@@ -80,7 +82,7 @@ export const ACTS = [
     ],
   },
   {
-    id: 'fire', at: 29, scene: 'fire', mood: 'urgent', music: 'chase',
+    id: 'fire', at: 29, scene: 'fire', mood: 'urgent', weather: 'drought', music: 'chase',
     sky: ['#ffb36a', '#e8663a', '#7a2f28'], hill: '#8a5a2c', mount: '#6b3a2a',
     title: 'Hồi V — Lửa Đồng', title_en: 'Act V — The Field Burns',
     lines: [

@@ -118,6 +118,8 @@ run('24b · Màn VS',      48, 'sc24b_duelvs.png', () => { G.scene.phase = 'intr
 run('24c · Khoe chiêu',  12, 'sc24c_duelmove.png', () => { G.scene.phase = 'pick'; G.scene.introT = 9; G.scene.play(G, 'huc'); });
 run('24d · Lao vào',      8, 'sc24d_duelclash.png', () => { G.scene.phase = 'clash'; G.scene.clashT = 0; G.scene.impacted = true; });
 run('25 · Đang ra đòn', 25, 'sc25_duelhit.png', () => { G.scene.phase = 'pick'; G.scene.play(G, 'huc'); });
+run('25b · Thắng (đểu)',  60, 'sc25b_duelwin.png', () => { G.scene.phase='pick'; G.scene.foe.hp = 1; G.scene.play(G,'huc'); G.scene.finish(G, true); });
+run('25c · Thua (băng bó)',60,'sc25c_duellose.png', () => { G.go('duel', { after: () => {} }); G.scene.phase='pick'; G.scene.finish(G, false); });
 run('26 · Bản đồ thế giới', 40, 'sc26_world.png', () => { G.save.unlocked=20; G.go('world', { after: () => {} }); });
 run('17 · Búa giáng',  1, 'sc17_hammer.png', () => { G.startLevel(2); G.scene.skillFx = { kind:'hammer', t:.235, dur:.78, x:640, y:340 }; });
 run('18 · Lửa quét',   1, 'sc18_fire.png',   () => { G.startLevel(2); G.scene.skillFx = { kind:'fire', t:.40, dur:.95, row:4, y:400 }; });

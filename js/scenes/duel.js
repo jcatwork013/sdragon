@@ -51,6 +51,9 @@ export default {
   /** Chỗ đứng hai bên — bám giữa màn hình để máy rộng không lệch về một phía. */
   pos(G) { const m = G.W / 2; return { hx: m - 300, fx: m + 300 }; },
 
+  /** Rời màn đấu thì bỏ tư thế kết trận, kẻo dế nằm ngửa ở cả bản đồ. */
+  exit(G) { G.hero.setPose(null); },
+
   // ── một hiệp ──────────────────────────────────────────────────────────────
   play(G, moveId) {
     if (this.phase !== 'pick' || this.over) return;
@@ -140,12 +143,12 @@ export default {
       if (Math.random() < .45) S.food += 1;
       this.matsGot = addMats(S, rollMats(1 + Math.round(this.foe.ratio * 2), this.me.stage * 8));
       G.hero.xp = S.xp; G.persist();
-      G.sfx('win'); G.hero.react('happy', 2.2); G.music('nest');
+      G.sfx('win'); G.hero.react('happy', 2.2); G.hero.setPose('taunt'); G.music('nest');
     } else if (!fled) {
       this.penaltyGold = Math.round(S.gold * .12);
       S.gold = Math.max(0, S.gold - this.penaltyGold);
       G.persist();
-      G.sfx('lose'); G.hero.react('hurt', 2);
+      G.sfx('lose'); G.hero.react('hurt', 2); G.hero.setPose('ko');
     }
     this.hits = [new Hit('done', G.W / 2 - 120, G.H - 116, 240, 64, { act: () => this.after() })];
   },
@@ -210,7 +213,8 @@ export default {
     // đứng trên một mặt phẳng có phối cảnh thì mắt tự đọc ra chiều sâu — rẻ
     // hơn nhiều so với dựng lại toàn bộ phần vẽ theo kiểu 2.5D thật.
     const P = this.pos(G);
-    const FLOOR_Y = GY + 52, FRX = Math.min(W * .42, 560), FRY = 96;
+    const DROP = this.over ? 132 : 0;
+    const FLOOR_Y = GY + DROP + 52, FRX = Math.min(W * .42, 560), FRY = 96;
     ctx.save();
     ctx.beginPath(); ctx.ellipse(W / 2, FLOOR_Y + 20, FRX, FRY, 0, 0, TAU);
     ctx.fillStyle = '#171029'; ctx.fill();                       // bề dày sàn
@@ -251,16 +255,16 @@ export default {
       ctx.globalAlpha = clamp(adv, 0, 1) * .5;
       ctx.strokeStyle = '#cfe6ff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
       for (let i = 0; i < 4; i++) {
-        const yy = GY - 30 - i * 26;
+        const yy = GY + DROP - 30 - i * 26;
         ctx.beginPath(); ctx.moveTo(meX - 70 - i * 22, yy); ctx.lineTo(meX - 130 - i * 30, yy); ctx.stroke();
         ctx.beginPath(); ctx.moveTo(foeX + 70 + i * 22, yy); ctx.lineTo(foeX + 130 + i * 30, yy); ctx.stroke();
       }
       ctx.restore();
     }
 
-    G.hero.draw(ctx, meX, GY, 178, 1);
+    G.hero.draw(ctx, meX, GY + DROP, 178, 1);
     ctx.save();
-    ctx.translate(foeX, GY - 60);
+    ctx.translate(foeX, GY + DROP - 60);
     ctx.scale(-1, 1);                       // quay mặt về phía người chơi
     this.foeArt.draw(ctx, 0, 0, 210);
     ctx.restore();
@@ -484,16 +488,16 @@ export default {
     const s = ease.outBack(k);
     ctx.save();
     ctx.translate(W / 2, H / 2 - 30); ctx.scale(s, s); ctx.translate(-W / 2, -(H / 2 - 30));
-    glassPanel(ctx, W / 2 - 300, 180, 600, 260, 28,
+    glassPanel(ctx, W / 2 - 300, 104, 600, 260, 28,
       this.over.win ? { top: 'rgba(30,60,44,.95)', bot: 'rgba(12,26,20,.97)', rim: 'rgba(120,240,150,.5)' }
                     : { top: 'rgba(60,20,36,.95)', bot: 'rgba(24,8,16,.97)', rim: 'rgba(240,90,120,.45)' });
-    strokeText(ctx, this.over.fled ? t('duelFled') : this.over.win ? t('duelWin') : t('duelLose'), W / 2, 246,
+    strokeText(ctx, this.over.fled ? t('duelFled') : this.over.win ? t('duelWin') : t('duelLose'), W / 2, 170,
       { font: FONT.disp(46), fill: this.over.win ? '#8ef08a' : '#ff7a90', stroke: '#12060f', lw: 9, baseline: 'middle' });
     if (this.over.win)
-      strokeText(ctx, `+${this.rewardGold} ${t('gold')}     +${this.rewardXp} EXP`, W / 2, 316,
+      strokeText(ctx, `+${this.rewardGold} ${t('gold')}     +${this.rewardXp} EXP`, W / 2, 240,
         { font: FONT.disp(26), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
     else
-      strokeText(ctx, t('penalty', { g: this.penaltyGold || this.fleeGold || 0, x: 0 }), W / 2, 316,
+      strokeText(ctx, t('penalty', { g: this.penaltyGold || this.fleeGold || 0, x: 0 }), W / 2, 240,
         { font: FONT.disp(22), fill: '#ff9aa8', stroke: '#3a0008', lw: 5, baseline: 'middle' });
     if (this.over.win && this.matsGot) {
       const list = Object.entries(this.matsGot);
@@ -501,12 +505,12 @@ export default {
       list.forEach(([id, n], i) => {
         const m = MATS[id]; if (!m) return;
         const x = W / 2 - wRow / 2 + i * 96 + 48;
-        ctx.save(); ctx.translate(x - 18, 352); matIcon(ctx, id, 30, m.col); ctx.restore();
-        strokeText(ctx, '+' + n, x + 6, 352,
+        ctx.save(); ctx.translate(x - 18, 276); matIcon(ctx, id, 30, m.col); ctx.restore();
+        strokeText(ctx, '+' + n, x + 6, 276,
           { font: FONT.disp(20), fill: '#fff', stroke: '#1a0f30', lw: 4, baseline: 'middle' });
       });
     }
-    strokeText(ctx, this.over.win ? t('duelTipWin') : t('duelTipLose'), W / 2, 392,
+    strokeText(ctx, this.over.win ? t('duelTipWin') : t('duelTipLose'), W / 2, 322,
       { font: FONT.ui(15, 600), fill: '#c9b8ff', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     ctx.restore();
     if (k >= 1) {

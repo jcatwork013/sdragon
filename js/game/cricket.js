@@ -191,6 +191,8 @@ export class Cricket {
     this.onFire = null;
     this.antic = null; this.anticT = 0;
     this.pokeShake = 0;
+    this.pose = null;          // null | 'taunt' (ăn mừng đểu) | 'ko' (nằm băng bó)
+    this.poseT = 0;
     this.anticAt = 4 + Math.random() * 5;
   }
 
@@ -214,8 +216,12 @@ export class Cricket {
   /** "Phun lửa" của rồng → với dế là GÁY: rung cánh phát ra sóng âm. */
   breatheFire(dur = 0.9) { this.mood = 'chirp'; this.moodT = dur; this.fireT = dur; }
 
+  /** Tư thế kết trận. 'taunt' = vênh mặt trêu ngươi · 'ko' = chổng vó băng bó. */
+  setPose(p) { this.pose = p; this.poseT = 0; if (p === 'taunt') this.bounce = 1; }
+
   update(dt) {
     this.t += dt;
+    if (this.pose) this.poseT += dt;
     if (this.moodT > 0) { this.moodT -= dt; if (this.moodT <= 0) this.mood = 'idle'; }
 
     // ── trò vặt lúc rảnh: ngáp · chùi râu · nhún nhảy · vênh mặt ──────────
@@ -271,10 +277,21 @@ export class Cricket {
     ctx.fill();
     ctx.restore();
 
+    // ── TƯ THẾ KẾT TRẬN ───────────────────────────────────────────────────
+    // Ăn mừng thì nhún nhảy + ngửa mặt ra sau (kiểu "có gì đâu"); thua thì lật
+    // ngửa, chổng càng lên trời. Cả hai chỉ là phép biến đổi toàn thân cộng vài
+    // lớp phụ, không phải dựng lại bộ khung — nên rẻ mà đọc ra ngay.
+    const KO = this.pose === 'ko', TA = this.pose === 'taunt';
+    const koK = KO ? ease.outBack(clamp(this.poseT / .55, 0, 1)) : 0;
+    const taK = TA ? clamp(this.poseT / .3, 0, 1) : 0;
+    const taBob = TA ? Math.abs(Math.sin(this.t * 4.2)) : 0;
+
     ctx.save();
     const shk = this.pokeShake > 0 ? Math.sin(this.t * 44) * this.pokeShake * S * .035 : 0;
-    ctx.translate(x + shk, y + bob);
-    ctx.rotate(shk * 0.004);
+    // Lật gần trọn 180°: nằm ngửa, sáu chân chổng lên trời — đúng kiểu con bọ
+    // hết hơi trong tranh biếm. Quay ít hơn thì chỉ ra "bị xô ngã", không buồn cười.
+    ctx.translate(x + shk, y + bob - taBob * S * .16 + koK * S * .30);
+    ctx.rotate(shk * 0.004 + koK * 2.78 + taK * Math.sin(this.t * 2.6) * .05);
     ctx.scale(face, 1);
 
     const ink   = mix(B.body, -.66, 1);
@@ -729,7 +746,19 @@ export class Cricket {
     ctx.beginPath(); ctx.ellipse(ex - er * 1.12, ey + er * .10, er * .52, er * .58 * (.5 + .5 * open), -.18, 0, TAU);
     ctx.fillStyle = mix(B.body, -.60, 1); ctx.fill();
     ctx.restore();
-    if (open < .12) {
+    if (KO) {
+      // mắt xoáy tít — dấu hiệu "đo ván" ai cũng đọc được ngay
+      ctx.beginPath(); ctx.ellipse(ex, ey, er, er * .9, -.18, 0, TAU);
+      ctx.fillStyle = '#fff'; ctx.fill(); line(.85);
+      ctx.strokeStyle = ink; ctx.lineWidth = LW * .9; ctx.lineCap = 'round';
+      ctx.beginPath();
+      for (let i = 0; i <= 26; i++) {
+        const u = i / 26, a = u * TAU * 1.9 + this.t * 2, rr = er * .78 * (1 - u * .86);
+        const px = ex + Math.cos(a) * rr, py = ey + Math.sin(a) * rr;
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.stroke();
+    } else if (open < .12) {
       ctx.strokeStyle = ink; ctx.lineWidth = LW;
       ctx.beginPath(); ctx.moveTo(ex - er * .8, ey); ctx.quadraticCurveTo(ex, ey - er * .8, ex + er * .8, ey); ctx.stroke();
     } else {
@@ -758,6 +787,16 @@ export class Cricket {
       // mí mắt trên — nét mảnh ôm theo mắt, làm ánh nhìn có hồn
       ctx.strokeStyle = mix(B.body, -.66, .6); ctx.lineWidth = LW * .75;
       ctx.beginPath(); ctx.arc(ex, ey, er * 1.02, Math.PI * 1.06, Math.PI * 1.92); ctx.stroke();
+      // ăn mừng: sụp mí xuống nửa mắt → ánh nhìn lim dim đắc ý
+      if (TA) {
+        ctx.save();
+        ctx.beginPath(); ctx.ellipse(ex, ey, er, er * (.62 + .38 * open), -.18, 0, TAU); ctx.clip();
+        ctx.fillStyle = shade(B.body, -.10);
+        ctx.fillRect(ex - er * 1.2, ey - er * 1.4, er * 2.4, er * 1.34);
+        ctx.strokeStyle = ink; ctx.lineWidth = LW * 1.1;
+        ctx.beginPath(); ctx.moveTo(ex - er * 1.2, ey - er * .06); ctx.lineTo(ex + er * 1.2, ey - er * .06); ctx.stroke();
+        ctx.restore();
+      }
     }
     // chân mày → nét "ngang tàng" của Dế Mèn
     ctx.strokeStyle = ink; ctx.lineWidth = LW * 1.2; ctx.lineCap = 'round';
@@ -773,6 +812,31 @@ export class Cricket {
     ctx.save(); ctx.globalAlpha = .32; ctx.fillStyle = '#ff7d9c';
     ctx.beginPath(); ctx.ellipse(HR * .05, HR * .26, HR * .28, HR * .14, -.1, 0, TAU); ctx.fill();
     ctx.restore();
+
+    // ── BĂNG GẠC (khi thua) ───────────────────────────────────────────────
+    if (KO) {
+      ctx.save();
+      ctx.rotate(-.30);
+      ctx.fillStyle = '#f4efe4';
+      ctx.beginPath();
+      ctx.moveTo(-HR * .95, -HR * .30);
+      ctx.lineTo(HR * 1.02, -HR * .62);
+      ctx.lineTo(HR * 1.02, -HR * .16);
+      ctx.lineTo(-HR * .95, HR * .16);
+      ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#c9bfab'; ctx.lineWidth = LW * .7; ctx.stroke();
+      ctx.strokeStyle = '#d9cfba'; ctx.lineWidth = LW * .6;
+      for (let i = 0; i < 4; i++) {
+        const u = -.7 + i * .45;
+        ctx.beginPath();
+        ctx.moveTo(HR * u, -HR * .52); ctx.lineTo(HR * (u - .18), HR * .10); ctx.stroke();
+      }
+      // nút thắt
+      ctx.fillStyle = '#f4efe4';
+      ctx.beginPath(); ctx.arc(-HR * .92, -HR * .08, HR * .17, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#c9bfab'; ctx.lineWidth = LW * .7; ctx.stroke();
+      ctx.restore();
+    }
 
     const m = ctx.getTransform();
     const mlx = HR * 1.15, mly = HR * .40;
@@ -799,6 +863,47 @@ export class Cricket {
     }
 
     ctx.restore();
+
+    // ── HIỆU ỨNG KẾT TRẬN (vẽ NGOÀI phép xoay thân, nếu không sao cũng nằm ngửa theo) ──
+    if (KO) {
+      const cxk = x, cyk = y - S * .52;
+      for (let i = 0; i < 5; i++) {
+        const a = this.t * 2.1 + i / 5 * TAU;
+        const rx = S * .40, ry = S * .13;
+        const px = cxk + Math.cos(a) * rx, py = cyk + Math.sin(a) * ry;
+        const near = Math.sin(a) > 0 ? 1 : .55;
+        ctx.save();
+        ctx.translate(px, py); ctx.rotate(a * .6); ctx.globalAlpha = near;
+        ctx.beginPath();
+        for (let k = 0; k < 10; k++) {
+          const aa = -Math.PI / 2 + k * Math.PI / 5, rr = (k % 2 ? S * .022 : S * .052) * near;
+          k ? ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr) : ctx.moveTo(Math.cos(aa) * rr, Math.sin(aa) * rr);
+        }
+        ctx.closePath();
+        ctx.fillStyle = '#ffd23f'; ctx.fill();
+        ctx.strokeStyle = '#8a5c00'; ctx.lineWidth = S * .012; ctx.lineJoin = 'round'; ctx.stroke();
+        ctx.restore();
+      }
+    } else if (TA) {
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 7; i++) {
+        const ph = i * 1.7, k = (this.t * .9 + i / 7) % 1;
+        const px = x + Math.cos(ph * 3.1) * S * (.35 + k * .35);
+        const py = y - S * .25 - k * S * .75;
+        const a2 = Math.sin(k * Math.PI);
+        ctx.globalAlpha = a2 * .85;
+        ctx.fillStyle = ['#fff3b0', '#ffd23f', '#8ef08a', '#a8dcff'][i % 4];
+        ctx.beginPath();
+        for (let q = 0; q < 8; q++) {
+          const aa = q / 8 * TAU, rr = q % 2 ? S * .010 : S * .034;
+          q ? ctx.lineTo(px + Math.cos(aa) * rr, py + Math.sin(aa) * rr)
+            : ctx.moveTo(px + Math.cos(aa) * rr, py + Math.sin(aa) * rr);
+        }
+        ctx.closePath(); ctx.fill();
+      }
+      ctx.restore();
+    }
   }
 
   /**

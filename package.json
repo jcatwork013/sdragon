@@ -1,23 +1,24 @@
 {
   "name": "cricko",
-  "version": "1.8.0",
+  "version": "1.19.0",
   "description": "CRICKO — Miền Cỏ Cháy · match-3 nuôi dế, Canvas 2D + Web Audio, không phụ thuộc thư viện ngoài",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8080",
     "shots": "node dev/screenshot.mjs",
+    "songs": "node dev/song-check.mjs",
     "balance": "node dev/balance.mjs 30 2.0 4",
     "desktop": "electron .",
     "build:mac": "electron-builder --mac",
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux",
-    "build:all": "npm run apk && npx electron-builder --win nsis --win portable --x64 && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg --arm64 --x64 && npm run verify",
+    "build:all": "npm run apk && npx electron-builder --win nsis --win portable --x64 && CSC_IDENTITY_AUTO_DISCOVERY=false npx electron-builder --mac dmg --arm64 --x64 && npx electron-builder --linux AppImage --x64 && npm run verify",
     "icons": "node dev/icons.mjs",
     "version": "node dev/version.mjs",
     "www": "node dev/www.mjs",
     "android": "npm run www && npx cap sync android",
-    "apk": "npm run www && npx cap sync android && cd android && JAVA_HOME=$HOME/.jdks/temurin-21/Contents/Home ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew assembleDebug",
+    "apk": "npm run www && npx cap sync android && cd android && JAVA_HOME=$HOME/.jdks/temurin-21/Contents/Home ANDROID_HOME=/opt/homebrew/share/android-commandlinetools ./gradlew assembleDebug && cd .. && node dev/apk-copy.mjs",
     "verify": "bash dev/verify-builds.sh"
   },
   "devDependencies": {
@@ -69,7 +70,17 @@
       ],
       "category": "public.app-category.puzzle-games",
       "icon": "icons/icon-1024.png",
-      "darkModeSupport": true
+      "darkModeSupport": true,
+      "extraResources": [
+        {
+          "from": "node_modules/electron/dist/LICENSE",
+          "to": "LICENSE.electron.txt"
+        },
+        {
+          "from": "node_modules/electron/dist/LICENSES.chromium.html",
+          "to": "LICENSES.chromium.html"
+        }
+      ]
     },
     "win": {
       "target": [

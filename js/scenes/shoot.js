@@ -3,15 +3,16 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rand, randInt, rgba, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT, resultBanner, frostCard } from '../ui/widgets.js';
+import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT, resultBanner, frostCard , heroCardScene, heroFit } from '../ui/widgets.js';
 import { BubbleBoard, ORB, drawOrb, buildOrbSprites } from '../game/bubble.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
-import { pickBeat, SPEAKERS, GOAL_NOUN } from '../data/beats.js';
+import { pickBeat, GOAL_NOUN } from '../data/beats.js';
+import { speaker, fill } from '../core/lore.js';
 import { rollMats, addMats, MATS } from '../data/gear.js';
-import { Enemy, ATK } from '../game/enemy.js';
+import { Enemy, ATK, drawEnemyRaid } from '../game/enemy.js';
 import { playLayout, bleed } from '../core/layout.js';
 
-const ENEMY_Y = 82;
+let ENEMY_Y = 46;                         // tính lại theo mép trên khung bắn
 const COLS = 10;
 let R = 24, FW = 524, FH = 524, DEATH_Y = 418;
 
@@ -19,11 +20,19 @@ let R = 24, FW = 524, FH = 524, DEATH_Y = 418;
 let FX_ = 384, FY_ = 122, BX = 406, BY = 136, CARDX = 24, HUDX = 950, HUDW = 306, COMPACT = false;
 let LAUNCH = { x: 646, y: 608 };
 function relayout(W) {
-  R = W < 1240 ? 22 : 24;
+  // Bán kính bóng tính theo chỗ trống thật (giống bàn Ghép Đá), không đóng đinh
+  // 22/24 nữa — trên điện thoại ngang, khung bắn cũ chỉ ăn 2/3 chiều cao.
+  const compact = W < 1240;
+  const chrome = (compact ? 0 : 268) + 78 + 14 + 18 + (compact ? 286 : 306) + 40;
+  const byW = Math.floor((W - chrome - 44) / (COLS * 2));
+  const byH = Math.floor((684 - 78 - 44) / (COLS * 2));
+  R = clamp(Math.min(byW, byH), 17, 30);
   FW = COLS * R * 2 + 44; FH = FW;
   DEATH_Y = FH - 106;
   const L = playLayout(W, FW, FH);
-  FX_ = L.boardX; FY_ = 122;
+  FX_ = L.boardX;
+  FY_ = Math.round(78 + (684 - 78 - FH) / 2);
+  ENEMY_Y = Math.max(42, FY_ - 48);
   BX = FX_ + 14 + 8; BY = FY_ + 14;
   CARDX = L.cardX; HUDX = L.hudX; HUDW = L.hudW; COMPACT = L.compact;
   LAUNCH = { x: BX + COLS * R, y: BY + DEATH_Y + 54 };
@@ -55,7 +64,7 @@ export default {
     this.enemies = (L.enemies || []).map(([kind, tier]) => new Enemy(kind, tier));
     this.maxHp = 300 + (G.save.stats.spirit || 0) * 20 + (G.save.breed === 'frost' ? 40 : 0);
     this.hp = this.maxHp;
-    this.hitFlash = 0;
+    this.hitFlash = 0; this.raidFx = null;
     // cùng công thức ngân sách như màn Ghép Đá để hai chế độ khó ngang nhau
     const killFrac = 0.30 + Math.min(0.32, G.levelIndex * 0.0072);
     const hpBudget = Math.round(96 * (L.shots || 40) * 0.62 * killFrac / 0.30 * 0.30);
@@ -76,14 +85,14 @@ export default {
     });
     this.wire(G);
 
-    G.world.setTheme({ sky: L.sky, hill: L.hill, mount: L.mount });
-    G.hero.onFire = (x, y, dx, dy) => G.fx.fire(x, y, dx, dy, 4);
+    G.world.setTheme({ sky: L.sky, hill: L.hill, mount: L.mount, biome: L.biome });
+    G.hero.onChirp = (x, y, dx, dy) => G.fx.chirp(x, y, dx, dy, 4);
 
     this.hits = [
       new Hit('pause', G.W - 78, 12, 52, 52, { circle: true, act: () => this.togglePause(G) }),
       new Hit('exit',  G.W - 142, 12, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('map'); } }),
-      new Hit('restart', HUDX + HUDW * .23, 508, 64, 64, { circle: true, act: () => G.startLevel(G.levelIndex) }),
-      new Hit('resume', HUDX + HUDW * .54, 508, 64, 64, { circle: true, act: () => this.togglePause(G) }),
+      new Hit('restart', HUDX + HUDW * .25 - 28, 444, 56, 56, { circle: true, act: () => G.startLevel(G.levelIndex) }),
+      new Hit('resume', HUDX + HUDW * .68 - 28, 444, 56, 56, { circle: true, act: () => this.togglePause(G) }),
       new Hit('swap', LAUNCH.x + 74, LAUNCH.y - 26, 52, 52, { circle: true, act: () => { this.board.swapNext(); G.sfx('select'); } }),
       new Hit('quit', G.W / 2 - 110, G.H / 2 + 6, 220, 54,
         { act: () => { G.sfx('button'); G.go('map'); }, hidden: true }),
@@ -114,7 +123,7 @@ export default {
       const mult = 1 + (this.chain - 1) * .35;
       const gained = Math.round((e.popped * 70 + e.dropped * 150) * mult);
       this.score += gained;
-      this.gold += Math.round((e.popped * 2 + e.dropped * 5) * mult);
+      this.gold += Math.round((e.popped * 1.1 + e.dropped * 2.8) * mult);
 
       const px = BX + (e.x ?? 0), py = BY + (e.y ?? 0);
       for (const p of b.popping) G.fx.burst(BX + p.x, BY + p.y, ORB[p.type], 9, .9);
@@ -145,7 +154,7 @@ export default {
       if (!this.hitGoal && this.score >= G.level.target) {
         this.hitGoal = true; this.goalT = 1.6;
         this.showFinishNow(G);
-        G.sfx('levelup'); G.hero.breatheFire(.9); G.fx.shake(10); this.say(G, 'goalHit');
+        G.sfx('levelup'); G.hero.chirpBurst(.9); G.fx.shake(10); this.say(G, 'goalHit');
       }
       this.checkEnd(G);
     };
@@ -176,7 +185,7 @@ export default {
     this.bravo = {
       why, t: 0, next: .35, stage: 1,
       shots: Math.max(0, this.shotsLeft), time: Math.max(0, Math.floor(this.timeLeft)),
-      perShot: 16 + Math.round((G.level.index || 1) * .6), perSec: 4, gained: 0,
+      perShot: 9 + Math.round((G.level.index || 1) * .35), perSec: 2, gained: 0,
     };
     G.sfx('levelup');
   },
@@ -253,7 +262,7 @@ export default {
       S.stars[L.id] = Math.max(S.stars[L.id] || 0, this.starsEarned);
       S.best[L.id] = Math.max(S.best[L.id] || 0, this.score);
       S.gold += this.gold; S.xp += this.xpGain;
-      if (Math.random() < .5) S.food += 1;
+      if (Math.random() < .35) S.food += 1;
       this.matsGot = addMats(S, rollMats(2 + this.starsEarned, G.levelIndex));   // nguyên liệu chế tạo
       if (G.levelIndex + 1 >= S.unlocked) S.unlocked = Math.min(G.levelIndex + 2, G.totalLevels);
       G.hero.xp = S.xp; G.persist();
@@ -265,6 +274,7 @@ export default {
       S.gold = Math.max(0, S.gold - this.penaltyGold);
       S.xp = Math.max(0, S.xp - this.penaltyXp);
       G.hero.xp = S.xp; G.persist();
+      G.spendFed(G.FED_LOSE);            // thua cũng mất sức → thử lại có giá
       G.sfx('lose'); G.hero.react('hurt', 2); G.fx.shake(16); this.say(G, 'lose');
     }
 
@@ -288,6 +298,7 @@ export default {
     if (this.praiseT > 0) this.praiseT -= dt;
     if (this.bubble) { this.bubble.t += dt; if (this.bubble.t >= this.bubble.dur) this.bubble = null; }
     if (this.goalT > 0) this.goalT -= dt;
+    if (this.raidFx) { this.raidFx.t += dt; if (this.raidFx.t >= this.raidFx.dur) this.raidFx = null; }
     if (this.over) { this.overT += dt; this.board.update(dt); return; }
     if (this.bravo) { this.tickBravo(G, dt); return; }
     if (this.paused) return;
@@ -316,6 +327,7 @@ export default {
       const ev = e.update(dt);
       if (ev === 'windup') G.sfx('warn');
       if (ev !== 'strike') continue;
+      this.raidFx = { enemy: e, index: i, t: 0, dur: .92, kind: e.def.atk };
       let dmg = e.dmg, note = '';
       switch (e.def.atk) {
         case ATK.ROB: {
@@ -347,10 +359,10 @@ export default {
     }
   },
 
-  /** Nhạc đổi theo tình huống: dưới 25 giây thì chuyển sang bài gấp rút. */
+  /** Nhạc đổi theo tình huống: 25 giây → gấp rút · 10 giây cuối → sát giờ. */
   updateMusic(G) {
     if (this.over || this.paused) return;
-    const want = this.timeLeft <= 25 ? 'chase' : this.music;
+    const want = this.timeLeft <= 10 ? 'panic' : this.timeLeft <= 25 ? 'chase' : this.music;
     if (want !== this._nowPlaying) { this._nowPlaying = want; G.music(want); }
   },
 
@@ -395,9 +407,10 @@ export default {
   draw(G, ctx) {
     const { W, H } = G, L = G.level, S = G.save;
     G.world.draw(ctx);
-    ctx.fillStyle = 'rgba(16,9,34,.30)'; ctx.fillRect(...bleed(G));
+    ctx.fillStyle = 'rgba(16,9,34,.20)'; ctx.fillRect(...bleed(G));
 
     if (!COMPACT) this.drawHeroCard(G, ctx);
+    else this.drawCompactHero(G, ctx);
 
     this.drawEnemies(G, ctx);
 
@@ -458,18 +471,19 @@ export default {
     ctx.restore();
 
     this.drawLauncher(G, ctx);
-    this.drawHUD(G, ctx);
+    this.drawCompactHUD(G, ctx);
 
     const st = stageFor(S.xp);
     const nx = STAGES.find(v => v.xp > S.xp);
     const prog = nx ? (S.xp - st.xp) / (nx.xp - st.xp) : 1;
     starBar(ctx, 24, H - 56, W - 48, 34, prog, { t: this.t, label: `${tx(st, 'name')}  ·  ${S.xp} EXP` });
 
-    strokeText(ctx, `${t('level')} ${L.index} · ${t('modeShoot')}`, FX_ + FW / 2, 24,
-      { font: FONT.disp(22), fill: '#fff', stroke: '#2b1740', lw: 5, baseline: 'middle' });
+    strokeText(ctx, `${t('level')} ${L.index} · ${t('modeShoot')}`, 30, 22,
+      { font: FONT.disp(22), fill: '#fff', stroke: '#2b1740', lw: 5, align: 'left', baseline: 'middle' });
 
     if (this.bravo) this.drawBravo(G, ctx);
     G.fx.draw(ctx);
+    if (this.raidFx) this.drawPredatorRaid(G, ctx);
     if (this.praiseT > 0) {
       const k = 1 - this.praiseT / 1.2;
       ctx.save();
@@ -491,7 +505,8 @@ export default {
       ctx.restore();
     }
 
-    if (this.bubble) drawBubble(ctx, this.bubble, COMPACT ? FX_ + 6 : CARDX, COMPACT ? FW - 12 : 340, COMPACT ? FY_ + FH + 10 : 536);
+    // Máy hẹp: khung thoại đè đáy khung bắn (dưới khung không còn chỗ).
+    if (this.bubble) drawBubble(ctx, this.bubble, COMPACT ? FX_ + 20 : CARDX, COMPACT ? FW - 40 : 340, COMPACT ? FY_ + FH - 104 : 536);
     const p = this.hits.find(h => h.id === 'pause');
     if (p) roundBtn(ctx, p.x + 26, p.y + 26, 26, (c, s) => icon.pause(c, s), { press: p.press, hover: p.hover });
     const ex = this.hits.find(h => h.id === 'exit');
@@ -597,6 +612,17 @@ export default {
   },
 
   /** Hàng thiên địch phía trên khung — dùng chung cách trình bày với màn Ghép Đá. */
+  drawPredatorRaid(G, ctx) {
+    const f = this.raidFx, n = this.enemies.length;
+    if (!f || !n) return;
+    const sx = FX_ + FW * ((f.index + .5) / n), sy = ENEMY_Y - 4;
+    const compact = COMPACT ? this.compactHeroBox(G) : null;
+    const tx0 = compact ? compact.x + compact.w / 2 : CARDX + 134;
+    const ty0 = compact ? compact.y + compact.h * .58 : 122 + 214;
+    drawEnemyRaid(ctx, f, sx, sy, tx0, ty0);
+  },
+
+  /** Hàng thiên địch phía trên khung — dùng chung cách trình bày với màn Ghép Đá. */
   drawEnemies(G, ctx) {
     const n = this.enemies.length;
     if (!n) return;
@@ -650,44 +676,14 @@ export default {
     ctx.shadowColor = 'transparent';
 
     ctx.save(); roundRect(ctx, x + 5, y + 5, w - 10, h - 10, R - 6); ctx.clip();
-    // trời
-    const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, '#8fc6f5'); g.addColorStop(.34, '#cfe9ff');
-    g.addColorStop(.62, '#ffe3c0'); g.addColorStop(1, '#f7d9a8');
-    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
-    // nắng
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const sg = ctx.createRadialGradient(x + w * .74, y + h * .18, 0, x + w * .74, y + h * .18, w * .62);
-    sg.addColorStop(0, 'rgba(255,244,210,.75)'); sg.addColorStop(1, 'rgba(255,230,180,0)');
-    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x + w * .74, y + h * .18, w * .62, 0, TAU); ctx.fill();
+    heroCardScene(ctx, x, y, w, h, this.t || 0);
+
+// bóng đổ dưới chân cho con dế có chỗ đứng
+    ctx.save(); ctx.globalAlpha = .22; ctx.fillStyle = '#2c3a1c';
+    ctx.beginPath(); ctx.ellipse(x + w * .54, y + h * .66, w * .30, h * .033, 0, 0, TAU); ctx.fill();
     ctx.restore();
-    // mây
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
-    for (const [cx0, cy0, cw] of [[.22, .14, .20], [.62, .26, .15], [.40, .09, .12]]) {
-      ctx.beginPath();
-      ctx.ellipse(x + w * cx0, y + h * cy0, w * cw, h * cw * .34, 0, 0, TAU); ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(x + w * (cx0 + cw * .6), y + h * (cy0 + .012), w * cw * .68, h * cw * .26, 0, 0, TAU); ctx.fill();
-    }
-    // đồi nhiều tầng
-    for (const [yy, cxk, col] of [[.50, .70, 'rgba(150,195,140,.60)'],
-                                  [.60, .28, 'rgba(120,175,110,.85)'],
-                                  [.70, .55, '#79ae62']]) {
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.ellipse(x + w * cxk, y + h * (yy + .30), w * .85, h * .27, 0, 0, TAU); ctx.fill();
-    }
-    // cỏ dưới chân
-    ctx.strokeStyle = 'rgba(58,102,46,.75)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
-    for (let i = 0; i < 16; i++) {
-      const gx = x + 10 + i * (w - 20) / 15, gh = 10 + (i % 4) * 6;
-      const sw = Math.sin(T * 1.5 + i) * 3;
-      ctx.beginPath(); ctx.moveTo(gx, y + h * .78);
-      ctx.quadraticCurveTo(gx + sw * .5, y + h * .78 - gh * .6, gx + sw, y + h * .78 - gh); ctx.stroke();
-    }
-    // Bề ngang nhân vật ≈ 1.9×S và lệch hẳn về sau, nên thẻ rộng 250 chỉ chứa
-    // nổi S≈130. Để 158 như trước là cụt cả càng lẫn đầu ở hai mép.
-    G.hero.draw(ctx, x + w * .58, y + h * .60, 100, 1);
+    // Nhích lên .52: để .60 thì chân dế thò xuống dưới tấm kính mờ, bị che mất.
+    G.hero.draw(ctx, x + w * .54, y + h * .52, heroFit(w, stageFor(G.save.xp).scale), 1);
 
     // ── TẤM KÍNH MỜ ở đáy ───────────────────────────────────────────────
     const px = x + 12, pw = w - 24, ph = 92, py = y + h - ph - 12;
@@ -718,6 +714,114 @@ export default {
     ctx.restore();
   },
 
+  /** Thẻ dế co giãn lấp khoảng trống bên trái ở bố cục hẹp. */
+  compactHeroBox(G) {
+    const w = clamp(FX_ - 48, 88, 200), h = clamp(w * 1.62, 176, 324);
+    return { x: Math.max(14, (FX_ - w) / 2), y: FY_ + (FH - h) / 2, w, h };
+  },
+
+  drawCompactHero(G, ctx) {
+    const b = this.compactHeroBox(G), st = stageFor(G.save.xp);
+    ctx.save();
+    ctx.shadowColor = 'rgba(20,10,40,.45)'; ctx.shadowBlur = 20; ctx.shadowOffsetY = 8;
+    glassPanel(ctx, b.x, b.y, b.w, b.h, 22,
+      { top: 'rgba(207,241,193,.90)', bot: 'rgba(66,104,60,.94)', rim: 'rgba(255,255,255,.78)' });
+    ctx.shadowColor = 'transparent';
+    ctx.save(); roundRect(ctx, b.x + 5, b.y + 5, b.w - 10, b.h - 10, 17); ctx.clip();
+    heroCardScene(ctx, b.x, b.y, b.w, b.h, this.t || 0);
+    ctx.fillStyle = 'rgba(35,48,24,.23)'; ctx.beginPath(); ctx.ellipse(b.x + b.w / 2, b.y + b.h * .72, b.w * .30, 8, 0, 0, TAU); ctx.fill();
+    G.hero.draw(ctx, b.x + b.w / 2, b.y + b.h * .60, heroFit(b.w, st.scale, 72), 1);
+    const fade = ctx.createLinearGradient(0, b.y + b.h * .66, 0, b.y + b.h);
+    fade.addColorStop(0, 'rgba(18,13,30,0)'); fade.addColorStop(1, 'rgba(18,13,30,.76)');
+    ctx.fillStyle = fade; ctx.fillRect(b.x, b.y + b.h * .62, b.w, b.h * .38);
+    ctx.restore();
+    strokeText(ctx, tx(st, 'name'), b.x + b.w / 2, b.y + b.h - 34,
+      { font: FONT.ui(Math.max(10, Math.min(13, b.w / 12)), 800), fill: '#fff', stroke: '#253a1d', lw: 3, baseline: 'middle' });
+    const hp = clamp(this.hp / this.maxHp, 0, 1), bx = b.x + 14, by = b.y + b.h - 18, bw = b.w - 28;
+    roundRect(ctx, bx, by, bw, 9, 4.5); ctx.fillStyle = 'rgba(15,8,24,.7)'; ctx.fill();
+    ctx.save(); roundRect(ctx, bx + 1, by + 1, bw - 2, 7, 3.5); ctx.clip(); ctx.fillStyle = '#ff7188'; ctx.fillRect(bx + 1, by + 1, (bw - 2) * hp, 7); ctx.restore();
+    ctx.restore();
+  },
+
+  drawCompactHUD(G, ctx) {
+    const L = G.level, x = HUDX, y = 78, w = HUDW, h = 438;
+    card(ctx, x, y, w, h, 24);
+    strokeText(ctx, t('score'), x + w / 2, y + 27,
+      { font: FONT.disp(27), fill: '#ffa63d', stroke: '#8c3d00', lw: 6, baseline: 'middle' });
+    strokeText(ctx, Math.round(this.shownScore).toLocaleString(), x + w / 2, y + 63,
+      { font: FONT.disp(34), fill: '#2b1740', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+
+    const st3 = L.star[2], starsNow = this.score >= L.target * L.star[2] ? 3
+      : this.score >= L.target * L.star[1] ? 2 : this.score >= L.target ? 1 : 0;
+    const sbx = x + 18, sby = y + 89, sbw = w - 36, sbh = 42;
+    statBar(ctx, sbx, sby, sbw, sbh, this.score / (L.target * st3), (c, s) => icon.crown(c, s), { label: '' });
+    const trackX = sbx + sbh - 4, trackW = sbw - sbh + 4;
+    L.star.forEach((mul, i) => {
+      const px = trackX + trackW * (mul / st3) - (i === 2 ? 10 : 0), on = starsNow > i;
+      ctx.save(); ctx.translate(px, sby + sbh / 2); ctx.globalAlpha = on ? 1 : .42;
+      on ? icon.star(ctx, 23 + Math.sin(this.t * 5 + i) * 1.2) : icon.starEmpty(ctx, 19); ctx.restore();
+    });
+
+    const gap = 8, mw = (w - 36 - gap) / 2, mh = 46;
+    const metric = (mx, my, value, label, drawIcon, progress, colours, urgent = false) => {
+      ctx.save();
+      roundRect(ctx, mx, my + 3, mw, mh, 15); ctx.fillStyle = 'rgba(52,92,130,.24)'; ctx.fill();
+      roundRect(ctx, mx, my, mw, mh, 15);
+      const mg = ctx.createLinearGradient(0, my, 0, my + mh); mg.addColorStop(0, '#f8fcff'); mg.addColorStop(1, '#dceefe');
+      ctx.fillStyle = mg; ctx.fill(); ctx.strokeStyle = urgent ? '#ff5470' : 'rgba(76,145,202,.62)'; ctx.lineWidth = urgent ? 2.8 : 2; ctx.stroke();
+      ctx.save(); roundRect(ctx, mx + 2, my + 2, mw - 4, mh - 4, 13); ctx.clip();
+      const pg = ctx.createLinearGradient(mx, 0, mx + mw, 0); pg.addColorStop(0, colours[0]); pg.addColorStop(1, colours[1]);
+      ctx.globalAlpha = .20; ctx.fillStyle = pg; ctx.fillRect(mx + 2, my + mh - 7, (mw - 4) * clamp(progress, 0, 1), 5); ctx.restore();
+      ctx.save(); ctx.translate(mx + 24, my + mh / 2); drawIcon(ctx, 31); ctx.restore();
+      strokeText(ctx, label, mx + 46, my + 13,
+        { font: FONT.ui(10, 800), fill: '#71829a', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      strokeText(ctx, value, mx + 46, my + 31,
+        { font: FONT.disp(18), fill: urgent ? '#d7193f' : '#293653', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      ctx.restore();
+    };
+    const lowTime = this.timeLeft <= 15, mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
+    metric(x + 18, y + 148, `${mm}:${String(ss).padStart(2, '0')}`, t('time'), icon.clock,
+      this.timeLeft / this.timeMax, lowTime ? ['#ff3157', '#ff8a5c'] : ['#50c8ff', '#5b86e5'], lowTime);
+    const hpF = clamp(this.hp / this.maxHp, 0, 1);
+    metric(x + 18 + mw + gap, y + 148, String(Math.ceil(this.hp)), t('hp'), icon.heart,
+      hpF, ['#ff3157', '#ff8a91'], hpF < .3);
+    metric(x + 18, y + 202, String(this.gold), t('gold'), icon.pouch,
+      this.gold / 400, ['#ffbd37', '#ff8a1f']);
+    metric(x + 18 + mw + gap, y + 202, String(this.shotsLeft), t('shots'), (c, s) => {
+      c.fillStyle = '#7450b8';
+      for (let i = -1; i <= 1; i++) { c.beginPath(); c.arc(i * s * .22, 0, s * .105, 0, TAU); c.fill(); }
+    }, this.shotsLeft / (L.shots || 1), ['#8e72d9', '#6341ad'], this.shotsLeft <= 5);
+
+    const gy = y + 261, gh = 58;
+    roundRect(ctx, x + 18, gy, w - 36, gh, 15); ctx.fillStyle = 'rgba(238,245,255,.9)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(113,135,174,.30)'; ctx.lineWidth = 1.5; ctx.stroke();
+    const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
+    strokeText(ctx, `${t('goal')}: ${L.target.toLocaleString()}${noun ? ' ' + tx(noun, 'vi') : ''}`, x + w / 2, gy + 19,
+      { font: FONT.ui(13, 800), fill: '#594b78', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    const status = this.foesLeft ? t('foesShort', { n: this.foesLeft })
+      : starsNow >= 3 ? t('starMax')
+      : t('starNext', { n: starsNow + 1, d: Math.ceil([L.target, L.target * L.star[1], L.target * L.star[2]][starsNow] - this.score).toLocaleString() });
+    strokeText(ctx, status, x + w / 2, gy + 42,
+      { font: FONT.ui(11, 700), fill: this.foesLeft ? '#c0405a' : (starsNow >= 3 ? '#2f9f45' : '#81729c'),
+        stroke: null, lw: 0, baseline: 'middle', shadow: null });
+
+    for (const id of ['restart', 'resume']) {
+      const h2 = this.hits.find(k => k.id === id); if (!h2) continue;
+      roundBtn(ctx, h2.x + 28, h2.y + 28, 27,
+        (c, s) => id === 'restart' ? icon.restart(c, s) : (this.paused ? icon.play(c, s) : icon.pause(c, s)),
+        { press: h2.press, hover: h2.hover });
+    }
+    const fin = this.hits.find(h2 => h2.id === 'finishNow');
+    if (fin) {
+      const puls = .5 + .5 * Math.sin(this.t * 4);
+      ctx.save(); ctx.globalAlpha = .28 + .30 * puls;
+      roundRect(ctx, fin.x - 5, fin.y - 5, fin.w + 10, fin.h + 10, 19); ctx.fillStyle = '#8ef08a'; ctx.fill(); ctx.restore();
+      textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
+        { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
+    }
+  },
+
+  // Bản cũ giữ lại để đối chiếu ảnh khi cân bằng giao diện.
   drawHUD(G, ctx) {
     const L = G.level;
     const x = HUDX, y = 60, w = HUDW, h = 528;
@@ -835,8 +939,8 @@ export default {
 /** Khung thoại — dùng chung kiểu với màn Ghép Đá. */
 function drawBubble(ctx, b, x, w, y) {
   const k = clamp(b.t / .22, 0, 1), fade = clamp((b.dur - b.t) / .4, 0, 1);
-  const sp = SPEAKERS[b.beat.who] || SPEAKERS.rom;
-  const text = tx(b.beat, 'vi') || b.beat.vi;
+  const sp = speaker(b.beat.who);
+  const text = fill(tx(b.beat, 'vi') || b.beat.vi);
 
   ctx.save();
   ctx.globalAlpha = fade;

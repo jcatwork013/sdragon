@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  Vỏ desktop (Windows · macOS · Linux) cho SDrakon.                       ║
+// ║  Vỏ desktop (Windows · macOS · Linux) cho CRICKO.                        ║
 // ║                                                                          ║
 // ║  Game được phục vụ qua scheme riêng `app://` thay vì file:// — nhờ vậy    ║
 // ║  ES modules, localStorage và service worker đều hoạt động bình thường     ║
@@ -53,9 +53,9 @@ function createWindow() {
   // thay vì để người chơi nhìn màn hình trống.
   setTimeout(() => { if (!win.isDestroyed() && !win.isVisible()) win.show(); }, 4000);
   win.webContents.on('did-fail-load', (_e, code, desc, url) =>
-    console.error('[SDrakon] không nạp được', url, code, desc));
+    console.error('[Cricko] không nạp được', url, code, desc));
 
-  win.loadURL('app://sdrakon/index.html');
+  win.loadURL('app://cricko/index.html');
 
   // Mọi liên kết ra ngoài mở bằng trình duyệt hệ thống, không mở cửa sổ Electron mới
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: 'deny' }; });
@@ -84,7 +84,7 @@ app.whenReady().then(() => {
         headers: { 'content-type': MIME[path.extname(file).toLowerCase()] || 'application/octet-stream' },
       });
     } catch (err) {
-      console.error('[SDrakon] thiếu file', rel, err.code);
+      console.error('[Cricko] thiếu file', rel, err.code);
       return new Response('Not found', { status: 404 });
     }
   });

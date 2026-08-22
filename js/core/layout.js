@@ -68,20 +68,34 @@ export const bleed = (G) => [-(G.OX || 0), -(G.OY || 0), G.CW || G.W, G.CH || G.
 /**
  * Bố cục màn chơi, xếp theo "dòng chảy" từ trái sang phải rồi căn giữa:
  *
- *   RỘNG  (≥1240):  [thẻ nhân vật] [dải kỹ năng] [bàn cờ] [bảng HUD]
- *   HẸP   (<1240):                 [dải kỹ năng] [bàn cờ] [bảng HUD]
+ *   RỘNG  (≥1400):  [thẻ nhân vật] [dải kỹ năng] [bàn cờ] [bảng HUD]
+ *   HẸP   (<1400):                 [dải kỹ năng] [bàn cờ] [bảng HUD]
  *
  * Màn hẹp (iPad 4:3, máy gập mở) bỏ thẻ nhân vật vì không đủ chỗ — ảnh nhân
  * vật được đưa vào đầu bảng HUD thay thế, không mất thông tin nào.
  */
 export function playLayout(W, boardW, boardH) {
-  const compact = W < 1240;
+  // < 1400: bỏ thẻ nhân vật. Bàn cờ là phần chơi thật, phải được ưu tiên chỗ.
+  const compact = W < 1400;
   const CARD_W = 250, STRIP_W = 78;
   const HUD_W = compact ? 286 : 306;
   const G1 = 18, G2 = 14, G3 = 18;                 // các khoảng hở
 
   const total = (compact ? 0 : CARD_W + G1) + STRIP_W + G2 + boardW + G3 + HUD_W;
   const margin = Math.max(16, Math.round((W - total) / 2));
+
+  // MÀN SIÊU RỘNG (điện thoại 19,5:9 nằm ngang): dồn cả cụm vào giữa thì hai
+  // mép trống hoác, nhìn như game bé xíu đặt giữa tấm ảnh nền. Ghim thẻ nhân
+  // vật sát trái, bảng HUD sát phải, bàn cờ nằm giữa khoảng còn lại.
+  const EDGE = 22;
+  if (margin > EDGE) {
+    const cardX = compact ? -9999 : EDGE;
+    const stripX = compact ? EDGE : EDGE + CARD_W + G1;
+    const hudX = W - EDGE - HUD_W;
+    const zoneL = stripX + STRIP_W + G2, zoneR = hudX - G3;
+    const boardX = Math.round(zoneL + (zoneR - zoneL - boardW) / 2);
+    return { compact, boardX, boardW, boardH, cardX, cardW: CARD_W, stripX, stripW: STRIP_W, hudX, hudW: HUD_W };
+  }
 
   let x = margin;
   const cardX = compact ? -9999 : x;               // đẩy ra ngoài màn khi không dùng

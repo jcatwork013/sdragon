@@ -16,7 +16,7 @@ globalThis.requestAnimationFrame = () => 0;
 
 await import(new URL('../js/main.js', import.meta.url).href);
 await new Promise(r => setTimeout(r, 150));
-const G = globalThis.window.SDRAKON;
+const G = globalThis.window.CRICKO;
 const { perf } = await import(new URL('../js/core/perf.js', import.meta.url).href);
 
 const N = Number(process.argv[2] || 300);
@@ -43,10 +43,10 @@ bench('Màn chơi (tĩnh)', () => G.startLevel(3));
 bench('Màn chơi + hiệu ứng', () => {
   G.startLevel(3);
   for (let k = 0; k < 6; k++) G.fx.burst(400 + k*60, 300, {lite:'#fff',base:'#08f',dark:'#036',spark:'#fff'}, 18, 1.4);
-  G.fx.fire(300, 400, 1, -.1, 24);
+  G.fx.chirp(300, 400, 1, -.1, 24);
 });
 bench('Bản đồ', () => { G.save.breed='ember'; G.save.unlocked=9; G.go('map'); });
-bench('Tổ rồng', () => G.go('nest'));
+bench('Tổ dế', () => G.go('nest'));
 bench('Màn mở đầu', () => G.go('title'));
 bench('Đấu tay đôi', () => { G.save.xp=5200; G.hero.xp=5200; G.go('duel', { after(){} }); G.scene.phase='pick'; });
 bench('Bắn Đá', () => { G.save.unlocked=9; G.startLevel(3, true); });

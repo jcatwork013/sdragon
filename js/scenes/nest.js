@@ -6,7 +6,7 @@ import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect } from '../c
 import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, card, glassPanel, statBar, icon, matIcon, C, FONT, starBar } from '../ui/widgets.js';
 import { BREEDS, STAGES, TRAININGS, stageFor, nextStage } from '../data/characters.js';
-import { MATS, MAT_LIST, SLOTS, RECIPES, SHOP, recipeById, canCraft, gearBonus } from '../data/gear.js';
+import { MATS, MAT_LIST, SLOTS, RECIPES, recipeById, canCraft, gearBonus, canEquip } from '../data/gear.js';
 import { heroPower } from '../data/duel.js';
 import { bleed } from '../core/layout.js';
 
@@ -67,7 +67,8 @@ export default {
   // ── hành động ─────────────────────────────────────────────────────────────
   feed(G) {
     if (G.save.food <= 0) { G.sfx('invalid'); this.say(t('notEnough'), true); return; }
-    G.save.fed = 100;                      // ăn xong là no căng
+    if ((G.save.fed ?? 0) >= G.FED_MAX) G.save.fedAt = Date.now();
+    G.save.fed = Math.min(G.FED_MAX, (G.save.fed ?? 0) + G.FED_FEED);   // hồi một phần, không no căng
     G.save.food--; this.gainXp(G, 420);
     G.hero.react('eat', .8); G.sfx('gulp');
     G.fx.sparkle(HEROX, G.H * .52, '#b6ffd8', 14);
@@ -97,6 +98,8 @@ export default {
     G.persist();
   },
   equip(G, r) {
+    const rq = canEquip(G.save, r);
+    if (!rq.ok) { G.sfx('invalid'); this.say(t('needStage', { s: tx(STAGES[rq.need], 'name') }), true); return; }
     G.save.equip = G.save.equip || {};
     G.save.equip[r.slot] = r.id;
     G.hero.gear = { ...G.save.equip };
@@ -104,8 +107,15 @@ export default {
   },
   /** Bấm vào ô trang bị để xoay vòng qua các món đã chế của ô đó. */
   cycle(G, slot) {
-    const owned = RECIPES.filter(r => r.slot === slot && G.save.crafted?.[r.id]);
-    if (!owned.length) { G.sfx('invalid'); this.say(t('noGear'), true); return; }
+    // Chỉ xoay vòng qua món ĐỦ ĐIỀU KIỆN mặc, kẻo bấm trúng món khoá thì im re.
+    const all = RECIPES.filter(r => r.slot === slot && G.save.crafted?.[r.id]);
+    const owned = all.filter(r => canEquip(G.save, r).ok);
+    if (!all.length) { G.sfx('invalid'); this.say(t('noGear'), true); return; }
+    if (!owned.length) {
+      G.sfx('invalid');
+      this.say(t('needStage', { s: tx(STAGES[canEquip(G.save, all[0]).need], 'name') }), true);
+      return;
+    }
     const cur = G.save.equip?.[slot];
     const i = owned.findIndex(r => r.id === cur);
     const next = i + 1 >= owned.length ? null : owned[i + 1];   // vòng cuối = tháo ra
@@ -124,7 +134,7 @@ export default {
     G.save.xp += n; G.hero.xp = G.save.xp;
     if (stageFor(G.save.xp).id > before) {
       this.evolveT = 2.2;
-      G.hero.breatheFire(1.2); G.sfx('roar'); G.fx.shake(18);
+      G.hero.chirpBurst(1.2); G.sfx('chirp'); G.fx.shake(18);
       G.fx.ring(HEROX, G.H * .5, '#fff', 30, 420, .9, 16);
     }
   },
@@ -134,7 +144,7 @@ export default {
     if (Math.hypot(x - HEROX, y - (G.H * .62 - 60)) < 130) {
       const p = G.hero.poke();
       this.bubble = { p, t: 0 };
-      G.sfx(p.mood === 'chirp' ? 'roar' : 'select');
+      G.sfx(p.mood === 'chirp' ? 'chirp' : 'select');
       G.fx.sparkle(HEROX, G.H * .62 - 80, '#ffe9a8', 12);
     }
   },
@@ -275,7 +285,7 @@ export default {
     ctx.save(); ctx.translate(60, 320); icon.pouch(ctx, 36); ctx.restore();
     strokeText(ctx, String(S.gold), LX + 64, 320,
       { font: FONT.disp(24), fill: '#2b1740', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
-    ctx.save(); ctx.translate(190, 320); icon.flame(ctx, 36); ctx.restore();
+    ctx.save(); ctx.translate(190, 320); icon.leaf(ctx, 36); ctx.restore();
     strokeText(ctx, String(S.food), 218, 320,
       { font: FONT.disp(24), fill: '#2b1740', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
 
@@ -364,7 +374,7 @@ export default {
       // Đếm cả đồ MUA ở cửa hàng — trước chỉ đếm đồ chế nên đang mặc đồ mua
       // mà vẫn hiện "đã có: 0", đọc ra như mặc một món không tồn tại.
       const owned = RECIPES.filter(x => x.slot === sl.id && S.crafted?.[x.id]).length
-                  + SHOP.filter(x => x.slot === sl.id && S.owned?.[x.id]).length;
+                  + Object.keys(S.owned || {}).filter(id => S.owned[id] && recipeById(id)?.slot === sl.id).length;
       textBtn(ctx, h.x, h.y, h.w, h.h, '', {
         press: h.press, hover: h.hover,
         colour: r ? '#3fbf4a' : '#4a4f66', dark: r ? '#1d6b24' : '#2b2f40', lite: r ? '#8ef08a' : '#7a8098' });

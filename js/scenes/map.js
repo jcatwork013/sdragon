@@ -1,5 +1,5 @@
 // ── Bản đồ hành trình — các màn nối thành đường mòn, mở dần theo tuần ───────
-import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect, mulberry32 } from '../core/util.js';
+import { TAU, clamp, lerp, ease, rand, rgba, shade, strokeText, roundRect, mulberry32 } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
 import { Hit, textBtn, roundBtn, card, glassPanel, icon, C, FONT } from '../ui/widgets.js';
 import { EPISODES, ALL_LEVELS, REGIONS } from '../data/levels.js';
@@ -60,9 +60,35 @@ export default {
     // cỏ tiền cảnh: dải sát mép dưới, trôi nhanh hơn nền → có chiều sâu
     this.fg = Array.from({ length: 90 }, () => ({ x: R() * 7200, h: 26 + R() * 46, ph: R() * TAU, s: .6 + R() * .8 }));
     this.scroll = clamp(nodeX(G.save.unlocked - 1) - G.W * .45, 0, this.maxScroll);
+    this.wander = { x: 0, to: 0, wait: 1.0, face: 1 };   // dế đi lăng xăng quanh nút
+
+    // ── MỞ VÙNG MỚI: tự chạy tới đó và ăn mừng ────────────────────────────
+    // Trước đây mở khoá xong bản đồ nhảy cái rụp sang chỗ mới, người chơi không
+    // kịp thấy mình vừa đi qua ranh giới nào. Nay camera TRƯỢT từ vùng cũ sang
+    // vùng mới, tới nơi thì nổ pháo giấy + biển tên vùng.
+    const curIdx = G.save.unlocked - 1;
+    const epNow = G.episodeOf(curIdx);
+    const seen = G.save.mapEp;
+    this.pan = null;
+    if (seen && seen !== epNow.id) {
+      const epIdx = EPISODES.findIndex(e => e.id === epNow.id);
+      const lastOld = Math.max(0, epIdx * 15 - 1);           // màn cuối của vùng trước
+      const from = clamp(nodeX(lastOld) - G.W * .45, 0, this.maxScroll);
+      const to = clamp(nodeX(curIdx) - G.W * .45, 0, this.maxScroll);
+      if (Math.abs(to - from) > 20) {
+        this.scroll = from;
+        this.pan = { t: 0, dur: 2.1, from, to, ep: epNow, fired: false, banner: 0 };
+      }
+    }
+    if (seen !== epNow.id) { G.save.mapEp = epNow.id; G.persist(); }
     this.hits = [
       new Hit('nest', 24, G.H - 92, 190, 60, { act: () => G.go('nest') }),
-      new Hit('arena', 228, G.H - 92, 172, 60, { act: () => { G.sfx('button'); G.go('duel', { after: () => G.go('map') }); } }),
+      // Đấu trường cũng là đi đánh nhau → cũng tốn sức, chặn ngay ở cửa.
+      new Hit('arena', 228, G.H - 92, 172, 60, { act: () => {
+        if (!G.fedEnough(G.FED_COST_ARENA)) return;
+        G.sfx('button'); G.spendFed(G.FED_COST_ARENA);
+        G.go('duel', { after: () => G.go('map') });
+      } }),
       new Hit('shop', 414, G.H - 92, 150, 60, { act: () => { G.sfx('button'); G.go('shop', { after: () => G.go('map') }); } }),
       new Hit('world', G.W - 284, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('world', { after: () => G.go('map') }); } }),
       new Hit('help', G.W - 218, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'map'); } }),
@@ -70,29 +96,73 @@ export default {
       new Hit('music', G.W - 86, 26, 52, 52, { circle: true, act: () => G.toggleMute() }),
     ];
     const ep0 = EPISODES[0];
-    G.world.setTheme({ sky: ep0.sky, hill: ep0.hill, mount: ep0.mount });
+    G.world.setTheme({ sky: ep0.sky, hill: ep0.hill, mount: ep0.mount, biome: ep0.biome });
     G.music('trail');
   },
 
   epAt(i) { return EPISODES[Math.floor(i / 15)] || EPISODES[EPISODES.length - 1]; },
 
+  /**
+   * Dế đi tới đi lui quanh nút màn đang mở, thỉnh thoảng nhảy một cái.
+   * Đứng chôn chân giữa bản đồ nhìn như hình dán; chân nó vốn đã có sẵn chu kỳ
+   * bước nên chỉ cần dịch ngang là thành đi thật.
+   */
+  wanderStep(G, dt) {
+    const w = this.wander;
+    w.wait -= dt;
+    if (w.wait <= 0) {
+      w.to = rand(78, -78);                       // đích mới, quanh quẩn bên nút
+      w.wait = 1.4 + Math.random() * 2.6;
+      if (Math.random() < .28) G.hero.bounce = 1; // thỉnh thoảng nhún một cái
+    }
+    const d = w.to - w.x;
+    if (Math.abs(d) > 1.5) {
+      const step = Math.sign(d) * Math.min(Math.abs(d), 42 * dt);
+      w.x += step;
+      w.face = step > 0 ? 1 : -1;
+    }
+  },
+
   update(G, dt) {
     this.t += dt;
     G.hero.update(dt);
+    this.wanderStep(G, dt);
     if (this.bubble) { this.bubble.t += dt; if (this.bubble.t > 3.2) this.bubble = null; }
     if (this.toastT > 0) this.toastT -= dt;
-    if (!this.drag) {
+    // Đang chạy tới vùng mới thì camera do hoạt cảnh cầm lái, không ai kéo được.
+    if (this.pan) {
+      const p = this.pan;
+      p.t += dt;
+      const k = clamp(p.t / p.dur, 0, 1);
+      this.scroll = lerp(p.from, p.to, ease.inOutCubic ? ease.inOutCubic(k) : k * k * (3 - 2 * k));
+      if (!p.fired && k > .62) {
+        p.fired = true; p.banner = 3.0;
+        G.sfx('levelup');
+        const nx = nodeX(G.save.unlocked - 1) - this.scroll, ny = nodeY(G.save.unlocked - 1);
+        for (let i = 0; i < 8; i++) {
+          const px = nx + (Math.random() - .5) * 260, py = ny - 60 - Math.random() * 120;
+          G.fx.sparkle(px, py, ['#ffd76b', '#8ef08a', '#a8dcff', '#ff9ec4'][i % 4], 14);
+          G.fx.ring(px, py, '#ffe9a8', 8, 120, .5, 7);
+        }
+        G.fx.shake(8);
+      }
+      if (p.banner > 0) p.banner -= dt;
+      if (k >= 1 && p.banner <= 0) this.pan = null;
+      this.drag = null; this.scrollV = 0;
+    } else if (!this.drag) {
       this.scroll = clamp(this.scroll + this.scrollV * dt, 0, this.maxScroll);
       this.scrollV *= Math.pow(.02, dt);
     }
     // đổi chủ đề nền theo chương đang xem
     const centreIdx = clamp(Math.round((this.scroll + G.W / 2 - 170) / NODE_DX), 0, ALL_LEVELS.length - 1);
     const ep = this.epAt(centreIdx);
-    if (this._ep !== ep.id) { this._ep = ep.id; G.world.setTheme({ sky: ep.sky, hill: ep.hill, mount: ep.mount }); }
+    if (this._ep !== ep.id) { this._ep = ep.id; G.world.setTheme({ sky: ep.sky, hill: ep.hill, mount: ep.mount, biome: ep.biome }); }
     G.world.update(dt, -this.scroll * .06);
   },
 
-  down(G, x, y) { this.drag = { x, s: this.scroll, t: this.t }; this.moved = 0; },
+  // Đang chạy hoạt cảnh mở vùng thì khoá tay: kéo hay bấm vào lúc camera đang
+  // trượt là vừa rối mắt vừa dễ bấm nhầm vào màn không định vào.
+  down(G, x, y) { if (this.pan) return; this.drag = { x, s: this.scroll, t: this.t }; this.moved = 0; },
   move(G, x, y) {
     if (!this.drag) return;
     const d = this.drag.x - x;
@@ -103,17 +173,18 @@ export default {
     this.drag.t = this.t; this.drag.x = x; this.drag.s = ns;
   },
   up(G, x, y) {
+    if (this.pan) return;
     const wasDragging = this.moved > 8;
     this.drag = null;
     if (wasDragging) return;
 
     // ── chạm vào con dế → nó la làng ──────────────────────────────────
     const cur = G.save.unlocked - 1;
-    const hx = nodeX(cur) - 88 - this.scroll, hy = nodeY(cur) + 58;
+    const hx = nodeX(cur) - 88 + this.wander.x - this.scroll, hy = nodeY(cur) + 58;
     if (Math.hypot(x - hx, y - hy - 20) < 74) {
       const p = G.hero.poke();
       this.bubble = { p, t: 0, x: hx, y: hy - 96 };
-      G.sfx(p.mood === 'chirp' ? 'roar' : 'select');
+      G.sfx(p.mood === 'chirp' ? 'chirp' : 'select');
       G.fx.sparkle(hx, hy - 20, '#ffe9a8', 10);
       return;
     }
@@ -345,7 +416,7 @@ export default {
         icon.lock(ctx, 42);
       }
 
-      // huy hiệu chế độ Ghép Đôi — hai thẻ chồng nhau
+      // huy hiệu chế độ Nối Cặp — hai ô sáng nối bằng một đường gấp góc
       if (open && lv.mode === 'pair') {
         ctx.save();
         ctx.translate(NODE_R * .74, NODE_R * .74);
@@ -354,9 +425,11 @@ export default {
         ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU);
         ctx.fillStyle = '#2b1740'; ctx.fill();
         ctx.strokeStyle = '#c0a0ff'; ctx.lineWidth = 2.5; ctx.stroke();
-        ctx.fillStyle = '#c0a0ff';
-        roundRect(ctx, -7, -6, 7, 10, 2); ctx.fill();
-        roundRect(ctx, 1, -4, 7, 10, 2); ctx.fill();
+        ctx.strokeStyle = '#ffe066'; ctx.lineWidth = 2; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath(); ctx.moveTo(-6, -5); ctx.lineTo(0, -5); ctx.lineTo(0, 5); ctx.lineTo(6, 5); ctx.stroke();
+        ctx.fillStyle = '#c0f4ff';
+        roundRect(ctx, -9, -8, 6, 6, 2); ctx.fill();
+        roundRect(ctx, 3, 2, 6, 6, 2); ctx.fill();
         ctx.restore();
       }
 
@@ -414,7 +487,7 @@ export default {
       ctx.restore();
 
       // dế đứng cạnh màn đang mở (vẽ ngoài phép biến đổi của nút)
-      if (cur) G.hero.draw(ctx, x + 6, y + NODE_R + 52, 72, 1);
+      if (cur) G.hero.draw(ctx, x + 6 + this.wander.x, y + NODE_R + 52, 72, this.wander.face);
     }
 
     // ── đom đóm bay lượn ────────────────────────────────────────────────
@@ -439,7 +512,7 @@ export default {
       strokeText(ctx, String(val), x + 132, 51, { font: FONT.disp(24), fill: '#fff', stroke: '#1a0f30', lw: 5, align: 'right', baseline: 'middle' });
     };
     res(24, icon.pouch, G.save.gold);
-    res(186, icon.flame, G.save.food);
+    res(186, icon.leaf, G.save.food);
 
     // ── ĐỘ NO ───────────────────────────────────────────────────────────
     // Đặt ngay cạnh túi tiền để người chơi thấy trước khi bấm vào màn, chứ
@@ -463,11 +536,39 @@ export default {
       ctx.lineWidth = 2; roundRect(ctx, bx2, by2, bw2, bh2, bh2 / 2); ctx.stroke();
       strokeText(ctx, `${t('fed')} ${Math.round(v * 100)}%`, fx2 + 16, fy2 + fh2 / 2,
         { font: FONT.ui(13, 800), fill: low ? '#ff9aa8' : '#e6dcff', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
-      if (G.hungry)
-        strokeText(ctx, t('hungryHint'), fx2 + 4, fy2 + fh2 + 16,
-          { font: FONT.ui(13, 800), fill: '#ff9aa8', stroke: '#3a0010', lw: 3, align: 'left', baseline: 'middle' });
+      // Chưa đầy sức thì LUÔN hiện đồng hồ đếm ngược — kể cả khi còn thức ăn.
+      // Bắt người chơi ngồi chờ mà không nói chờ đến bao giờ là ức chế vô duyên;
+      // mà giấu luôn cả lúc còn nửa thanh thì họ không biết đường tính trước.
+      if ((G.save.fed ?? 100) < G.FED_MAX) {
+        const short = (G.save.fed ?? 0) < G.FED_COST;
+        const wait = G.fedWaitMs(short ? G.FED_COST : G.FED_MAX);
+        let msg = short ? t('restIn', { t: G.fedClock(wait) }) : t('restFull', { t: G.fedClock(wait) });
+        if (short && (G.save.food || 0) > 0) msg += ' · ' + t('orFeed');
+        strokeText(ctx, msg, fx2 + 4, fy2 + fh2 + 16,
+          { font: FONT.ui(13, 800), fill: short ? '#ff9aa8' : '#cfc0f0',
+            stroke: short ? '#3a0010' : '#241640', lw: 3, align: 'left', baseline: 'middle' });
+      }
     }
     strokeText(ctx, t('mapTitle'), W / 2, 50, { font: FONT.disp(34), fill: '#fff', stroke: '#3a1d6e', lw: 7, baseline: 'middle' });
+
+    // ── BIỂN "VÙNG ĐẤT MỚI" khi vừa mở khoá ──────────────────────────────
+    if (this.pan && this.pan.banner > 0) {
+      const b = this.pan, k = clamp((3.0 - b.banner) / .35, 0, 1);
+      const fade = clamp(b.banner / .6, 0, 1);
+      ctx.save();
+      ctx.globalAlpha = fade;
+      const yy = 150 + (1 - ease.outCubic(k)) * -40;
+      const nm = tx(b.ep, 'name');
+      ctx.font = FONT.disp(46);
+      const wgt = Math.max(ctx.measureText(nm).width, 320) + 90;
+      glassPanel(ctx, W / 2 - wgt / 2, yy - 56, wgt, 112, 22,
+        { top: 'rgba(60,40,110,.92)', bot: 'rgba(26,16,52,.94)', rim: 'rgba(255,214,110,.75)' });
+      strokeText(ctx, t('regionNew'), W / 2, yy - 24,
+        { font: FONT.ui(15, 800), fill: '#ffd45c', stroke: '#3a1d00', lw: 3, baseline: 'middle' });
+      strokeText(ctx, nm, W / 2, yy + 16,
+        { font: FONT.disp(40), fill: '#fff', stroke: '#3a1d6e', lw: 7, baseline: 'middle' });
+      ctx.restore();
+    }
 
     for (const h of this.hits) {
       if (h.id === 'nest') textBtn(ctx, h.x, h.y, h.w, h.h, t('nest'),
@@ -511,8 +612,16 @@ export default {
       ctx.restore();
     }
 
-    // gợi ý nội dung tuần sau
-    strokeText(ctx, t('comingSoon'), W - 26, H - 34,
-      { font: FONT.ui(15, 600), fill: 'rgba(255,255,255,.7)', stroke: 'rgba(0,0,0,.5)', lw: 3, align: 'right', baseline: 'middle' });
+    // ── HẾT NỘI DUNG ─────────────────────────────────────────────────────
+    // Nhãn này trước đây hiện THƯỜNG TRỰC ở góc, ai nhìn cũng tưởng phải chờ
+    // tới tuần sau mới chơi tiếp — trong khi cả 45 màn đang mở sẵn. Nay chỉ
+    // hiện khi người chơi đã đi tới màn cuối cùng thật sự.
+    if (G.save.unlocked >= ALL_LEVELS.length)
+      strokeText(ctx, t('comingSoon'), W - 26, H - 34,
+        { font: FONT.ui(15, 600), fill: 'rgba(255,255,255,.7)', stroke: 'rgba(0,0,0,.5)', lw: 3, align: 'right', baseline: 'middle' });
+    else
+      // Còn màn để đi thì cho biết đang ở đâu trong hành trình.
+      strokeText(ctx, t('mapProgress', { n: G.save.unlocked, m: ALL_LEVELS.length }), W - 26, H - 34,
+        { font: FONT.ui(15, 700), fill: 'rgba(255,255,255,.62)', stroke: 'rgba(0,0,0,.5)', lw: 3, align: 'right', baseline: 'middle' });
   },
 };

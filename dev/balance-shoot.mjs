@@ -18,7 +18,7 @@ globalThis.requestAnimationFrame = () => 0;
 
 await import(new URL('../js/main.js', import.meta.url).href);
 await new Promise(r => setTimeout(r, 140));
-const G = globalThis.window.SDRAKON;
+const G = globalThis.window.CRICKO;
 const { ALL_LEVELS } = await import(new URL('../js/data/levels.js', import.meta.url).href);
 
 const TRIALS = Number(process.argv[2] || 20);
@@ -71,6 +71,7 @@ for (let i = 0; i < ALL_LEVELS.length; i++) {
   if (L.mode !== 'shoot') continue;
   let wins = 0, sum = 0; const why = {};
   for (let k = 0; k < TRIALS; k++) {
+    G.save.fed = G.FED_MAX;  // luôn no: công cụ này đo độ khó màn, không đo thể lực
     G.startLevel(i, true);
     const s = G.scene;
     let frames = 0;

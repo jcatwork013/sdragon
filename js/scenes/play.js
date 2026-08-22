@@ -3,36 +3,60 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rand, randInt, rgba, shade, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT, resultBanner, frostCard } from '../ui/widgets.js';
+import { Hit, card, glassPanel, statBar, roundBtn, textBtn, starBar, icon, matIcon, C, FONT, resultBanner, frostCard , heroCardScene, heroFit } from '../ui/widgets.js';
 import { Board } from '../game/board.js';
 import { GEMS, SP, TOKEN, ensureGemSprites } from '../game/gems.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
-import { Enemy, ENEMIES, ATK } from '../game/enemy.js';
+import { Enemy, ENEMIES, ATK, drawEnemyRaid } from '../game/enemy.js';
 import { playLayout, bleed } from '../core/layout.js';
-import { pickBeat, SPEAKERS, GOAL_NOUN } from '../data/beats.js';
+import { pickBeat, GOAL_NOUN } from '../data/beats.js';
+import { speaker, fill } from '../core/lore.js';
 import { rollMats, addMats, MATS } from '../data/gear.js';
 import { hand } from './help.js';
 
-const COLS = 8, ROWS = 8;
+// ── HÌNH DẠNG BÀN CỜ ───────────────────────────────────────────────────────
+// Game khoá NGANG, mà bàn 8×8 là hình VUÔNG → chiều cao khoá cỡ ô ở 72, bề
+// ngang thừa ra cả mảng trống. Đổi sang 9×7 (nằm ngang như màn hình): cùng số ô
+// (63 so với 64) nhưng ô to hơn 1/3 và bàn lấp được khoảng giữa.
+const COLS = 9, ROWS = 7;
 // Ô gem nhỏ lại trên màn hẹp → bàn cờ thấp hơn, chừa chỗ cho khung thoại
 // mà không phải đè lên hàng gem cuối.
 let CELL = 62;
 let FW = COLS * CELL + 28, FH = ROWS * CELL + 28;
-const ENEMY_Y = 82;                       // hàng thiên địch nằm ngay trên khung bàn cờ
+let ENEMY_Y = 60;                         // hàng thiên địch — tính lại theo bàn cờ
+// Quỹ chiều cao dành cho bàn cờ. Dải giao diện luôn cao 720 nên đây MỚI là thứ
+// quyết định bàn cờ to hay bé, chứ không phải bề ngang máy: bàn vuông 8×8.
+const BOARD_TOP = 78, BOARD_BOT = 684;
 
 // Các mốc bố cục được TÍNH LẠI theo bề ngang thật của thiết bị (xem core/layout.js):
 // bàn cờ luôn ở giữa, thẻ nhân vật bám mép trái, bảng HUD bám mép phải.
 let BX = 398, BY = 136, FX_ = 384, FY_ = 122;
 let CARDX = 24, STRIPX = 292, HUDX = 950, HUDW = 306, COMPACT = false;
-function relayout(W, dpr = 1.5) {
-  CELL = W < 1240 ? 56 : 62;
+function relayout(W, dpr = 1.5, hasFoes = false) {
+  // Cỡ ô = min(vừa chiều cao, vừa bề ngang). Trước đây đóng đinh 62 nên trên
+  // điện thoại 19,5:9 bàn cờ chỉ chiếm 73% chiều cao và 34% bề ngang — chính
+  // là cảm giác "phần chơi bé quá".
+  // Máy hẹp thì BỎ thẻ nhân vật để nhường chỗ cho bàn cờ — chơi được vẫn hơn
+  // là ngắm ảnh dế. Ngưỡng phải khớp với playLayout() trong core/layout.js.
+  const compact = W < 1400;
+  const chrome = (compact ? 0 : 250 + 18) + 78 + 14 + 18 + (compact ? 286 : 306) + 2 * 20;
+  const byW = Math.floor((W - chrome - 28) / COLS);
+  // Màn có thiên địch thì phải chừa hàng cho chúng đứng phía trên bàn cờ;
+  // màn không có thì bàn ăn luôn khoảng đó.
+  const top = hasFoes ? BOARD_TOP + 34 : BOARD_TOP;
+  const byH = Math.floor((BOARD_BOT - top - 28) / ROWS);
+  CELL = clamp(Math.min(byW, byH), 46, 96);
   // Dựng sprite đá quý đúng bằng số điểm ảnh THẬT một viên chiếm — vẽ 1:1 thì
   // mới sắc; để sprite cỡ cố định rồi co giãn là nhoè hết nét giác cắt.
   ensureGemSprites(CELL * 1.02 * dpr);
   FW = COLS * CELL + 28; FH = ROWS * CELL + 28;
   const L = playLayout(W, FW, FH);
-  FX_ = L.boardX; FY_ = 122;
+  FX_ = L.boardX;
+  FY_ = Math.round(top + (BOARD_BOT - top - FH) / 2);
   BX = FX_ + 14; BY = FY_ + 14;
+  // Chừa đủ cho cả con địch (50px) LẪN thanh máu nằm dưới nó (+30) — kê sát quá
+  // thì thanh máu chui xuống dưới mép khung bàn cờ.
+  ENEMY_Y = Math.max(44, FY_ - 48);
   CARDX = L.cardX; STRIPX = L.stripX; HUDX = L.hudX; HUDW = L.hudW; COMPACT = L.compact;
 }
 
@@ -40,8 +64,8 @@ export default {
   name: 'play',
 
   enter(G) {
-    relayout(G.W, G.dpr);
     const L = G.level;
+    relayout(G.W, G.dpr, (L.enemies || []).length > 0);
     this.t = 0;
     this.score = 0; this.gold = 0; this.movesLeft = L.moves;
     this.over = null; this.overT = 0; this.paused = false;
@@ -70,7 +94,7 @@ export default {
     this.enemies = (L.enemies || []).map(([kind, tier]) => new Enemy(kind, tier));
     this.maxHp = 300 + (G.save.stats.spirit || 0) * 20 + (G.save.breed === 'frost' ? 40 : 0);
     this.hp = this.maxHp;
-    this.hitFlash = 0; this.dmgText = 0;
+    this.hitFlash = 0; this.dmgText = 0; this.raidFx = null;
 
     // ── NGÂN SÁCH MÁU ĐỊCH ─────────────────────────────────────────────
     // Độ khó thật sự nằm ở chỗ ĐỊCH SỐNG ĐƯỢC BAO LÂU: còn sống là còn ra đòn.
@@ -125,14 +149,14 @@ export default {
     this.board.might = this.might;
     this.wire(G);
 
-    G.world.setTheme({ sky: L.sky, hill: L.hill, mount: L.mount });
-    G.hero.onFire = (x, y, dx, dy) => G.fx.fire(x, y, dx, dy, 4);
+    G.world.setTheme({ sky: L.sky, hill: L.hill, mount: L.mount, biome: L.biome });
+    G.hero.onChirp = (x, y, dx, dy) => G.fx.chirp(x, y, dx, dy, 4);
 
     this.hits = [
       new Hit('pause',   G.W - 78, 12, 52, 52, { circle: true, act: () => this.togglePause(G) }),
       new Hit('exit',    G.W - 142, 12, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('map'); } }),
-      new Hit('restart', HUDX + HUDW * .23, 508, 64, 64, { circle: true, act: () => G.startLevel(G.levelIndex) }),
-      new Hit('resume',  HUDX + HUDW * .54, 508, 64, 64, { circle: true, act: () => this.togglePause(G) }),
+      new Hit('restart', HUDX + HUDW * .25 - 28, 469, 56, 56, { circle: true, act: () => G.startLevel(G.levelIndex) }),
+      new Hit('resume',  HUDX + HUDW * .68 - 28, 469, 56, 56, { circle: true, act: () => this.togglePause(G) }),
       new Hit('sk0', STRIPX + 8, 190, 62, 62, { act: () => this.useBreath(G) }),
       new Hit('sk1', STRIPX + 8, 268, 62, 62, { act: () => this.useHammer(G) }),
       new Hit('sk2', STRIPX + 8, 346, 62, 62, { act: () => this.useShuffle(G) }),
@@ -172,7 +196,7 @@ export default {
       this.addRage(G, .09 + (cascade - 1) * .05 + Math.min(count, 8) * .006);
       const gained = Math.round(count * 42 * mult);
       this.score += gained;
-      const g = Math.round(count * 1.8 * mult);
+      const g = Math.round(count * 1.0 * mult);      // cắt ~45%: tiền cũ nhiều tới mức đồ xịn thành rẻ
       this.gold += g;
       this.breath = clamp(this.breath + count * 0.022 * this.breathRate, 0, 1);
       // mỗi viên phá được hồi chút máu — chơi hay là trụ được, chơi dở thì đuối
@@ -186,7 +210,7 @@ export default {
           G.fx.float(px, py, t('plusTime', { n: 5 }), { size: 30, fill: '#ffe066', stroke: '#5c3a00' });
           G.fx.ring(px, py, '#ffd23f', 10, 90, .45, 7); G.sfx('coin');
         } else if (tk.token === TOKEN.COIN) {
-          const g2 = 60 + Math.round(Math.random() * 60);
+          const g2 = 34 + Math.round(Math.random() * 34);
           this.gold += g2;
           G.fx.float(px, py, t('plusGold', { n: g2 }), { size: 26, fill: '#ffe066', stroke: '#5c3a00' });
           G.sfx('coin');
@@ -201,7 +225,7 @@ export default {
 
       if (!this.hitGoal && this.score >= G.level.target) {
         this.hitGoal = true; this.goalT = 1.6;
-        G.sfx('levelup'); G.hero.breatheFire(.9); G.fx.shake(10);
+        G.sfx('levelup'); G.hero.chirpBurst(.9); G.fx.shake(10);
         this.say(G, 'goalHit');
         // Đủ điểm rồi thì cho quyền chốt ngay. Ai muốn cày thêm sao vẫn chơi
         // tiếp được — giờ và lượt còn thừa lát nữa đổi ra thưởng, không phí.
@@ -244,7 +268,7 @@ export default {
         G.sfx('combo', cascade);
         G.fx.shake(2 + cascade * 1.4);
         G.hero.react('happy', .8);
-        if (cascade >= 4) G.hero.breatheFire(.55);
+        if (cascade >= 4) G.hero.chirpBurst(.55);
       }
     };
     b.on.special = (list) => {
@@ -262,6 +286,14 @@ export default {
       else G.sfx('blast');
       G.fx.shake(sp === SP.BOMB ? 11 : 5);
     };
+    // Rách tơ: bung mảnh trắng + tiếng xé, để người chơi thấy rõ "cú này chỉ phá
+    // được tơ thôi, viên ngọc vẫn còn đó".
+    b.on.unweb = (cell) => {
+      const px = BX + cell.cx * CELL + CELL / 2, py = BY + cell.cy * CELL + CELL / 2;
+      G.fx.burst(px, py, { lite: '#ffffff', base: '#dfe7ff', dark: '#8f9ac0', spark: '#fff' }, 8, 1.1);
+      G.fx.ring(px, py, '#eaf0ff', 6, 70, .3, 6);
+      G.sfx('crack');
+    };
     b.on.noMoves = () => { this.toast = t('shuffling'); this.toastT = 2.0; G.sfx('warn'); };
     b.on.settle = () => this.checkEnd(G);
   },
@@ -272,15 +304,15 @@ export default {
     this.breath = 0;
     const r = randInt(ROWS);
     const ry = BY + r * CELL + CELL / 2;
-    this.skillFx = { kind: 'fire', t: 0, dur: .95, row: r, y: ry };
-    G.hero.breatheFire(1.1); G.sfx('roar'); G.fx.shake(22);
-    G.fx.beam(BX + FW / 2 - 14, ry, true, FW, '#ff9a2b');
+    this.skillFx = { kind: 'chirp', t: 0, dur: .95, row: r, y: ry };
+    G.hero.chirpBurst(1.1); G.sfx('chirp'); G.fx.shake(22);
+    G.fx.beam(BX + FW / 2 - 14, ry, true, FW, '#ffd66e');
     for (let c = 0; c < COLS; c++) {
       const x = BX + c * CELL + CELL / 2;
-      G.fx.fire(x, ry, 1, -.1, 8);
-      G.fx.smoke(x, ry, 3, '#ffb04a');
+      G.fx.chirp(x, ry, 1, -.1, 8);
+      G.fx.smoke(x, ry, 3, '#ffe9a8');
     }
-    G.fx.ring(BX + FW / 2 - 14, ry, '#ffb04a', 20, FW * .7, .55, 14);
+    G.fx.ring(BX + FW / 2 - 14, ry, '#ffd66e', 20, FW * .7, .55, 14);
     const out = [];
     for (let c = 0; c < COLS; c++) out.push(this.board.idx(c, r));
     this.board._beginPop(out, null);
@@ -318,7 +350,7 @@ export default {
    *  được đúng trạng thái này mà không phải chơi thật cho đủ điểm. */
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 16, 596, HUDW - 32, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 12, 572, HUDW - 24, 52,
       { act: () => this.startBravo(G, t('outOfMoves')) }));
   },
 
@@ -361,13 +393,14 @@ export default {
   burstFury(G) {
     this.rage = 0; this.fury = 6; this.furyT = 0;
     G.sfx('bomb'); G.fx.shake(34);
-    G.hero.react('proud', 2.2); G.hero.breatheFire(1.4);
-    const cx = FX_ + FW / 2, cy = FY_ + FH / 2;
+    G.hero.react('proud', 2.2); G.hero.chirpBurst(1.4);
+    // Tâm nổ đặt ở giữa toàn màn hình. Vòng xung kích phải đi xuyên HUD và
+    // thẻ nhân vật thì người chơi mới cảm được đây là trạng thái toàn cục.
+    const cx = G.W / 2, cy = G.H / 2;
     for (let i = 0; i < 3; i++)
-      G.fx.ring(cx, cy, ['#ffe066', '#ff7a3a', '#ff2f4e'][i], 14, FW * (.7 + i * .35), .55 + i * .12, 18);
-    for (let k = 0; k < 26; k++)
+      G.fx.ring(cx, cy, ['#fff6ae', '#ff9a36', '#ff3157'][i], 18, Math.max(G.W, G.H) * (.48 + i * .22), .55 + i * .12, 20);
+    for (let k = 0; k < 34; k++)
       G.fx.burst(cx, cy, { lite: '#ffd0a0', base: '#ff5f3a', dark: '#7a1400', spark: '#fff' }, 8, 1.9);
-    G.fx.float(cx, cy - 40, t('furyGo'), { size: 54, fill: '#ffe066', stroke: '#7a1400' });
     // giáng đòn lên toàn bộ thiên địch
     for (const e of this.enemies) if (e.alive) {
       const d = Math.round(40 + (G.save.stats?.might || 0) * 9);
@@ -381,6 +414,93 @@ export default {
     const out = new Set();
     for (let c = 0; c < this.board.cols; c++) out.add(this.board.idx(c, row));
     this.board._beginPop([...out], null);
+  },
+
+  /** Lớp Nộ phủ toàn màn: cú chớp mở màn, tia tốc độ, viền lửa và badge ×2. */
+  drawFuryFx(G, ctx) {
+    const age = this.furyT, left = clamp(this.fury / 6, 0, 1);
+    const [sx, sy, sw, sh] = bleed(G);
+    const cx = G.W / 2, cy = G.H / 2;
+    ctx.save();
+
+    // Cú chớp đầu tiên ngắn để tạo lực nhưng không giữ một mảng đỏ gây khó nhìn.
+    const flash = clamp(1 - age / .34, 0, 1);
+    if (flash > 0) {
+      ctx.globalAlpha = flash * .72;
+      const fg = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(sw, sh) * .7);
+      fg.addColorStop(0, '#fffce8'); fg.addColorStop(.25, '#ffd23f'); fg.addColorStop(1, '#ff3157');
+      ctx.fillStyle = fg; ctx.fillRect(sx, sy, sw, sh);
+    }
+
+    // Viền nhiệt thở theo nhịp, giữ tín hiệu "đang ×2" trong suốt 6 giây.
+    ctx.globalAlpha = 1;
+    const heat = .72 + Math.sin(this.t * 11) * .12;
+    const vg = ctx.createRadialGradient(cx, cy, sh * .25, cx, cy, sh * .77);
+    vg.addColorStop(0, 'rgba(255,70,35,0)');
+    vg.addColorStop(.72, `rgba(255,65,32,${.08 * left})`);
+    vg.addColorStop(1, `rgba(150,0,35,${.48 * left * heat})`);
+    ctx.fillStyle = vg; ctx.fillRect(sx, sy, sw, sh);
+
+    // Tia tốc độ bung khỏi tâm. Góc cố định, chỉ đầu tia chuyển động nên không
+    // bị nhiễu nhấp nháy như dùng Math.random() mỗi khung.
+    ctx.save(); ctx.translate(cx, cy); ctx.rotate(age * .06);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 22; i++) {
+      const a = i / 22 * TAU + Math.sin(i * 12.7) * .035;
+      const pulse = .55 + .45 * Math.sin(age * 8 + i * 1.9);
+      const r0 = 150 + (i % 4) * 22, r1 = Math.max(G.W, G.H) * (.48 + .13 * pulse);
+      ctx.strokeStyle = i % 3 ? `rgba(255,116,46,${.10 * left})` : `rgba(255,240,150,${.18 * left})`;
+      ctx.lineWidth = i % 3 ? 3 : 6; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(Math.cos(a) * r0, Math.sin(a) * r0);
+      ctx.lineTo(Math.cos(a) * r1, Math.sin(a) * r1); ctx.stroke();
+    }
+    ctx.restore();
+
+    // Mép lửa cách điệu ở trên/dưới. Đây là phần cho cảm giác "toàn màn" rõ
+    // nhất mà vẫn để vùng giữa trong trẻo cho thao tác.
+    ctx.save(); ctx.globalCompositeOperation = 'lighter';
+    for (const edge of [0, 1]) {
+      const y = edge ? sy + sh : sy;
+      ctx.beginPath(); ctx.moveTo(sx, y);
+      for (let i = 0; i <= 18; i++) {
+        const x = sx + sw * i / 18;
+        const flame = 16 + 22 * (.5 + .5 * Math.sin(age * 9 + i * 2.17));
+        ctx.lineTo(x, y + (edge ? -flame : flame));
+      }
+      ctx.lineTo(sx + sw, y); ctx.closePath();
+      const eg = ctx.createLinearGradient(0, y, 0, y + (edge ? -48 : 48));
+      eg.addColorStop(0, `rgba(255,40,55,${.48 * left})`);
+      eg.addColorStop(1, 'rgba(255,205,60,0)');
+      ctx.fillStyle = eg; ctx.fill();
+    }
+    ctx.restore();
+
+    // Đại tự chỉ chiếm khoảng một giây đầu; sau đó thu thành badge để người
+    // chơi quay lại bàn ngay, không phải đợi animation kết thúc.
+    if (age < 1.35) {
+      const intro = ease.outBack(clamp(age / .28, 0, 1));
+      const fade = clamp((1.35 - age) / .28, 0, 1);
+      ctx.save(); ctx.globalAlpha = fade;
+      ctx.translate(cx, cy - 18); ctx.scale(intro, intro);
+      const band = ctx.createLinearGradient(-280, 0, 280, 0);
+      band.addColorStop(0, 'rgba(70,0,30,0)'); band.addColorStop(.5, 'rgba(78,8,30,.88)'); band.addColorStop(1, 'rgba(70,0,30,0)');
+      ctx.fillStyle = band; ctx.fillRect(-330, -74, 660, 148);
+      strokeText(ctx, t('furyGo'), 0, -10,
+        { font: FONT.disp(68), fill: '#ffe66d', stroke: '#7a1400', lw: 14, baseline: 'middle' });
+      strokeText(ctx, t('furyBoost'), 0, 48,
+        { font: FONT.ui(20, 800), fill: '#fff7da', stroke: '#5c0010', lw: 5, baseline: 'middle', shadow: null });
+      ctx.restore();
+    } else {
+      const bw = 176, bh = 34, x = cx - bw / 2, y = 12;
+      roundRect(ctx, x, y + 3, bw, bh, bh / 2); ctx.fillStyle = 'rgba(72,0,20,.65)'; ctx.fill();
+      roundRect(ctx, x, y, bw, bh, bh / 2);
+      const bg = ctx.createLinearGradient(x, 0, x + bw, 0);
+      bg.addColorStop(0, '#ff3157'); bg.addColorStop(.55, '#ff8a2b'); bg.addColorStop(1, '#ffd84f');
+      ctx.fillStyle = bg; ctx.fill(); ctx.strokeStyle = '#fff2a8'; ctx.lineWidth = 2; ctx.stroke();
+      strokeText(ctx, `${t('furyBadge')}  ${this.fury.toFixed(1)}s`, cx, y + bh / 2,
+        { font: FONT.ui(14, 800), fill: '#fff', stroke: '#6a1200', lw: 4, baseline: 'middle', shadow: null });
+    }
+    ctx.restore();
   },
 
   checkEnd(G) {
@@ -410,7 +530,7 @@ export default {
     this.bravo = {
       why, t: 0, next: .30, stage: sp.length ? 0 : 1, sp,
       moves: Math.max(0, this.movesLeft), time: Math.max(0, Math.floor(this.timeLeft)),
-      perMove: 14 + Math.round((G.level.index || 1) * .6), perSec: 4, gained: 0,
+      perMove: 8 + Math.round((G.level.index || 1) * .35), perSec: 2, gained: 0,
     };
     G.sfx('levelup');
   },
@@ -484,7 +604,7 @@ export default {
       S.best[L.id]  = Math.max(S.best[L.id] || 0, this.score);
       S.gold += this.gold;
       S.xp += this.xpGain;
-      if (Math.random() < .5) S.food += 1;
+      if (Math.random() < .35) S.food += 1;
       this.matsGot = addMats(S, rollMats(2 + this.starsEarned, G.levelIndex));   // nguyên liệu chế tạo
       if (G.levelIndex + 1 >= S.unlocked) S.unlocked = Math.min(G.levelIndex + 2, G.totalLevels);
       G.hero.xp = S.xp;
@@ -501,6 +621,7 @@ export default {
       S.xp = Math.max(0, S.xp - this.penaltyXp);
       G.hero.xp = S.xp;
       G.persist();
+      G.spendFed(G.FED_LOSE);            // thua cũng mất sức → thử lại có giá
       G.sess.losses++; G.sess.streak = 0;
       G.sfx('lose'); G.hero.react('hurt', 2); G.fx.shake(16);
       this.say(G, 'lose');
@@ -528,6 +649,7 @@ export default {
     if (this.praiseT > 0) this.praiseT -= dt;
     if (this.toastT > 0) this.toastT -= dt;
     if (this.goalT > 0) this.goalT -= dt;
+    if (this.raidFx) { this.raidFx.t += dt; if (this.raidFx.t >= this.raidFx.dur) this.raidFx = null; }
     if (this.skillFx) { this.skillFx.t += dt; if (this.skillFx.t >= this.skillFx.dur) this.skillFx = null; }
     if (this.bubble) { this.bubble.t += dt; if (this.bubble.t >= this.bubble.dur) this.bubble = null; }
     if (this.over) { this.overT += dt; return; }
@@ -565,6 +687,7 @@ export default {
       if (ev !== 'strike') continue;
 
       const ex = FX_ + FW * ((i + .5) / this.enemies.length);
+      this.raidFx = { enemy: e, index: i, t: 0, dur: .92, kind: e.def.atk };
       let dmg = e.dmg, note = '';
       switch (e.def.atk) {
         case ATK.ROB: {
@@ -609,7 +732,7 @@ export default {
 
   /**
    * Nhạc đổi theo TÌNH HUỐNG, không chỉ theo màn:
-   *   · dưới 25 giây  → "Lửa Đồng" (gấp rút)
+   *   · dưới 25 giây  → "Lửa Đồng" (gấp rút)  ·  dưới 10 giây → "Cháy Tới Chân"
    *   · còn trùm sống → "Đầm Bọ Ngựa" (cao trào)
    *   · dọn sạch địch → quay về bài vui của màn
    */
@@ -619,14 +742,55 @@ export default {
     const boss = (this.enemies || []).some(e => e.alive && e.def.boss);
     if (boss) want = 'climax';
     if (this.timeLeft <= 25) want = 'chase';
+    if (this.timeLeft <= 10) want = 'panic';   // vạch cuối: nhạc phải rát hơn nữa
     if (want !== this._nowPlaying) { this._nowPlaying = want; G.music(want); }
   },
 
   // ── nhập liệu ─────────────────────────────────────────────────────────────
   inBoard(x, y) { return x >= BX && y >= BY && x < BX + COLS * CELL && y < BY + ROWS * CELL; },
 
+  /** Thiên địch nào đang đứng ở điểm chạm này? (chỉ dùng cho búa) */
+  enemyAt(x, y) {
+    const n = (this.enemies || []).length;
+    if (!n) return -1;
+    for (let i = 0; i < n; i++) {
+      const e = this.enemies[i];
+      if (!e || !e.alive) continue;
+      const cx = FX_ + FW * ((i + .5) / n);
+      if (Math.abs(x - cx) < 58 && y > ENEMY_Y - 66 && y < ENEMY_Y + 52) return i;
+    }
+    return -1;
+  },
+
   down(G, x, y) {
     if (this.over || this.paused) return;
+    // ── BÚA GÕ ĐẦU THIÊN ĐỊCH ─────────────────────────────────────────────
+    // Cầm búa mà chỉ đập được viên ngọc thì phí: bọn thiên địch đứng ngay trên
+    // bàn cờ, gõ thẳng vào đầu chúng mới đã tay.
+    if (this.hammerMode && this.board.phase === 'idle') {
+      const ei = this.enemyAt(x, y);
+      if (ei >= 0) {
+        const foe = this.enemies[ei];
+        this.hammerMode = false; this.hammer--;
+        const n = this.enemies.length, cx = FX_ + FW * ((ei + .5) / n);
+        const dealt = Math.max(40, Math.round(foe.maxHp * .34 + this.might * 12));
+        foe.damage(dealt); foe.bonk();
+        this.skillFx = { kind: 'hammer', t: 0, dur: .78, x: cx, y: ENEMY_Y, done: false };
+        G.sfx('bomb'); G.fx.shake(24);
+        G.fx.float(cx, ENEMY_Y - 30, '-' + dealt, { size: 30, fill: '#ffd0d0', stroke: '#5c0010', vy: -70 });
+        G.fx.ring(cx, ENEMY_Y, '#ffd76b', 8, 150, .42, 10);
+        G.fx.burst(cx, ENEMY_Y, { lite: '#ffd0d0', base: '#e8384f', dark: '#5c0010', spark: '#fff' }, 10, 1.2);
+        G.fx.float(cx, ENEMY_Y + 42, t('bonk'), { size: 30, fill: '#ffe066', stroke: '#5c2a00', max: 1.1 });
+        this.say(G, 'foeHit');
+        if (!foe.alive) {
+          this.say(G, 'foeDown', false);
+          G.sfx('win'); G.fx.shake(14);
+          this.score += 900; this.gold += 34;
+          G.fx.float(cx, ENEMY_Y - 56, t('foeDown'), { size: 26, fill: '#8ef08a', stroke: '#0d3a16' });
+        }
+        return;
+      }
+    }
     if (!this.inBoard(x, y)) return;
     const cell = this.board.cellAt(x - BX, y - BY);
     if (!cell) return;
@@ -699,9 +863,10 @@ export default {
   draw(G, ctx) {
     const { W, H } = G, L = G.level, S = G.save;
     G.world.draw(ctx);
-    ctx.fillStyle = 'rgba(16,9,34,.30)'; ctx.fillRect(...bleed(G));
+    ctx.fillStyle = 'rgba(16,9,34,.20)'; ctx.fillRect(...bleed(G));
 
-    if (!COMPACT) this.drawDragonCard(G, ctx);
+    if (!COMPACT) this.drawHeroCard(G, ctx);
+    else this.drawCompactHero(G, ctx);
     this.drawSkills(G, ctx);
 
     this.drawEnemies(G, ctx);
@@ -717,39 +882,27 @@ export default {
       ctx.restore();
     }
 
-    this.drawHUD(G, ctx);
+    this.drawCompactHUD(G, ctx);
 
     // thanh EXP dưới cùng
     const st = stageFor(S.xp);
     const nx = STAGES.find(s => s.xp > S.xp);
     const prog = nx ? (S.xp - st.xp) / (nx.xp - st.xp) : 1;
-    starBar(ctx, 24, H - 56, W - 48, 34, prog, { t: this.t, label: `${tx(st, 'name')}  ·  ${S.xp} EXP` });
+    starBar(ctx, 24, H - 34, W - 48, 26, prog, { t: this.t, label: `${tx(st, 'name')}  ·  ${S.xp} EXP` });
 
     // tên màn
-    strokeText(ctx, `${t('level')} ${L.index} · ${tx(G.episodeOf(G.levelIndex), 'name')}`, FX_ + FW / 2, 24,
-      { font: FONT.disp(22), fill: '#fff', stroke: '#2b1740', lw: 5, baseline: 'middle' });
+    // Tên màn nhích sang mép trái: chỗ giữa phía trên nay là hàng thiên địch.
+    strokeText(ctx, `${t('level')} ${L.index} · ${tx(G.episodeOf(G.levelIndex), 'name')}`, 30, 22,
+      { font: FONT.disp(20), fill: '#fff', stroke: '#2b1740', lw: 5, align: 'left', baseline: 'middle' });
 
-    // ── ĐANG NỘ: viền lửa quanh màn + ám đỏ ─────────────────────────────
-    if (this.fury > 0) {
-      const k = clamp(this.fury / 6, 0, 1);
-      const flash = this.furyT < .35 ? 1 - this.furyT / .35 : 0;
-      ctx.save();
-      if (flash > 0) { ctx.globalAlpha = flash * .55; ctx.fillStyle = '#ff4a2a'; ctx.fillRect(...bleed(G)); }
-      ctx.globalAlpha = 1;
-      const [bx2, by2, bw2, bh2] = bleed(G);
-      const eg = ctx.createRadialGradient(bx2 + bw2 / 2, by2 + bh2 / 2, bh2 * .34,
-                                          bx2 + bw2 / 2, by2 + bh2 / 2, bh2 * .82);
-      eg.addColorStop(0, 'rgba(255,60,40,0)');
-      eg.addColorStop(1, `rgba(255,60,40,${.30 * k * (.8 + .2 * Math.sin(this.t * 9))})`);
-      ctx.fillStyle = eg; ctx.fillRect(bx2, by2, bw2, bh2);
-      ctx.restore();
-    }
     if (this.bravo) this.drawBravo(G, ctx);
     if (this.skillFx) this.drawSkillFx(ctx);
     if (this.tut && this.tutMove) this.drawTutor(ctx);
 
     // hạt + lời khen
     G.fx.draw(ctx);
+    if (this.raidFx) this.drawPredatorRaid(G, ctx);
+    if (this.fury > 0) this.drawFuryFx(G, ctx);
     if (this.praiseT > 0) {
       const k = 1 - this.praiseT / 1.25;
       ctx.save();
@@ -805,7 +958,7 @@ export default {
   // Kiểu "ảnh cảnh + tấm kính mờ đè lên": cảnh chạy tràn hết thẻ, chữ nằm trên
   // tấm kính sáng ở đáy. Nhờ vậy chữ luôn đọc được dù cảnh sáng hay tối, mà
   // vẫn thấy được cảnh phía sau — thay cho khung trắng bo góc phẳng lì cũ.
-  drawDragonCard(G, ctx) {
+  drawHeroCard(G, ctx) {
     const x = CARDX, y = 122, w = 250, h = 400, R = 26;
     const T = this.t;
     ctx.save();
@@ -814,44 +967,14 @@ export default {
     ctx.shadowColor = 'transparent';
 
     ctx.save(); roundRect(ctx, x + 5, y + 5, w - 10, h - 10, R - 6); ctx.clip();
-    // trời
-    const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, '#8fc6f5'); g.addColorStop(.34, '#cfe9ff');
-    g.addColorStop(.62, '#ffe3c0'); g.addColorStop(1, '#f7d9a8');
-    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
-    // nắng
-    ctx.save(); ctx.globalCompositeOperation = 'lighter';
-    const sg = ctx.createRadialGradient(x + w * .74, y + h * .18, 0, x + w * .74, y + h * .18, w * .62);
-    sg.addColorStop(0, 'rgba(255,244,210,.75)'); sg.addColorStop(1, 'rgba(255,230,180,0)');
-    ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x + w * .74, y + h * .18, w * .62, 0, TAU); ctx.fill();
+    heroCardScene(ctx, x, y, w, h, this.t || 0);
+
+// bóng đổ dưới chân cho con dế có chỗ đứng
+    ctx.save(); ctx.globalAlpha = .22; ctx.fillStyle = '#2c3a1c';
+    ctx.beginPath(); ctx.ellipse(x + w * .54, y + h * .66, w * .30, h * .033, 0, 0, TAU); ctx.fill();
     ctx.restore();
-    // mây
-    ctx.fillStyle = 'rgba(255,255,255,.55)';
-    for (const [cx0, cy0, cw] of [[.22, .14, .20], [.62, .26, .15], [.40, .09, .12]]) {
-      ctx.beginPath();
-      ctx.ellipse(x + w * cx0, y + h * cy0, w * cw, h * cw * .34, 0, 0, TAU); ctx.fill();
-      ctx.beginPath();
-      ctx.ellipse(x + w * (cx0 + cw * .6), y + h * (cy0 + .012), w * cw * .68, h * cw * .26, 0, 0, TAU); ctx.fill();
-    }
-    // đồi nhiều tầng
-    for (const [yy, cxk, col] of [[.50, .70, 'rgba(150,195,140,.60)'],
-                                  [.60, .28, 'rgba(120,175,110,.85)'],
-                                  [.70, .55, '#79ae62']]) {
-      ctx.fillStyle = col;
-      ctx.beginPath();
-      ctx.ellipse(x + w * cxk, y + h * (yy + .30), w * .85, h * .27, 0, 0, TAU); ctx.fill();
-    }
-    // cỏ dưới chân
-    ctx.strokeStyle = 'rgba(58,102,46,.75)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
-    for (let i = 0; i < 16; i++) {
-      const gx = x + 10 + i * (w - 20) / 15, gh = 10 + (i % 4) * 6;
-      const sw = Math.sin(T * 1.5 + i) * 3;
-      ctx.beginPath(); ctx.moveTo(gx, y + h * .78);
-      ctx.quadraticCurveTo(gx + sw * .5, y + h * .78 - gh * .6, gx + sw, y + h * .78 - gh); ctx.stroke();
-    }
-    // Bề ngang nhân vật ≈ 1.9×S và lệch hẳn về sau, nên thẻ rộng 250 chỉ chứa
-    // nổi S≈130. Để 158 như trước là cụt cả càng lẫn đầu ở hai mép.
-    G.hero.draw(ctx, x + w * .58, y + h * .60, 100, 1);
+    // Nhích lên .52: để .60 thì chân dế thò xuống dưới tấm kính mờ, bị che mất.
+    G.hero.draw(ctx, x + w * .54, y + h * .52, heroFit(w, stageFor(G.save.xp).scale), 1);
 
     // ── TẤM KÍNH MỜ ở đáy ───────────────────────────────────────────────
     const px = x + 12, pw = w - 24, ph = 92, py = y + h - ph - 12;
@@ -882,10 +1005,32 @@ export default {
     ctx.restore();
   },
 
+  /** Máy hẹp vẫn giữ chú dế trên sân, đặt dưới dải kỹ năng thay vì xoá hẳn. */
+  compactHeroBox(G) {
+    const w = clamp(FX_ - 40, 86, 132), h = 184;
+    return { x: Math.max(14, (FX_ - w) / 2), y: FY_ + FH - h - 8, w, h };
+  },
+
+  drawCompactHero(G, ctx) {
+    const b = this.compactHeroBox(G), st = stageFor(G.save.xp);
+    glassPanel(ctx, b.x, b.y, b.w, b.h, 20,
+      { top: 'rgba(202,238,188,.88)', bot: 'rgba(69,104,62,.92)', rim: 'rgba(255,255,255,.72)' });
+    ctx.save(); roundRect(ctx, b.x + 5, b.y + 5, b.w - 10, b.h - 10, 15); ctx.clip();
+    const glow = ctx.createRadialGradient(b.x + b.w * .5, b.y + b.h * .42, 4, b.x + b.w * .5, b.y + b.h * .42, b.w * .62);
+    glow.addColorStop(0, 'rgba(255,246,170,.52)'); glow.addColorStop(1, 'rgba(255,246,170,0)');
+    ctx.fillStyle = glow; ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = 'rgba(30,45,24,.24)'; ctx.beginPath(); ctx.ellipse(b.x + b.w / 2, b.y + b.h - 38, b.w * .32, 8, 0, 0, TAU); ctx.fill();
+    G.hero.draw(ctx, b.x + b.w / 2, b.y + b.h - 62, heroFit(b.w, st.scale, 52), 1);
+    ctx.restore();
+    const hp = clamp(this.hp / this.maxHp, 0, 1), bx = b.x + 12, by = b.y + b.h - 18, bw = b.w - 24;
+    roundRect(ctx, bx, by, bw, 9, 4.5); ctx.fillStyle = 'rgba(28,14,28,.55)'; ctx.fill();
+    ctx.save(); roundRect(ctx, bx + 1, by + 1, bw - 2, 7, 3.5); ctx.clip(); ctx.fillStyle = '#ff7188'; ctx.fillRect(bx + 1, by + 1, (bw - 2) * hp, 7); ctx.restore();
+  },
+
   // ── dải kỹ năng dọc ───────────────────────────────────────────────────────
   drawSkills(G, ctx) {
     const specs = [
-      { id: 'sk0', ready: this.breath >= 1, fill: this.breath, ic: icon.flame, n: '' },
+      { id: 'sk0', ready: this.breath >= 1, fill: this.breath, ic: icon.chirp, n: '' },
       { id: 'sk1', ready: this.hammer > 0, fill: this.hammer > 0 ? 1 : 0, ic: (c, s) => icon.hammer(c, s), n: this.hammer },
       { id: 'sk2', ready: this.shuffleUse > 0, fill: this.shuffleUse > 0 ? 1 : 0, ic: (c, s) => icon.restart(c, s), n: this.shuffleUse },
     ];
@@ -930,6 +1075,125 @@ export default {
   },
 
   // ── BẢNG SCORE (bám sát artboard HUD) ────────────────────────────────────
+  drawCompactHUD(G, ctx) {
+    const L = G.level, x = HUDX, y = 78, w = HUDW, h = 476;
+    card(ctx, x, y, w, h, 24);
+
+    // Điểm vẫn là thông tin chính, nhưng thu gọn phần tiêu đề để nhường chỗ
+    // cho bốn chỉ số thành hai hàng chip — mắt không phải quét 4 thanh dài.
+    strokeText(ctx, t('score'), x + w / 2, y + 27,
+      { font: FONT.disp(27), fill: '#ffa63d', stroke: '#8c3d00', lw: 6, baseline: 'middle' });
+    strokeText(ctx, Math.round(this.shownScore).toLocaleString(), x + w / 2, y + 63,
+      { font: FONT.disp(34), fill: '#2b1740', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+
+    const st3 = L.star[2];
+    const starsNow = this.score >= L.target * L.star[2] ? 3
+                   : this.score >= L.target * L.star[1] ? 2
+                   : this.score >= L.target ? 1 : 0;
+    const sbx = x + 18, sby = y + 89, sbw = w - 36, sbh = 42;
+    statBar(ctx, sbx, sby, sbw, sbh, this.score / (L.target * st3), (c, s) => icon.crown(c, s), { label: '' });
+    const trackX = sbx + sbh - 4, trackW = sbw - sbh + 4;
+    L.star.forEach((mul, i) => {
+      const px = trackX + trackW * (mul / st3) - (i === 2 ? 10 : 0), on = starsNow > i;
+      ctx.save(); ctx.translate(px, sby + sbh / 2); ctx.globalAlpha = on ? 1 : .42;
+      on ? icon.star(ctx, 23 + Math.sin(this.t * 5 + i) * 1.2) : icon.starEmpty(ctx, 19);
+      ctx.restore();
+    });
+
+    const gap = 8, mw = (w - 36 - gap) / 2, mh = 46;
+    const metric = (mx, my, value, label, drawIcon, progress, colours, urgent = false) => {
+      ctx.save();
+      roundRect(ctx, mx, my + 3, mw, mh, 15); ctx.fillStyle = 'rgba(52,92,130,.24)'; ctx.fill();
+      roundRect(ctx, mx, my, mw, mh, 15);
+      const mg = ctx.createLinearGradient(0, my, 0, my + mh);
+      mg.addColorStop(0, '#f8fcff'); mg.addColorStop(1, '#dceefe');
+      ctx.fillStyle = mg; ctx.fill(); ctx.strokeStyle = urgent ? '#ff5470' : 'rgba(76,145,202,.62)';
+      ctx.lineWidth = urgent ? 2.8 : 2; ctx.stroke();
+      ctx.save(); roundRect(ctx, mx + 2, my + 2, mw - 4, mh - 4, 13); ctx.clip();
+      const pg = ctx.createLinearGradient(mx, 0, mx + mw, 0);
+      pg.addColorStop(0, colours[0]); pg.addColorStop(1, colours[1]);
+      ctx.globalAlpha = .20; ctx.fillStyle = pg;
+      ctx.fillRect(mx + 2, my + mh - 7, (mw - 4) * clamp(progress, 0, 1), 5);
+      ctx.restore();
+      ctx.save(); ctx.translate(mx + 24, my + mh / 2); drawIcon(ctx, 31); ctx.restore();
+      strokeText(ctx, label, mx + 46, my + 13,
+        { font: FONT.ui(10, 800), fill: '#71829a', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      strokeText(ctx, value, mx + 46, my + 31,
+        { font: FONT.disp(18), fill: urgent ? '#d7193f' : '#293653', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      ctx.restore();
+    };
+    const lowTime = this.timeLeft <= 15;
+    const mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
+    metric(x + 18, y + 148, `${mm}:${String(ss).padStart(2, '0')}`, t('time'), icon.clock,
+      this.timeLeft / this.timeMax, lowTime ? ['#ff3157', '#ff8a5c'] : ['#50c8ff', '#5b86e5'], lowTime);
+    const hpF = clamp(this.hp / this.maxHp, 0, 1);
+    metric(x + 18 + mw + gap, y + 148, String(Math.ceil(this.hp)), t('hp'), icon.heart,
+      hpF, ['#ff3157', '#ff8a91'], hpF < .3);
+    metric(x + 18, y + 202, String(this.gold), t('gold'), icon.pouch,
+      this.gold / 400, ['#ffbd37', '#ff8a1f']);
+    metric(x + 18 + mw + gap, y + 202, String(this.movesLeft), t('moves'), (c, s) => {
+      c.fillStyle = '#7450b8';
+      for (let i = -1; i <= 1; i++) { c.beginPath(); c.arc(i * s * .22, 0, s * .105, 0, TAU); c.fill(); }
+    }, this.movesLeft / L.moves, ['#8e72d9', '#6341ad'], this.movesLeft <= 3);
+
+    // Mục tiêu thành một thẻ tóm tắt hai dòng; không còn chữ rời chen giữa
+    // thanh Nộ và cụm nút như bố cục cũ.
+    const gy = y + 261, gh = 54;
+    roundRect(ctx, x + 18, gy, w - 36, gh, 15);
+    ctx.fillStyle = 'rgba(238,245,255,.9)'; ctx.fill();
+    ctx.strokeStyle = 'rgba(113,135,174,.30)'; ctx.lineWidth = 1.5; ctx.stroke();
+    const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
+    const nounTxt = noun ? ' ' + tx(noun, 'vi') : '';
+    strokeText(ctx, `${t('goal')}: ${L.target.toLocaleString()}${nounTxt}`, x + w / 2, gy + 17,
+      { font: FONT.ui(13, 800), fill: '#594b78', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    let status;
+    if (this.foesLeft) status = t('foesShort', { n: this.foesLeft });
+    else {
+      const nxt = [L.target, L.target * L.star[1], L.target * L.star[2]][starsNow];
+      status = starsNow >= 3 ? t('starMax') : t('starNext', { n: starsNow + 1, d: Math.ceil(nxt - this.score).toLocaleString() });
+    }
+    strokeText(ctx, status, x + w / 2, gy + 38,
+      { font: FONT.ui(11, 700), fill: this.foesLeft ? '#c0405a' : (starsNow >= 3 ? '#2f9f45' : '#81729c'),
+        stroke: null, lw: 0, baseline: 'middle', shadow: null });
+
+    // Thanh Nộ to vừa ngón tay, có icon và phần trăm — nhìn là hiểu trạng thái,
+    // không còn một thanh mảnh mang nhãn trơ trọi.
+    const rx = x + 18, ry = y + 327, rw = w - 36, rh = 38, on = this.fury > 0;
+    roundRect(ctx, rx, ry + 4, rw, rh, rh / 2); ctx.fillStyle = 'rgba(92,23,15,.58)'; ctx.fill();
+    roundRect(ctx, rx, ry, rw, rh, rh / 2); ctx.fillStyle = '#311925'; ctx.fill();
+    ctx.save(); roundRect(ctx, rx + 2, ry + 2, rw - 4, rh - 4, (rh - 4) / 2); ctx.clip();
+    const v = on ? 1 : this.rage, rg = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+    rg.addColorStop(0, on ? '#fff0a0' : '#ff8a32'); rg.addColorStop(.52, '#ff5a32'); rg.addColorStop(1, '#e9164d');
+    ctx.fillStyle = rg; ctx.fillRect(rx + 2, ry + 2, (rw - 4) * v, rh - 4);
+    if (on) {
+      ctx.globalAlpha = .25; ctx.fillStyle = '#fff';
+      for (let i = -2; i < rw / 18 + 2; i++) ctx.fillRect(rx + i * 18 + ((this.t * 70) % 18), ry, 8, rh);
+    }
+    ctx.restore();
+    ctx.save(); ctx.translate(rx + 23, ry + rh / 2); icon.flame(ctx, 34 + (on ? Math.sin(this.t * 12) * 3 : 0)); ctx.restore();
+    strokeText(ctx, on ? t('furyOnShort') : `${t('rage')}  ${Math.round(this.rage * 100)}%`, rx + rw / 2 + 10, ry + rh / 2,
+      { font: FONT.ui(13, 800), fill: '#fff', stroke: '#661000', lw: 4, baseline: 'middle', shadow: null });
+    ctx.strokeStyle = on ? '#fff0a0' : 'rgba(255,142,70,.8)'; ctx.lineWidth = on ? 3 : 2;
+    roundRect(ctx, rx, ry, rw, rh, rh / 2); ctx.stroke();
+
+    for (const id of ['restart', 'resume']) {
+      const h2 = this.hits.find(k => k.id === id); if (!h2) continue;
+      roundBtn(ctx, h2.x + 28, h2.y + 28, 27,
+        (c, s) => id === 'restart' ? icon.restart(c, s) : (this.paused ? icon.play(c, s) : icon.pause(c, s)),
+        { press: h2.press, hover: h2.hover });
+    }
+
+    const fin = this.hits.find(h2 => h2.id === 'finishNow');
+    if (fin) {
+      const puls = .5 + .5 * Math.sin(this.t * 4);
+      ctx.save(); ctx.globalAlpha = .28 + .30 * puls;
+      roundRect(ctx, fin.x - 5, fin.y - 5, fin.w + 10, fin.h + 10, 19); ctx.fillStyle = '#8ef08a'; ctx.fill(); ctx.restore();
+      textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
+        { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
+    }
+  },
+
+  // Bản HUD cũ giữ lại một thời gian để dễ đối chiếu ảnh/balance khi cần.
   drawHUD(G, ctx) {
     const L = G.level;
     const x = HUDX, y = 60, w = HUDW, h = 528;
@@ -941,9 +1205,38 @@ export default {
       { font: FONT.disp(38), fill: '#2b1740', stroke: null, lw: 0, baseline: 'middle', shadow: null });
 
     const bw = w - 44, bh = 52;
-    // vương miện = tiến độ mục tiêu
-    statBar(ctx, x + 22, y + 120, bw, bh, this.score / L.target, (c, s) => icon.crown(c, s),
-      { label: `${Math.min(100, Math.round(this.score / L.target * 100))}%` });
+    // ── THANH SAO ────────────────────────────────────────────────────────
+    // Trước đây thanh này chỉ chạy tới 100% mục tiêu rồi đứng im, nên chẳng ai
+    // biết 2 sao hay 3 sao thì cần bao nhiêu điểm. Nay thanh chạy tới mốc 3 SAO,
+    // ba ngôi sao nằm ngay trên thanh và sáng lên khi vượt qua.
+    const st3 = L.star[2];
+    const starsNow = this.score >= L.target * L.star[2] ? 3
+                   : this.score >= L.target * L.star[1] ? 2
+                   : this.score >= L.target ? 1 : 0;
+    // Không in nhãn phần trăm nữa: nhãn nằm đúng chỗ ngôi sao thứ ba, đè lên nhau.
+    statBar(ctx, x + 22, y + 120, bw, bh, this.score / (L.target * st3), (c, s) => icon.crown(c, s),
+      { label: '' });
+    {
+      const bx0 = x + 22 + bh - 4, bw0 = bw - bh + 4, cy0 = y + 120 + bh * .5;
+      L.star.forEach((mul, i) => {
+        const px = bx0 + bw0 * (mul / st3) - (i === 2 ? 12 : 0);
+        const on = starsNow > i;
+        ctx.save();
+        ctx.translate(px, cy0);
+        if (on) {                                    // sao đã ăn: nảy nhẹ + quầng sáng
+          ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = .5;
+          const gg = ctx.createRadialGradient(0, 0, 2, 0, 0, 22);
+          gg.addColorStop(0, '#ffe9a8'); gg.addColorStop(1, 'rgba(255,214,110,0)');
+          ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(0, 0, 22, 0, TAU); ctx.fill();
+          ctx.restore();
+          icon.star(ctx, 26 + Math.sin(this.t * 5 + i) * 1.5);
+        } else {
+          ctx.globalAlpha = .42;
+          icon.star(ctx, 19);
+        }
+        ctx.restore();
+      });
+    }
     // đồng hồ = thời gian còn lại
     const frac = clamp(this.timeLeft / this.timeMax, 0, 1);
     const low = this.timeLeft <= 15;
@@ -980,16 +1273,28 @@ export default {
     // mục tiêu
     const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
     const nounTxt = noun ? ' ' + tx(noun, 'vi') : '';
-    strokeText(ctx, `${t('goal')}: ${L.target.toLocaleString()}${nounTxt}`, x + w / 2, y + 414,
+    strokeText(ctx, `${t('goal')}: ${L.target.toLocaleString()}${nounTxt}`, x + w / 2, y + 402,
       { font: FONT.ui(15, 600), fill: '#6a5a86', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     if (this.foesLeft)
-      strokeText(ctx, t('foesAlive', { n: this.foesLeft }), x + w / 2, y + 438,
+      strokeText(ctx, t('foesAlive', { n: this.foesLeft }), x + w / 2, y + 422,
         { font: FONT.ui(13, 700), fill: '#c0405a', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    else {
+      // Không còn địch thì dùng chỗ này nói rõ còn bao nhiêu điểm nữa tới sao kế.
+      const nxt = [L.target, L.target * L.star[1], L.target * L.star[2]][starsNow];
+      // Dùng CHỮ "1 sao / 2 sao", không dùng ký tự ★ — font đóng gói không có
+      // glyph đó nên trên máy khác nó ra ô vuông rỗng.
+      const msg = starsNow >= 3 ? t('starMax')
+        : t('starNext', { n: starsNow + 1, d: Math.ceil(nxt - this.score).toLocaleString() });
+      strokeText(ctx, msg, x + w / 2, y + 422,
+        { font: FONT.ui(13, 700), fill: starsNow >= 3 ? '#3fbf4a' : '#8a7aae', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    }
 
     // 2 nút tròn
     // ── THANH NỘ ────────────────────────────────────────────────────────
     {
-      const rx = HUDX + 18, ry = 470, rw = HUDW - 36, rh = 26;
+      // Thanh Nộ nằm DƯỚI hai dòng "Mục tiêu" và "Còn n thiên địch". Đặt ở 470
+      // như trước là đè thẳng lên chữ, đúng chỗ người chơi cần đọc nhất.
+      const rx = HUDX + 18, ry = 496, rw = HUDW - 36, rh = 22;
       const on = this.fury > 0;
       roundRect(ctx, rx, ry + 3, rw, rh, rh / 2);
       ctx.fillStyle = 'rgba(90,30,10,.55)'; ctx.fill();
@@ -1032,7 +1337,7 @@ export default {
 
     for (const id of ['restart', 'resume']) {
       const h2 = this.hits.find(k => k.id === id); if (!h2) continue;
-      roundBtn(ctx, h2.x + 32, h2.y + 32, 32,
+      roundBtn(ctx, h2.x + 28, h2.y + 28, 28,
         (c, s) => id === 'restart' ? icon.restart(c, s) : (this.paused ? icon.play(c, s) : icon.pause(c, s)),
         { press: h2.press, hover: h2.hover });
     }
@@ -1043,9 +1348,12 @@ export default {
     const b = this.bubble;
     const k = clamp(b.t / .22, 0, 1);
     const fade = clamp((b.dur - b.t) / .4, 0, 1);
-    const sp = SPEAKERS[b.beat.who] || SPEAKERS.rom;
-    const text = tx(b.beat, 'vi') || b.beat.vi;
-    const x = COMPACT ? FX_ + 6 : CARDX, w = COMPACT ? FW - 12 : 340, y = COMPACT ? FY_ + FH + 10 : 536;
+    const sp = speaker(b.beat.who);
+    const text = fill(tx(b.beat, 'vi') || b.beat.vi);
+    // Máy hẹp không có thẻ nhân vật, mà bàn cờ nay cao gần chạm đáy → không còn
+    // chỗ dưới bàn. Đặt khung thoại NẰM ĐÈ đáy bàn cờ như phụ đề phim.
+    const x = COMPACT ? FX_ + 20 : CARDX, w = COMPACT ? FW - 40 : 340;
+    const y = COMPACT ? FY_ + FH - 104 : 536;
 
     ctx.save();
     ctx.globalAlpha = fade;
@@ -1077,6 +1385,19 @@ export default {
   },
 
   /** Hàng thiên địch: hình + thanh máu + vòng đếm ngược tới đòn kế tiếp. */
+  drawPredatorRaid(G, ctx) {
+    const f = this.raidFx, n = this.enemies.length;
+    if (!f || !n) return;
+    const sx = FX_ + FW * ((f.index + .5) / n), sy = ENEMY_Y - 2;
+    // Bản rộng: chúng lao thẳng vào thẻ dế. Bản hẹp không có thẻ riêng nên cú
+    // đột kích đáp vào mép bàn gần người chơi nhất, vẫn không che tâm bàn.
+    const compact = COMPACT ? this.compactHeroBox(G) : null;
+    const tx0 = compact ? compact.x + compact.w / 2 : CARDX + 134;
+    const ty0 = compact ? compact.y + compact.h * .58 : 122 + 214;
+    drawEnemyRaid(ctx, f, sx, sy, tx0, ty0);
+  },
+
+  /** Hàng thiên địch: hình + thanh máu + vòng đếm ngược tới đòn kế tiếp. */
   drawEnemies(G, ctx) {
     const n = this.enemies.length;
     if (!n) return;
@@ -1099,7 +1420,7 @@ export default {
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(cx, ENEMY_Y, 62, 0, TAU); ctx.fill();
         ctx.restore();
       }
-      e.draw(ctx, cx, ENEMY_Y - 4, 58);
+      e.draw(ctx, cx, ENEMY_Y - 2, 50);
 
       if (e.dead) continue;
       // thanh máu
@@ -1176,57 +1497,55 @@ export default {
       }
     }
 
-    if (f.kind === 'fire') {
+    // ── TIẾNG GÁY quét ngang: sóng âm chạy dọc hàng, không còn luồng lửa ──
+    if (f.kind === 'chirp') {
       const sweep = ease.outQuad(clamp(f.t / .55, 0, 1));
       const fade = clamp((f.t - .55) / .40, 0, 1);
       const x0 = FX_ + 8, x1 = x0 + (FW - 16) * sweep;
       const h = CELL * 1.5;
-      // 1) vệt cháy nền — vẽ TRƯỚC để không làm xỉn ngọn lửa
+      // 1) dải sáng nền — âm dội dọc hàng, vẽ TRƯỚC để không làm xỉn sóng
       ctx.save();
-      ctx.globalAlpha = (1 - fade) * .55;
-      const scg = ctx.createLinearGradient(0, f.y - CELL * .55, 0, f.y + CELL * .55);
-      scg.addColorStop(0, 'rgba(60,20,8,0)'); scg.addColorStop(.5, 'rgba(48,14,4,.95)');
-      scg.addColorStop(1, 'rgba(60,20,8,0)');
+      ctx.globalAlpha = (1 - fade) * .5;
+      const scg = ctx.createLinearGradient(0, f.y - CELL * .62, 0, f.y + CELL * .62);
+      scg.addColorStop(0, 'rgba(255,233,168,0)');
+      scg.addColorStop(.5, 'rgba(255,206,96,.6)');
+      scg.addColorStop(1, 'rgba(255,233,168,0)');
       ctx.fillStyle = scg;
-      ctx.fillRect(x0, f.y - CELL * .55, (FW - 16) * sweep, CELL * 1.1);
+      ctx.fillRect(x0, f.y - CELL * .62, (FW - 16) * sweep, CELL * 1.24);
       ctx.restore();
-      // 2) luồng lửa
+      // 2) các vòng sóng ")" lan theo đầu sóng, càng lùi càng nhạt và càng rộng
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.lineCap = 'round';
+      for (let i = 0; i < 7; i++) {
+        const rx = x1 - i * CELL * .46;
+        if (rx <= x0) break;
+        const wob = 1 + Math.sin(f.t * 22 - i * 1.1) * .06;
+        const rr = (CELL * .95 + i * CELL * .16) * wob;
+        ctx.globalAlpha = (1 - fade) * (1 - i / 7) * .95;
+        ctx.strokeStyle = i < 2 ? 'rgba(255,255,238,1)' : 'rgba(255,206,96,1)';
+        ctx.lineWidth = CELL * (.11 - i * .011);
+        ctx.beginPath();
+        ctx.ellipse(rx - rr * .82, f.y, rr, h * (.52 + i * .05), 0, -0.92, 0.92);
+        ctx.stroke();
+      }
+      ctx.restore();
+      // 3) đầu sóng chói + rung nhẹ dọc hàng
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
       ctx.globalAlpha = 1 - fade;
-      const g = ctx.createLinearGradient(x0, 0, x1, 0);
-      g.addColorStop(0, 'rgba(210,40,0,0)');
-      g.addColorStop(.25, 'rgba(255,90,10,.85)');
-      g.addColorStop(.62, 'rgba(255,168,40,.95)');
-      g.addColorStop(.92, 'rgba(255,238,160,1)');
-      g.addColorStop(1, 'rgba(255,255,240,1)');
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.moveTo(x0, f.y - h * .12);
-      ctx.quadraticCurveTo((x0 + x1) / 2, f.y - h * .62, x1, f.y - h * .10);
-      ctx.quadraticCurveTo((x0 + x1) / 2, f.y + h * .64, x0, f.y + h * .12);
-      ctx.closePath(); ctx.fill();
-      // 3) lưỡi lửa gợn sóng dọc luồng
-      ctx.globalAlpha = (1 - fade) * .85;
-      for (let i = 0; i < 12; i++) {
-        const px = lerp(x0, x1, i / 12);
-        const wob = Math.sin(f.t * 26 + i * 1.7);
-        const fh = h * (.30 + .22 * Math.abs(wob)) * (i / 12 * .6 + .5);
-        const fg2 = ctx.createLinearGradient(px, f.y, px, f.y - fh);
-        fg2.addColorStop(0, 'rgba(255,200,80,.9)'); fg2.addColorStop(1, 'rgba(255,90,20,0)');
-        ctx.fillStyle = fg2;
-        ctx.beginPath();
-        ctx.moveTo(px - CELL * .22, f.y);
-        ctx.quadraticCurveTo(px + wob * 8, f.y - fh * .7, px + wob * 5, f.y - fh);
-        ctx.quadraticCurveTo(px + CELL * .16, f.y - fh * .4, px + CELL * .22, f.y);
-        ctx.closePath(); ctx.fill();
+      const hg = ctx.createRadialGradient(x1, f.y, 0, x1, f.y, h * 1.05);
+      hg.addColorStop(0, 'rgba(255,255,242,1)');
+      hg.addColorStop(.38, 'rgba(255,224,140,.72)');
+      hg.addColorStop(1, 'rgba(255,196,80,0)');
+      ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(x1, f.y, h * 1.05, 0, TAU); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,235,.9)'; ctx.lineWidth = CELL * .05; ctx.lineCap = 'round';
+      for (let i = 0; i < 5; i++) {
+        const px = lerp(x0, x1, i / 5 + .05);
+        const hh = h * (.24 + .20 * Math.abs(Math.sin(f.t * 24 + i * 1.9)));
+        ctx.globalAlpha = (1 - fade) * .55;
+        ctx.beginPath(); ctx.moveTo(px, f.y - hh); ctx.lineTo(px, f.y + hh); ctx.stroke();
       }
-      // 4) đầu ngọn chói
-      const hg = ctx.createRadialGradient(x1, f.y, 0, x1, f.y, h * 1.15);
-      hg.addColorStop(0, 'rgba(255,255,240,1)');
-      hg.addColorStop(.4, 'rgba(255,190,70,.7)');
-      hg.addColorStop(1, 'rgba(255,110,20,0)');
-      ctx.fillStyle = hg; ctx.beginPath(); ctx.arc(x1, f.y, h * 1.15, 0, TAU); ctx.fill();
       ctx.restore();
     }
 

@@ -77,8 +77,12 @@ export class Chiptune {
     this.timer = null;
     this.step = 0;
     this.nextTime = 0;
-    this.lookahead = 0.12;      // giây scheduler nhìn trước
-    this.tickMs = 22;
+    // Cửa sổ lên lịch. Vòng vẽ của game ăn hết main thread nên setInterval hay
+    // trễ vài chục ms; cửa sổ 0.12s quá hẹp, trễ một nhịp là nốt rơi vào QUÁ KHỨ
+    // và Web Audio phát dồn hết một lúc — đúng tiếng "rẹt rẹt" người chơi nghe.
+    this.lookahead = 0.32;      // giây scheduler nhìn trước
+    this.tickMs = 25;
+    this.songBus = null;        // bus riêng của bài đang phát, để tắt là dứt hẳn
     this._pending = null;
   }
 
@@ -117,10 +121,24 @@ export class Chiptune {
       p50: pulseWave(this.ctx, 0.5),
     };
     this.noise = noiseBuffer(this.ctx);
+    // Tab ẩn → trình duyệt bóp setInterval xuống ~1 lần/giây. Ngủ hẳn
+    // AudioContext rồi bắt nhịp lại lúc quay về, thay vì để nhạc trôi lệch.
+    if (!this._visHook && typeof document !== 'undefined' && document.addEventListener) {
+      this._visHook = () => {
+        if (!this.ctx) return;
+        if (document.hidden) this.ctx.suspend?.();
+        else this.ctx.resume?.()?.then?.(() => this.resync());
+      };
+      document.addEventListener('visibilitychange', this._visHook);
+    }
+
     this.ready = true;
     if (this._pending) { const s = this._pending; this._pending = null; this.play(s); }
     return true;
   }
+
+  /** Kéo mốc lên lịch về hiện tại sau khi ngủ dậy — không bù nốt đã lỡ. */
+  resync() { if (this.ctx) this.nextTime = Math.max(this.nextTime, this.ctx.currentTime + 0.06); }
 
   setMusicVol(v) { this.musicVol = v; if (this.musicBus) this.musicBus.gain.value = this.muted ? 0 : v; }
   setSfxVol(v)   { this.sfxVol = v;   if (this.sfxBus)   this.sfxBus.gain.value   = this.muted ? 0 : v; }
@@ -136,6 +154,7 @@ export class Chiptune {
   voice(bus, wave, freq, t, dur, vel = 1, opts = {}) {
     if (!this.ready || !freq) return;
     const ctx = this.ctx;
+    t = Math.max(t, ctx.currentTime);            // nốt trễ thì phát ngay, đừng dồn cục
     const o = ctx.createOscillator();
     if (wave === 'tri') o.type = 'triangle';
     else o.setPeriodicWave(this.waves[wave] || this.waves.p50);
@@ -152,23 +171,37 @@ export class Chiptune {
       lfo.connect(lfoG); lfoG.connect(o.frequency); lfo.start(t); lfo.stop(t + dur + 0.05);
     }
 
-    const g = ctx.createGain();
-    const a = opts.atk ?? 0.006, rel = opts.rel ?? 0.06;
+    // ADSR. Nốt ngắn (móc kép ở 150 BPM chỉ ~0.1s) mà giữ nguyên attack/release
+    // mặc định thì các mốc chồng lên nhau, đường bao gấp khúc ngược — nghe thành
+    // tiếng "tách". Nên ép mọi mốc tăng dần và co attack/release theo độ dài nốt.
+    const d = Math.max(dur, 0.03);
+    const a   = Math.min(opts.atk ?? 0.006, d * 0.30);
+    const rel = Math.min(opts.rel ?? 0.06,  d * 0.50);
     const sus = opts.sus ?? 0.72;
+    const tA = t + a;
+    const tD = Math.max(tA + 0.002, t + Math.min(a + 0.09, d * 0.70));
+    const tS = Math.max(tD + 0.002, t + d - rel);
+    const tE = Math.max(tS + 0.006, t + d + 0.01);
+
+    const g = ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
-    g.gain.linearRampToValueAtTime(vel, t + a);
-    g.gain.linearRampToValueAtTime(vel * sus, t + Math.min(a + 0.09, dur * 0.7));
-    g.gain.setValueAtTime(vel * sus, t + Math.max(dur - rel, a + 0.005));
-    g.gain.exponentialRampToValueAtTime(0.0001, t + dur + 0.01);
+    g.gain.linearRampToValueAtTime(vel, tA);
+    g.gain.linearRampToValueAtTime(vel * sus, tD);
+    g.gain.setValueAtTime(vel * sus, tS);
+    g.gain.exponentialRampToValueAtTime(0.0001, tE);
 
     o.connect(g); g.connect(bus);
-    o.start(t); o.stop(t + dur + 0.06);
+    o.start(t); o.stop(tE + 0.05);
+    // Dọn node sau khi tắt: chơi lâu mà để rác lại thì đồ thị phình ra, CPU tăng
+    // dần rồi bắt đầu lụp bụp.
+    o.onended = () => { o.disconnect(); g.disconnect(); lfoG?.disconnect(); lfo?.disconnect(); };
   }
 
   /** Kênh noise → trống. */
   drum(bus, hit, t, vel = 1) {
     if (!this.ready) return;
     const ctx = this.ctx;
+    t = Math.max(t, ctx.currentTime);
     const src = ctx.createBufferSource();
     src.buffer = this.noise;
     src.loop = true;
@@ -185,6 +218,7 @@ export class Chiptune {
       og.gain.setValueAtTime(vel * 1.0, t);
       og.gain.exponentialRampToValueAtTime(0.0001, t + 0.15);
       o.connect(og); og.connect(bus); o.start(t); o.stop(t + 0.17);
+      o.onended = () => { o.disconnect(); og.disconnect(); };
       f.type = 'lowpass'; f.frequency.value = 380; dur = 0.045; src.playbackRate.value = 0.6;
       g.gain.setValueAtTime(vel * 0.35, t);
     } else if (hit === 's') {
@@ -199,6 +233,7 @@ export class Chiptune {
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(f); f.connect(g); g.connect(bus);
     src.start(t); src.stop(t + dur + 0.02);
+    src.onended = () => { src.disconnect(); f.disconnect(); g.disconnect(); };
   }
 
   // ── sequencer ──────────────────────────────────────────────────────────────
@@ -211,7 +246,11 @@ export class Chiptune {
     this.stop();
     this.song = song;
     this.step = 0;
-    this.nextTime = this.ctx.currentTime + 0.08;
+    // Bus riêng cho từng bài: đổi màn là tắt được dứt đuôi bài cũ.
+    this.songBus = this.ctx.createGain();
+    this.songBus.gain.value = 1;
+    this.songBus.connect(this.musicBus);
+    this.nextTime = this.ctx.currentTime + 0.12;
     this.timer = setInterval(() => this._sched(), this.tickMs);
     this._sched();
   }
@@ -219,21 +258,44 @@ export class Chiptune {
   stop() {
     if (this.timer) { clearInterval(this.timer); this.timer = null; }
     this.song = null;
+    // Những nốt đã lên lịch trước vẫn nằm trong hàng đợi của Web Audio; không
+    // hạ bus xuống thì đuôi bài cũ chồng lên bài mới đúng lúc chuyển màn.
+    const old = this.songBus;
+    this.songBus = null;
+    if (old) {
+      const t = this.ctx.currentTime;
+      old.gain.setValueAtTime(old.gain.value, t);
+      old.gain.linearRampToValueAtTime(0.0001, t + 0.08);
+      setTimeout(() => old.disconnect(), 900);
+    }
   }
 
   _sched() {
     const s = this.song;
-    if (!s || !this.ready) return;
+    if (!s || !this.ready || this.ctx.state === 'suspended') return;
     const stepDur = 60 / s.bpm / 4;                 // giây / nốt móc kép
     const total = s.steps;
-    while (this.nextTime < this.ctx.currentTime + this.lookahead) {
+    const now = this.ctx.currentTime;
+    const bus = this.songBus || this.musicBus;
+
+    // Tụt lại phía sau (frame nặng, tab vừa ẩn, máy ngủ dậy) → NHẢY tới hiện tại
+    // và bỏ luôn mấy nhịp đã lỡ. Bù cho đủ nốt mới là thứ tạo ra tiếng dồn cục.
+    if (this.nextTime < now) {
+      const missed = Math.ceil((now - this.nextTime) / stepDur);
+      this.step += missed;
+      this.nextTime += missed * stepDur;
+    }
+
+    const horizon = now + this.lookahead;
+    let guard = 512;                                // chốt chặn, không để lặp vô hạn
+    while (this.nextTime < horizon && guard-- > 0) {
       const st = this.step % total;
       for (const tr of s.tracks) {
         const ev = tr.map.get(st);
         if (!ev) continue;
         for (const e of ev) {
-          if (tr.chan === 'drum') this.drum(this.musicBus, e.hit, this.nextTime, tr.vol);
-          else this.voice(this.musicBus, tr.chan, e.freq, this.nextTime,
+          if (tr.chan === 'drum') this.drum(bus, e.hit, this.nextTime, tr.vol);
+          else this.voice(bus, tr.chan, e.freq, this.nextTime,
                           e.dur * stepDur * (tr.legato ?? 0.94), tr.vol, tr.opts || {});
         }
       }
@@ -293,19 +355,31 @@ export class Chiptune {
       case 'coin':    V(B, 'p50', 988, t, 0.06, 0.26); V(B, 'p50', 1319, t + 0.06, 0.14, 0.26); break;
       case 'gulp':    V(B, 'tri', 300, t, 0.14, 0.4, { slide: 1.8, rel: 0.06 }); break;
       case 'crack':   D(B, 's', t, 0.8); V(B, 'p12', 240, t, 0.12, 0.3, { slide: 0.7 }); break;
-      case 'roar': {                                     // rồng gầm
-        const o = this.ctx.createOscillator(), g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
-        o.type = 'sawtooth';
-        o.frequency.setValueAtTime(220, t);
-        o.frequency.exponentialRampToValueAtTime(64, t + 0.55);
-        f.type = 'lowpass'; f.frequency.setValueAtTime(2600, t);
-        f.frequency.exponentialRampToValueAtTime(420, t + 0.6);
-        const lfo = this.ctx.createOscillator(), lg = this.ctx.createGain();
-        lfo.frequency.value = 24; lg.gain.value = 26; lfo.connect(lg); lg.connect(o.frequency);
-        g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.5, t + 0.05);
-        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.65);
-        o.connect(f); f.connect(g); g.connect(B);
-        lfo.start(t); lfo.stop(t + 0.7); o.start(t); o.stop(t + 0.7);
+      case 'chirp': {                                    // tiếng gáy — cọ cánh 3 nhịp
+        // Dế gáy không phải rồng gầm: chuỗi xung ngắn quanh 4.3 kHz, rung biên
+        // độ rất nhanh (LFO 58 Hz) nên nghe rào rào chứ không thành tiếng còi.
+        for (let i = 0; i < 3; i++) {
+          const t0 = t + i * 0.13;
+          const o = this.ctx.createOscillator(), g = this.ctx.createGain(), f = this.ctx.createBiquadFilter();
+          o.type = 'square';
+          o.frequency.setValueAtTime(4300 + i * 140, t0);
+          o.frequency.linearRampToValueAtTime(4020 + i * 140, t0 + 0.09);
+          f.type = 'bandpass'; f.frequency.value = 4400; f.Q.value = 7;
+          const lfo = this.ctx.createOscillator(), lg = this.ctx.createGain();
+          lfo.type = 'square'; lfo.frequency.value = 58; lg.gain.value = 0.2;
+          lfo.connect(lg); lg.connect(g.gain);
+          g.gain.setValueAtTime(0.0001, t0);
+          g.gain.linearRampToValueAtTime(0.26, t0 + 0.012);
+          g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.1);
+          o.connect(f); f.connect(g); g.connect(B);
+          lfo.start(t0); lfo.stop(t0 + 0.12); o.start(t0); o.stop(t0 + 0.12);
+        }
+        break;
+      }
+      case 'giggle': {                                   // cười khúc khích: 4 nhịp nảy lên
+        const base = 700 + Math.random() * 120;
+        for (let i = 0; i < 4; i++)
+          V(B, 'p25', base * (1 + i * 0.11), t + i * 0.075, 0.055, 0.22, { rel: 0.03, slide: 1.14 });
         break;
       }
       case 'levelup': {

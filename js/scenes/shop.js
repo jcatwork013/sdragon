@@ -10,8 +10,9 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, textBtn, card, glassPanel, roundBtn, icon, frostCard, pillTag, C, FONT } from '../ui/widgets.js';
-import { SLOTS, SHOP, shopStock, eventNow, recipeById, gearBonus, sellPrice } from '../data/gear.js';
+import { Hit, textBtn, card, glassPanel, roundBtn, icon, frostCard, pillLabel, C, FONT } from '../ui/widgets.js';
+import { SLOTS, shopStock, eventNow, recipeById, gearBonus, sellPrice, canEquip } from '../data/gear.js';
+import { STAGES } from '../data/characters.js';
 import { BREEDS, stageFor } from '../data/characters.js';
 import { bleed } from '../core/layout.js';
 
@@ -64,8 +65,12 @@ export default {
 
   stock() {
     if (this.mode === 'bag') {
+      // Đồ cửa hàng nay sinh theo ngày nên không còn danh sách cứng để lọc:
+      // đi từ chính id người chơi đang sở hữu rồi dựng lại từng món.
       const own = this.G?.save?.owned || {};
-      return SHOP.filter(g => g.slot === this.slot && own[g.id]);
+      return Object.keys(own).filter(id => own[id]).map(recipeById)
+        .filter(g => g && g.slot === this.slot)
+        .sort((a, b) => (a.tier || 0) - (b.tier || 0));
     }
     return shopStock().filter(g => g.slot === this.slot);
   },
@@ -77,6 +82,14 @@ export default {
     if (!S.owned[g.id]) {
       if (S.gold < g.price) { this.say(G, t('shopPoor'), '#ff9aa8'); G.sfx('invalid'); return; }
       this.askBuy(G, g);
+      return;
+    }
+    // Chưa đủ lớn thì không mặc được — nói thẳng bằng chữ đỏ, đừng để người
+    // chơi bấm hoài không hiểu vì sao món đồ vừa mua lại không lên người.
+    const rq = canEquip(S, g);
+    if (!rq.ok && S.equip?.[g.slot] !== g.id) {
+      G.sfx('invalid');
+      this.say(G, t('needStage', { s: tx(STAGES[rq.need], 'name') }), '#ff9aa8');
       return;
     }
     S.equip = S.equip || {};
@@ -96,11 +109,15 @@ export default {
     const x = (W - bw) / 2, y = (H - bh) / 2;
     this.ask = {
       kind, g, amount, x, y, w: bw, h: bh, t: 0,
+      // THỨ TỰ QUAN TRỌNG: lớp nhập liệu lấy Hit ĐẦU TIÊN phủ điểm chạm
+      // (main.js: hitsOf().find(...)). Để tấm 'shade' phủ toàn màn ở đầu mảng
+      // thì chính nó nuốt luôn nút Mua và Huỷ — bấm mãi không mua được. Nút
+      // phải đứng TRƯỚC, tấm chắn đứng cuối.
       hits: [
-        new Hit('shade', 0, 0, W, H, { act: () => {} }),   // nuốt mọi cú bấm ra ngoài
         new Hit('ok', x + 36, y + bh - 78, 176, 54, { act: () => this.confirm(G) }),
         new Hit('no', x + bw - 212, y + bh - 78, 176, 54,
           { act: () => { G.sfx('button'); this.ask = null; this.build(G); } }),
+        new Hit('shade', 0, 0, W, H, { act: () => {} }),   // nuốt cú bấm ra ngoài hộp
       ],
     };
     this.hits = this.ask.hits;
@@ -154,21 +171,63 @@ export default {
     strokeText(ctx, String(S.gold), 204, 51,
       { font: FONT.disp(24), fill: '#fff', stroke: '#1a0f30', lw: 5, align: 'right', baseline: 'middle' });
 
-    // ── nhân vật mặc thử ────────────────────────────────────────────────
+    // ── nhân vật mặc thử, đứng trên SÂN KHẤU ────────────────────────────
+    // Khung phẳng một màu tím làm con dế chìm nghỉm, chữ chỉ số lại xanh nhạt
+    // trên nền sáng nên đọc rất mệt. Nay có nền chuyển sắc + vệt sáng sau lưng,
+    // và bảng chỉ số nền tối chữ sáng. Màu sân khấu ĐỔI THEO CHUỖI THẮNG đấu
+    // trường: thắng càng nhiều, sân càng rực.
     const cx = W * .16, cy = H * .56;
-    glassPanel(ctx, 24, 96, this.PX - 56, H - 200, 22,
-      { top: 'rgba(58,44,96,.92)', bot: 'rgba(26,18,52,.94)', rim: 'rgba(190,160,255,.5)' });
+    const px0 = 24, py0 = 96, pw0 = this.PX - 56, ph0 = H - 200;
+    const streak = S.duelStreak || 0;
+    const sk = streak >= 6 ? 3 : streak >= 4 ? 2 : streak >= 2 ? 1 : 0;
+    const SKY = [
+      { a: '#4b3a7e', b: '#1b1136', rim: 'rgba(190,160,255,.55)', glow: '#8f7ad8', name: '#cfa8ff' },
+      { a: '#2f6b62', b: '#102a2a', rim: 'rgba(120,240,200,.6)',  glow: '#5fd8b0', name: '#8ef0c8' },
+      { a: '#7a5a1e', b: '#2a1c08', rim: 'rgba(255,210,110,.75)', glow: '#ffc65a', name: '#ffd45c' },
+      { a: '#8a2f1e', b: '#2c0c08', rim: 'rgba(255,140,80,.85)',  glow: '#ff8a3a', name: '#ff9a5c' },
+    ][sk];
+    glassPanel(ctx, px0, py0, pw0, ph0, 22, { top: SKY.a, bot: SKY.b, rim: SKY.rim });
+    ctx.save();
+    roundRect(ctx, px0, py0, pw0, ph0, 22); ctx.clip();
+    // vệt sáng sau lưng
+    const gl = ctx.createRadialGradient(cx + 26, cy - 10, 8, cx + 26, cy - 10, pw0 * .78);
+    gl.addColorStop(0, rgba(SKY.glow, .55)); gl.addColorStop(1, rgba(SKY.glow, 0));
+    ctx.fillStyle = gl; ctx.fillRect(px0, py0, pw0, ph0);
+    // tia sáng quay chậm — càng thắng nhiều tia càng dày
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = .05 + sk * .04;
+    for (let i = 0; i < 8 + sk * 4; i++) {
+      const a = this.t * .12 + i * (TAU / (8 + sk * 4));
+      ctx.save(); ctx.translate(cx + 26, cy - 10); ctx.rotate(a);
+      ctx.fillStyle = SKY.glow;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(pw0, -26); ctx.lineTo(pw0, 26); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    // bệ đứng
+    ctx.beginPath(); ctx.ellipse(cx + 26, cy + 96, pw0 * .34, 18, 0, 0, TAU);
+    ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.fill();
+    ctx.restore();
+
     G.hero.gear = { ...this.preview };
     G.hero.draw(ctx, cx + 26, cy + 20, 120, 1);
+
+    // chuỗi thắng đấu trường
+    if (streak >= 2)
+      pillLabel(ctx, cx + 26, py0 + 26, t('duelStreak', { n: streak }), SKY.glow, '#1a0f30');
+
     const bon = gearBonus(S);
-    frostCard(ctx, 40, H - 236, this.PX - 88, 118, 16);
-    strokeText(ctx, tx(BREEDS.find(b => b.id === S.breed) || BREEDS[0], 'name'), cx, H - 212,
-      { font: FONT.disp(24), fill: '#fff', stroke: '#2b4a6b', lw: 6, baseline: 'middle' });
+    const cardY = H - 236, cardH = 118;
+    roundRect(ctx, 40, cardY, this.PX - 88, cardH, 16);
+    ctx.fillStyle = 'rgba(10,6,20,.82)'; ctx.fill();
+    ctx.strokeStyle = SKY.rim; ctx.lineWidth = 2; ctx.stroke();
+    strokeText(ctx, tx(BREEDS.find(b => b.id === S.breed) || BREEDS[0], 'name'), cx, cardY + 26,
+      { font: FONT.disp(24), fill: SKY.name, stroke: '#12081f', lw: 6, baseline: 'middle' });
     const rows = [[t('st_hp'), bon.hp], [t('st_atk'), bon.atk], [t('st_crit'), bon.crit + '%']];
     rows.forEach(([k, v], i) => {
-      const yy = H - 184 + i * 22;
-      strokeText(ctx, k, 60, yy, { font: FONT.ui(13, 700), fill: '#12324e', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
-      strokeText(ctx, '+' + v, this.PX - 72, yy, { font: FONT.disp(16), fill: '#1d6b24', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
+      const yy = cardY + 54 + i * 22;
+      strokeText(ctx, k, 60, yy, { font: FONT.ui(13, 700), fill: '#cfc0f0', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      strokeText(ctx, '+' + v, this.PX - 72, yy, { font: FONT.disp(16), fill: '#8ef08a', stroke: '#0d2a12', lw: 3, align: 'right', baseline: 'middle' });
     });
 
     // ── thẻ chế độ: Cửa hàng / Tủ đồ ────────────────────────────────────
@@ -238,8 +297,17 @@ export default {
       }
       strokeText(ctx, nm, h.x + 92, y + 28,
         { font: FONT.disp(19), fill: '#fff', stroke: '#12060f', lw: 4, align: 'left', baseline: 'middle' });
-      strokeText(ctx, tx({ name: TIER_NAME[g.tier], name_en: TIER_NAME_EN[g.tier] }, 'name'), h.x + 92, y + 50,
+      const tierTxt = tx({ name: TIER_NAME[g.tier], name_en: TIER_NAME_EN[g.tier] }, 'name');
+      strokeText(ctx, tierTxt, h.x + 92, y + 50,
         { font: FONT.ui(12, 800), fill: tc, stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      // Chưa đủ lớn để mặc → báo ĐỎ ngay trên thẻ món, đừng để bấm rồi mới biết.
+      const rqRow = canEquip(S, g);
+      if (!rqRow.ok) {
+        ctx.font = FONT.ui(12, 800);
+        const tw2 = ctx.measureText(tierTxt).width;
+        strokeText(ctx, '· ' + t('reqStage', { s: tx(STAGES[rqRow.need], 'name') }), h.x + 100 + tw2, y + 50,
+          { font: FONT.ui(12, 800), fill: '#ff8a9c', stroke: '#3a0010', lw: 3, align: 'left', baseline: 'middle' });
+      }
       // nút BÁN — chỉ có trong tủ đồ
       const sh = this.hits.find(x2 => x2.id === 'sell_' + g.id);
       if (sh) {

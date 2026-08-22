@@ -4,7 +4,7 @@
 // của truyện "Dế Mèn phiêu lưu ký" (Tô Hoài) lẫn phim hoạt hình 2025. Nếu sau
 // này muốn đổi tên, chỉ cần sửa trong đúng file này, engine không phụ thuộc tên.
 // Mỗi giống = 1 quả trứng người chơi chọn ở đầu game. Bảng màu điều khiển
-// toàn bộ phần vẽ rồng (js/game/cricket.js) nên thêm giống mới = thêm 1 object.
+// toàn bộ phần vẽ dế (js/game/cricket.js) nên thêm giống mới = thêm 1 object.
 
 export const BREEDS = [
   {
@@ -71,5 +71,5 @@ export const TRAININGS = [
   { id: 'might',   name_en: 'Might', desc_en: 'Blast radius +', name: 'Sức mạnh', glyph: 'sword', cost: g => 120 + g * 90,  desc: 'Bán kính nổ +' },
   { id: 'spirit',  name_en: 'Spirit', desc_en: 'Vitality endurance +', name: 'Ý chí',    glyph: 'heart', cost: g => 100 + g * 80,  desc: 'Sinh lực bền +' },
   { id: 'fortune', name_en: 'Fortune', desc_en: 'Special gems +', name: 'May mắn',  glyph: 'star', cost: g => 150 + g * 110, desc: 'Gem đặc biệt +' },
-  { id: 'breath',  name_en: 'Breath', desc_en: 'Skill recharge +', name: 'Hơi lửa',  glyph: 'flame', cost: g => 180 + g * 130, desc: 'Hồi kỹ năng +' },
+  { id: 'breath',  name_en: 'Chirp', desc_en: 'Skill recharge +', name: 'Tiếng gáy',  glyph: 'chirp', cost: g => 180 + g * 130, desc: 'Hồi kỹ năng +' },
 ];

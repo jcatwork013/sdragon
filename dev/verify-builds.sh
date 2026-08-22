@@ -37,7 +37,8 @@ if [ -n "$APKFILE" ]; then
   check "APK" "$T/apk/assets/public"
 fi
 for pair in "macOS|dist/mac-arm64/$PROD.app/Contents/Resources/app.asar" \
-            "Windows|dist/win-unpacked/resources/app.asar"; do
+            "Windows|dist/win-unpacked/resources/app.asar" \
+            "Linux|dist/linux-unpacked/resources/app.asar"; do
   label=${pair%%|*}; asar=${pair##*|}
   if [ -f "$asar" ]; then
     :

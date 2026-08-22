@@ -1,8 +1,8 @@
 {
   "name": "CRICKO \u2014 Mi\u1ec1n C\u1ecf Ch\u00e1y",
   "short_name": "Cricko",
-  "description": "Match-3 nu\u00f4i r\u1ed3ng: ch\u1ecdn tr\u1ee9ng, \u1ea5p n\u1edf, gh\u00e9p \u0111\u00e1 qu\u00fd v\u00e0 hu\u1ea5n luy\u1ec7n r\u1ed3ng c\u1ee7a b\u1ea1n.",
-  "id": "/sdrakon/",
+  "description": "Match-3 nu\u00f4i d\u1ebf: ch\u1ecdn tr\u1ee9ng, \u1ea5p n\u1edf, gh\u00e9p \u0111\u00e1 v\u00e0 hu\u1ea5n luy\u1ec7n ch\u00fa d\u1ebf c\u1ee7a b\u1ea1n.",
+  "id": "/cricko/",
   "start_url": "./index.html",
   "scope": "./",
   "display": "fullscreen",

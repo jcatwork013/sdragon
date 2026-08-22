@@ -1,19 +1,17 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  GHÉP ĐÔI — lật thẻ tìm cặp giống nhau.                                  ║
+// ║  NỐI CẶP — tìm hai hình giống nhau và nối bằng đường tối đa hai góc.      ║
 // ║                                                                          ║
-// ║  Luật: cả bàn úp sấp. Lật hai thẻ; giống nhau thì cặp đó biến mất và ăn   ║
-// ║  điểm, khác nhau thì úp lại. Lật liên tiếp trúng thì nhân điểm tăng dần,  ║
-// ║  nên nhớ mặt thẻ có lợi thật chứ không phải may rủi.                      ║
+// ║  Đường nối được đi qua ô trống và vòng ngoài bàn. Nối liên tiếp trúng     ║
+// ║  thì nhân điểm tăng dần; khi bí, bàn tự xáo để ván không bị kẹt.          ║
 // ║                                                                          ║
 // ║  HÌNH TRÊN THẺ lấy từ chính bộ đá quý và nguyên liệu của game — tất cả    ║
 // ║  đều vẽ bằng code trong repo này, nên không mượn hình của ai.             ║
 // ║                                                                          ║
-// ║  Thẻ dựng kiểu 2.5D: có BỆ dày phía dưới, mặt bóng, và lật bằng cách bóp  ║
-// ║  ngang (scaleX) — qua giữa chừng thì đổi mặt, mắt đọc ra là thẻ đang xoay.║
+// ║  Ô dựng kiểu 2.5D, có mặt bóng; đường nối neon chạy sáng qua từng góc.     ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect, mulberry32 } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, textBtn, glassPanel, statBar, roundBtn, icon, matIcon, frostCard, starBar, resultBanner, C, FONT } from '../ui/widgets.js';
+import { Hit, textBtn, glassPanel, statBar, roundBtn, icon, matIcon, frostCard, starBar, resultBanner, C, FONT , heroCardScene, heroFit } from '../ui/widgets.js';
 import { drawGem, GEMS, ensureGemSprites } from '../game/gems.js';
 import { MAT_LIST } from '../data/gear.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
@@ -40,8 +38,11 @@ export default {
     this.bravo = null; this.bravoGold = 0;
     this.hitGoal = false; this.goalT = 0;
     this.streak = 0; this.best = 0;
-    this.first = null; this.lock = 0;
+    this.selected = null; this.lock = 0;
     this.shake = 0; this.praise = null; this.praiseT = 0;
+    this.toast = ''; this.toastT = 0; this.linkFx = null;
+    this.hints = 2; this.hintPair = null; this.shuffleT = 0;
+    this.pendingClear = false; this.shuffleQueued = false;
 
     // Cỡ bàn lớn dần theo màn, nhưng chặn trần để không thành bài tập trí nhớ
     // dài lê thê — vui nằm ở nhịp lật nhanh, không ở số lượng thẻ.
@@ -68,9 +69,13 @@ export default {
       const j = (R() * (i + 1)) | 0; const tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp;
     }
     this.cards = pool.map((face, i) => ({
-      face, up: 0, gone: 0, wrong: 0, seed: R() * TAU,
+      face, gone: 0, wrong: 0, seed: R() * TAU, appear: 0,
       c: i % this.cols, r: (i / this.cols) | 0,
     }));
+
+    // Bàn bốc ngẫu nhiên có thể chưa có cặp nối được ngay. Xáo kín trước khi
+    // hiện để nước đầu luôn tồn tại; người chơi không phải chịu một bàn chết.
+    this.ensurePlayable();
 
     this.relayout(G);
     G.music('battle');
@@ -83,15 +88,18 @@ export default {
     COMPACT = W < 1180;
     const CW2 = 250, HW2 = COMPACT ? 286 : 306, G1 = 18, G3 = 18;
     const room = W - (COMPACT ? 0 : CW2 + G1) - HW2 - G3 - 32;
-    const bw = clamp(Math.min(this.cols * 116 + 40, room), 320, 660);
-    const bh = Math.min(this.rows * 126 + 40, 476);
+    // Nới trần: bàn lật thẻ cũ chỉ cao 476 trong dải 720, phí gần một phần ba.
+    const bw = clamp(Math.min(this.cols * 132 + 40, room), 320, 780);
+    const bh = Math.min(this.rows * 142 + 40, 592);
     const total = (COMPACT ? 0 : CW2 + G1) + bw + G3 + HW2;
     const margin = Math.max(16, Math.round((W - total) / 2));
     CARDX = COMPACT ? -9999 : margin;
     FX_ = margin + (COMPACT ? 0 : CW2 + G1);
     HUDX = FX_ + bw + G3; HUDW = HW2;
-    FW = bw; FH = bh; FY_ = 132;
-    this.cell = Math.min((FW - 40) / this.cols, (FH - 40) / this.rows);
+    FW = bw; FH = bh; FY_ = Math.round(78 + (684 - 78 - bh) / 2);
+    // Chừa nửa ô ở cả bốn cạnh cho đường nối được vòng RA NGOÀI bàn — luật
+    // quen thuộc của game nối cặp và cũng giúp các đường biên dễ đọc hơn.
+    this.cell = Math.min((FW - 30) / (this.cols + 1), (FH - 30) / (this.rows + 1));
     // hình trên thẻ là đá quý — dựng sprite đúng cỡ hiển thị cho sắc nét
     ensureGemSprites(this.cell * .70 * (G.dpr || 1.5));
     this.ox = FX_ + (FW - this.cell * this.cols) / 2;
@@ -99,6 +107,7 @@ export default {
     this.hits = [
       new Hit('pause', G.W - 78, 12, 52, 52, { circle: true, act: () => { this.paused = !this.paused; G.sfx('button'); } }),
       new Hit('quit',  G.W - 140, 12, 52, 52, { circle: true, act: () => G.go('map') }),
+      new Hit('hint', HUDX + 18, 480, HUDW - 36, 50, { act: () => this.showHint(G) }),
     ];
   },
 
@@ -108,47 +117,144 @@ export default {
     return this.cards.find(k => k.c === c && k.r === r) || null;
   },
 
+  /**
+   * Tìm đường nối tối đa 2 lần rẽ trên lưới có thêm một vành trống bên ngoài.
+   * BFS giữ cả hướng đang đi và số góc đã dùng; trả về các điểm đã rút gọn để
+   * renderer vẽ đúng đường gấp khúc, hoặc null nếu hai ô đang bị chặn.
+   */
+  findPath(a, b) {
+    if (!a || !b || a === b || a.gone || b.gone || a.face !== b.face) return null;
+    const W = this.cols + 2, H = this.rows + 2;
+    const sx = a.c + 1, sy = a.r + 1, tx2 = b.c + 1, ty2 = b.r + 1;
+    const dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+    const occupied = (x, y) => {
+      if (x <= 0 || y <= 0 || x >= W - 1 || y >= H - 1) return false;
+      const k = this.cards.find(c => c.c === x - 1 && c.r === y - 1);
+      return !!(k && !k.gone && !k.matched && k !== a && k !== b);
+    };
+    const q = [], seen = new Map();
+    for (let d = 0; d < 4; d++) {
+      const nx = sx + dirs[d][0], ny = sy + dirs[d][1];
+      if (nx < 0 || ny < 0 || nx >= W || ny >= H || occupied(nx, ny)) continue;
+      q.push({ x: nx, y: ny, d, turns: 0, path: [[sx, sy], [nx, ny]] });
+      seen.set(`${nx},${ny},${d}`, 0);
+    }
+    let found = null;
+    for (let qi = 0; qi < q.length; qi++) {
+      const cur = q[qi];
+      if (cur.x === tx2 && cur.y === ty2) { found = cur.path; break; }
+      for (let nd = 0; nd < 4; nd++) {
+        if ((nd + 2) % 4 === cur.d) continue;       // quay đầu chỉ tạo vòng vô ích
+        const turns = cur.turns + (nd === cur.d ? 0 : 1);
+        if (turns > 2) continue;
+        const nx = cur.x + dirs[nd][0], ny = cur.y + dirs[nd][1];
+        if (nx < 0 || ny < 0 || nx >= W || ny >= H || occupied(nx, ny)) continue;
+        const key = `${nx},${ny},${nd}`;
+        if ((seen.get(key) ?? 9) <= turns) continue;
+        seen.set(key, turns);
+        q.push({ x: nx, y: ny, d: nd, turns, path: [...cur.path, [nx, ny]] });
+      }
+    }
+    if (!found) return null;
+    const compact = [found[0]];
+    for (let i = 1; i < found.length - 1; i++) {
+      const p = found[i - 1], c = found[i], n = found[i + 1];
+      if ((c[0] - p[0]) !== (n[0] - c[0]) || (c[1] - p[1]) !== (n[1] - c[1])) compact.push(c);
+    }
+    compact.push(found[found.length - 1]);
+    return compact.map(([x, y]) => [this.ox + (x - .5) * this.cell, this.oy + (y - .5) * this.cell]);
+  },
+
+  findAvailablePair() {
+    const live = this.cards.filter(k => !k.gone && !k.matched);
+    for (let i = 0; i < live.length; i++)
+      for (let j = i + 1; j < live.length; j++)
+        if (live[i].face === live[j].face) {
+          const path = this.findPath(live[i], live[j]);
+          if (path) return { a: live[i], b: live[j], path };
+        }
+    return null;
+  },
+
+  ensurePlayable() {
+    if (this.findAvailablePair()) return true;
+    const live = this.cards.filter(k => !k.gone && !k.matched);
+    for (let tries = 0; tries < 80; tries++) {
+      const faces = live.map(k => k.face);
+      for (let i = faces.length - 1; i > 0; i--) {
+        const j = (Math.random() * (i + 1)) | 0;
+        [faces[i], faces[j]] = [faces[j], faces[i]];
+      }
+      live.forEach((k, i) => { k.face = faces[i]; });
+      if (this.findAvailablePair()) return true;
+    }
+    return false;
+  },
+
+  reshuffle(G) {
+    this.selected = null; this.hintPair = null; this.shuffleQueued = false;
+    this.ensurePlayable(); this.shuffleT = .55;
+    this.toast = t('pairShuffled'); this.toastT = 1.5;
+    G.sfx('special'); G.fx.shake(8);
+    for (const k of this.cards) if (!k.gone && !k.matched) k.appear = .25;
+  },
+
+  showHint(G) {
+    if (this.over || this.paused || this.lock > 0) return;
+    if (this.hints <= 0) { G.sfx('invalid'); this.toast = t('pairNoHints'); this.toastT = 1.2; return; }
+    const pair = this.findAvailablePair();
+    if (!pair) { this.reshuffle(G); return; }
+    this.hints--; this.hintPair = { ...pair, t: 2.2 };
+    G.sfx('select');
+  },
+
   up(G, x, y) {
     if (this.over || this.paused || this.bravo || this.lock > 0) return;
     const k = this.cardAt(x, y);
-    if (!k || k.gone || k.up > .5) return;
-    k.up = 0.001;
+    if (!k || k.gone || k.matched) return;
     G.sfx('select');
-    if (!this.first) { this.first = k; return; }
+    if (!this.selected) { this.selected = k; return; }
+    if (this.selected === k) { this.selected = null; return; }
 
-    const a = this.first, b = k;
-    this.first = null;
+    const a = this.selected, b = k;
+    this.selected = null;
     this.flipsLeft--;
-    if (a.face === b.face) {
-      this.lock = .28;
+    const path = this.findPath(a, b);
+    if (path) {
+      this.lock = .38;
       a.matched = b.matched = true;
+      a.removeDelay = b.removeDelay = .28;
+      this.linkFx = { points: path, t: 0, dur: .52, col: GEMS[a.face % GEMS.length].lite };
       this.streak++;
       this.best = Math.max(this.best, this.streak);
       const mult = 1 + (this.streak - 1) * .5;
       const gain = Math.round(320 * mult);
-      this.score += gain; this.gold += Math.round(gain / 26);
+      this.score += gain; this.gold += Math.round(gain / 46);
       this.left--;
       const [px, py] = this.centre(a), [qx, qy] = this.centre(b);
       G.fx.float((px + qx) / 2, (py + qy) / 2 - 20, '+' + gain,
         { size: 26 + Math.min(this.streak, 5) * 4, fill: '#fff6c4', stroke: '#6b3a00' });
       for (const [cx, cy] of [[px, py], [qx, qy]]) {
-        G.fx.burst(cx, cy, GEMS[a.face % GEMS.length], 10, 1.1);
-        G.fx.ring(cx, cy, '#ffe9a8', 6, 110, .38, 9);
+        G.fx.burst(cx, cy, GEMS[a.face % GEMS.length], 14, 1.15);
+        G.fx.ring(cx, cy, '#ffe9a8', 6, 120, .42, 9);
       }
       G.sfx('match', Math.min(this.streak - 1, 4));
       if (this.streak >= 2) { this.praise = t('pairStreak', { n: this.streak }); this.praiseT = 1.1; }
       G.hero.react('happy', .6);
       if (!this.hitGoal && this.score >= G.level.target) {
         this.hitGoal = true; this.goalT = 1.6;
-        G.sfx('levelup'); G.hero.breatheFire(.9); G.fx.shake(10);
+        G.sfx('levelup'); G.hero.chirpBurst(.9); G.fx.shake(10);
         this.showFinishNow(G);
       }
-      if (this.left <= 0) this.startBravo(G, t('pairCleared'));
+      if (this.left <= 0) this.pendingClear = true;
+      else if (!this.findAvailablePair()) this.shuffleQueued = true;
     } else {
-      this.lock = .78;
+      this.lock = .42;
       a.wrong = b.wrong = 1;
       this.streak = 0;
       this.shake = .35;
+      this.toast = a.face === b.face ? t('pairBlocked') : t('pairNotSame');
+      this.toastT = 1.15;
       G.sfx('invalid');
     }
   },
@@ -158,7 +264,7 @@ export default {
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
     this.hits.push(new Hit('finishNow', HUDX + 16, 596, HUDW - 32, 52,
-      { act: () => this.startBravo(G, t('outOfMoves')) }));
+      { act: () => this.startBravo(G, t('pairOutOfTries')) }));
   },
 
   startBravo(G, why) {
@@ -167,7 +273,7 @@ export default {
     this.bravo = {
       why, t: 0, next: .35, stage: 1,
       flips: Math.max(0, this.flipsLeft), time: Math.max(0, Math.floor(this.timeLeft)),
-      perFlip: 18, perSec: 4, gained: 0,
+      perFlip: 10, perSec: 2, gained: 0,
     };
     G.sfx('levelup');
   },
@@ -206,7 +312,7 @@ export default {
     if (this.over || this.bravo) return;
     const won = this.score >= G.level.target;
     if (this.timeLeft <= 0) return won ? this.startBravo(G, t('outOfTime')) : this.finish(G, false, t('outOfTime'));
-    if (this.flipsLeft <= 0) return won ? this.startBravo(G, t('outOfMoves')) : this.finish(G, false, t('outOfMoves'));
+    if (this.flipsLeft <= 0) return won ? this.startBravo(G, t('pairOutOfTries')) : this.finish(G, false, t('pairOutOfTries'));
   },
 
   finish(G, win, why = '') {
@@ -229,6 +335,7 @@ export default {
       this.penaltyGold = Math.round(S.gold * 0.12);
       S.gold = Math.max(0, S.gold - this.penaltyGold);
       G.persist();
+      G.spendFed(G.FED_LOSE);            // thua cũng mất sức → thử lại có giá
       G.sess.losses++; G.sess.streak = 0;
       G.sfx('lose'); G.hero.react('hurt', 2);
     }
@@ -249,30 +356,42 @@ export default {
     G.hero.update(dt);
     G.world.update(dt, 0);
     if (this.praiseT > 0) this.praiseT -= dt;
+    if (this.toastT > 0) this.toastT -= dt;
     if (this.goalT > 0) this.goalT -= dt;
     if (this.shake > 0) this.shake -= dt;
+    if (this.shuffleT > 0) this.shuffleT -= dt;
+    if (this.linkFx && (this.linkFx.t += dt) >= this.linkFx.dur) this.linkFx = null;
+    if (this.hintPair && (this.hintPair.t -= dt) <= 0) this.hintPair = null;
     if (this.over) { this.overT += dt; return; }
     if (this.bravo) { this.tickBravo(G, dt); return; }
     if (this.paused) return;
 
-    // lật mở / úp lại
+    // Ô mới nảy vào; cặp đã nối chờ vệt sáng chạy xong rồi mới bay khỏi bàn.
     for (const k of this.cards) {
-      const want = k.gone ? 0 : (k.matched || k.up > 0) ? 1 : 0;
-      if (k.up > 0 && k.up < 1 && !k.gone) k.up = Math.min(1, k.up + dt * 5.5);
-      if (k.matched && k.up >= 1) { k.gone = Math.min(1, (k.gone || 0.001) + dt * 2.4); }
+      k.appear = Math.min(1, (k.appear || 0) + dt * 5.8);
+      if (k.matched) {
+        k.removeDelay = Math.max(0, (k.removeDelay || 0) - dt);
+        if (k.removeDelay <= 0) k.gone = Math.min(1, (k.gone || 0.001) + dt * 3.1);
+      }
       if (k.wrong) k.wrong = Math.max(0, k.wrong - dt * 1.6);
     }
     if (this.lock > 0) {
       this.lock -= dt;
-      if (this.lock <= 0) for (const k of this.cards) if (!k.matched && k.up > 0) k.up = 0;
+      if (this.lock <= 0) {
+        if (this.pendingClear) { this.pendingClear = false; this.startBravo(G, t('pairCleared')); return; }
+        if (this.shuffleQueued) this.reshuffle(G);
+      }
     }
 
     this.timeLeft = Math.max(0, this.timeLeft - dt);
     if (this.timeLeft <= 0) { this.checkEnd(G); return; }
-    if (this.flipsLeft <= 0 && this.lock <= 0 && !this.first) this.checkEnd(G);
+    if (this.flipsLeft <= 0 && this.lock <= 0 && !this.selected) this.checkEnd(G);
   },
 
-  key(G, e) { if (e.key === 'Escape' || e.key === 'p') this.paused = !this.paused; },
+  key(G, e) {
+    if (e.key === 'Escape' || e.key === 'p') this.paused = !this.paused;
+    if (e.key === 'h') this.showHint(G);
+  },
 
   draw(G, ctx) {
     const { W, H } = G, S = G.save, L = G.level;
@@ -288,6 +407,7 @@ export default {
     ctx.save();
     if (this.shake > 0) ctx.translate(Math.sin(this.t * 60) * this.shake * 10, 0);
     for (const k of this.cards) this.drawCard(ctx, k);
+    this.drawLink(ctx);
     ctx.restore();
 
     if (!COMPACT) this.drawHeroCard(G, ctx);
@@ -299,8 +419,21 @@ export default {
 
     if (this.praiseT > 0 && this.praise) {
       ctx.save(); ctx.globalAlpha = clamp(this.praiseT, 0, 1);
-      strokeText(ctx, this.praise, FX_ + FW / 2, FY_ + 40,
-        { font: FONT.disp(30), fill: '#ffe066', stroke: '#3a2000', lw: 6, baseline: 'middle' });
+      const pop = ease.outBack(clamp((1.1 - this.praiseT) / .22, 0, 1));
+      ctx.translate(FX_ + FW / 2, FY_ + 22); ctx.scale(pop, pop);
+      strokeText(ctx, this.praise, 0, 0,
+        { font: FONT.disp(28), fill: '#ffe066', stroke: '#3a2000', lw: 6, baseline: 'middle' });
+      ctx.restore();
+    }
+    if (this.toastT > 0 && this.toast) {
+      const a = clamp(this.toastT, 0, 1);
+      ctx.save(); ctx.globalAlpha = a; ctx.font = FONT.ui(13, 800);
+      const tw = Math.min(FW - 40, ctx.measureText(this.toast).width + 44);
+      const tx0 = FX_ + FW / 2 - tw / 2, ty0 = FY_ + FH - 39;
+      roundRect(ctx, tx0, ty0, tw, 30, 15); ctx.fillStyle = 'rgba(35,20,62,.92)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(190,165,255,.72)'; ctx.lineWidth = 2; ctx.stroke();
+      strokeText(ctx, this.toast, FX_ + FW / 2, ty0 + 15,
+        { font: FONT.ui(13, 800), fill: '#fff6e8', stroke: null, lw: 0, baseline: 'middle', shadow: null });
       ctx.restore();
     }
     if (this.bravo) this.drawBravo(G, ctx);
@@ -313,61 +446,88 @@ export default {
     if (this.over) this.drawOver(G, ctx);
   },
 
-  /** Một tấm thẻ 2.5D: bệ dày · mặt bóng · lật bằng cách bóp ngang. */
+  /** Ô nối cặp 2.5D: mặt luôn mở, trạng thái chọn/gợi ý có vòng sáng riêng. */
   drawCard(ctx, k) {
     if (k.gone >= 1) return;
     const [cx, cy] = this.centre(k);
     const s = this.cell * .86;
-    const flip = k.up;                       // 0 = úp sấp, 1 = ngửa
-    const squash = Math.abs(Math.cos(flip * Math.PI));   // qua giữa thì mỏng dính
-    const showFace = flip > .5;
-    const pop = k.gone ? 1 + k.gone * .5 : 1;
+    const selected = this.selected === k;
+    const hinted = this.hintPair && (this.hintPair.a === k || this.hintPair.b === k);
+    const pop = (k.gone ? 1 + k.gone * .42 : 1) * ease.outBack(clamp(k.appear || 0, 0, 1));
     const fade = k.gone ? 1 - k.gone : 1;
     const wob = k.wrong ? Math.sin(this.t * 40) * k.wrong * 5 : 0;
+    const lift = selected ? 5 + Math.sin(this.t * 8) * 1.5 : hinted ? 3 + Math.sin(this.t * 10) * 2 : 0;
 
     ctx.save();
     ctx.globalAlpha = fade;
-    ctx.translate(cx + wob, cy - (k.gone ? k.gone * 26 : 0));
+    ctx.translate(cx + wob, cy - lift - (k.gone ? k.gone * 30 : 0));
     ctx.scale(pop, pop);
-    ctx.scale(Math.max(.04, squash), 1);
-    const w = s, h = s * 1.14, r = s * .16;
+    if (this.shuffleT > 0) ctx.rotate(Math.sin((k.c + k.r * 2) * 1.7 + this.t * 24) * this.shuffleT * .18);
+    const w = s, h = s * .92, r = s * .17;
+
+    if (selected || hinted) {
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      const rr = Math.max(w, h) * (.68 + .05 * Math.sin(this.t * 8));
+      const halo = ctx.createRadialGradient(0, 0, w * .20, 0, 0, rr);
+      halo.addColorStop(0, selected ? 'rgba(255,226,90,.52)' : 'rgba(130,245,255,.48)');
+      halo.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, rr, 0, TAU); ctx.fill();
+      ctx.restore();
+    }
 
     // bệ dày phía dưới — thứ làm thẻ ra khối chứ không phải hình dán
     roundRect(ctx, -w / 2, -h / 2 + 7, w, h, r);
-    ctx.fillStyle = showFace ? '#6b4a9a' : '#2a2140'; ctx.fill();
+    ctx.fillStyle = selected ? '#a55b0e' : '#67448e'; ctx.fill();
 
     roundRect(ctx, -w / 2, -h / 2, w, h, r);
     const g = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
-    if (showFace) { g.addColorStop(0, '#fff6e2'); g.addColorStop(1, '#dcc8f0'); }
-    else { g.addColorStop(0, '#5a4a86'); g.addColorStop(1, '#312452'); }
+    g.addColorStop(0, selected ? '#fff6bd' : '#fff9ed');
+    g.addColorStop(1, selected ? '#ffc85c' : '#d9c7ee');
     ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = k.wrong ? '#ff5f7a' : showFace ? '#8a5fd0' : '#1d1633';
-    ctx.lineWidth = k.wrong ? 4 : 3; ctx.stroke();
+    ctx.strokeStyle = k.wrong ? '#ff3157' : selected ? '#ffe066' : hinted ? '#73e9ff' : '#8a5fd0';
+    ctx.lineWidth = k.wrong || selected || hinted ? 4 : 3; ctx.stroke();
 
     ctx.save();
     roundRect(ctx, -w / 2, -h / 2, w, h, r); ctx.clip();
     ctx.fillStyle = 'rgba(255,255,255,.30)';
     roundRect(ctx, -w / 2 + w * .10, -h / 2 + h * .07, w * .80, h * .22, r * .7); ctx.fill();
-    if (showFace) {
-      ctx.save();
-      const F = FACES[k.face % FACES.length];
-      if (F.kind === 'gem') drawGem(ctx, F.i, 0, h * .04, s * .70, { t: this.t, seed: k.seed });
-      else { ctx.translate(0, h * .04); matIcon(ctx, F.id, s * .62, F.col); }
-      ctx.restore();
-    } else {
-      // hoa văn mặt lưng — chevron lá cỏ, hình riêng của game
-      ctx.strokeStyle = 'rgba(190,165,255,.34)'; ctx.lineWidth = s * .045; ctx.lineCap = 'round';
-      for (let i = -2; i <= 2; i++) {
-        ctx.beginPath();
-        ctx.moveTo(-w * .26, i * s * .20 + s * .10);
-        ctx.lineTo(0, i * s * .20 - s * .04);
-        ctx.lineTo(w * .26, i * s * .20 + s * .10);
-        ctx.stroke();
-      }
-      ctx.fillStyle = 'rgba(255,214,110,.5)';
-      ctx.beginPath(); ctx.arc(0, 0, s * .10, 0, TAU); ctx.fill();
+    ctx.save();
+    const F = FACES[k.face % FACES.length];
+    if (F.kind === 'gem') drawGem(ctx, F.i, 0, h * .03, s * .64, { t: this.t, seed: k.seed });
+    else { ctx.translate(0, h * .03); matIcon(ctx, F.id, s * .57, F.col); }
+    ctx.restore();
+    ctx.restore();
+
+    // Dấu chọn nhỏ ở góc giúp thao tác bằng ngón tay rõ ràng ngay cả khi tay
+    // đang che giữa ô.
+    if (selected) {
+      ctx.fillStyle = '#3fbf4a'; ctx.beginPath(); ctx.arc(w * .35, -h * .34, s * .12, 0, TAU); ctx.fill();
+      ctx.strokeStyle = '#164f20'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(w * .30, -h * .34); ctx.lineTo(w * .34, -h * .29); ctx.lineTo(w * .41, -h * .39); ctx.stroke();
     }
     ctx.restore();
+  },
+
+  /** Vệt nối neon chạy từ ô đầu tới ô cuối, nổ một đốm sáng qua từng góc. */
+  drawLink(ctx) {
+    const f = this.linkFx;
+    if (!f || f.points.length < 2) return;
+    const k = clamp(f.t / f.dur, 0, 1), fade = 1 - ease.inQuad(k);
+    ctx.save(); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    ctx.shadowColor = f.col; ctx.shadowBlur = 20;
+    ctx.strokeStyle = `rgba(255,255,255,${.92 * fade})`; ctx.lineWidth = 9 - k * 3;
+    ctx.beginPath(); f.points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.stroke();
+    ctx.shadowBlur = 8; ctx.strokeStyle = f.col; ctx.lineWidth = 4;
+    ctx.setLineDash([14, 9]); ctx.lineDashOffset = -f.t * 160;
+    ctx.stroke(); ctx.setLineDash([]);
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [x, y] of f.points) {
+      const r = 7 + Math.sin(k * Math.PI) * 9;
+      const gg = ctx.createRadialGradient(x, y, 0, x, y, r * 2.2);
+      gg.addColorStop(0, `rgba(255,255,255,${fade})`); gg.addColorStop(.35, f.col); gg.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(x, y, r * 2.2, 0, TAU); ctx.fill();
+    }
     ctx.restore();
   },
 
@@ -376,12 +536,12 @@ export default {
     ctx.save();
     roundRect(ctx, x, y, w, h, R); ctx.fillStyle = '#fff'; ctx.fill();
     ctx.save(); roundRect(ctx, x + 5, y + 5, w - 10, h - 10, R - 6); ctx.clip();
-    const g = ctx.createLinearGradient(0, y, 0, y + h);
-    g.addColorStop(0, '#8fc6f5'); g.addColorStop(.5, '#cfe9ff'); g.addColorStop(1, '#f7d9a8');
-    ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = '#79ae62';
-    ctx.beginPath(); ctx.ellipse(x + w * .5, y + h * 1.0, w * .85, h * .27, 0, 0, TAU); ctx.fill();
-    G.hero.draw(ctx, x + w * .58, y + h * .60, 100, 1);
+    heroCardScene(ctx, x, y, w, h, this.t || 0);
+    ctx.save(); ctx.globalAlpha = .22; ctx.fillStyle = '#2c3a1c';
+    ctx.beginPath(); ctx.ellipse(x + w * .54, y + h * .66, w * .30, h * .033, 0, 0, TAU); ctx.fill();
+    ctx.restore();
+    // Nhích lên .52: để .60 thì chân dế thò xuống dưới tấm kính mờ, bị che mất.
+    G.hero.draw(ctx, x + w * .54, y + h * .52, heroFit(w, stageFor(G.save.xp).scale), 1);
     const px = x + 12, pw = w - 24, ph = 92, py = y + h - ph - 12;
     frostCard(ctx, px, py, pw, ph, 18);
     ctx.restore();
@@ -412,7 +572,7 @@ export default {
     const mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
     statBar(ctx, x + 18, y + 174, w - 36, 44, clamp(this.timeLeft / this.timeMax, 0, 1), icon.clock,
       { label: `${mm}:${String(ss).padStart(2, '0')}` });
-    strokeText(ctx, t('pairFlips'), x + 22, y + 250,
+    strokeText(ctx, t('pairTries'), x + 22, y + 250,
       { font: FONT.ui(15, 700), fill: '#6a5a86', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
     strokeText(ctx, String(this.flipsLeft), x + w - 22, y + 250,
       { font: FONT.disp(32), fill: this.flipsLeft <= 4 ? '#e8384f' : '#2b1740', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
@@ -421,6 +581,13 @@ export default {
     if (this.best >= 2)
       strokeText(ctx, t('pairBest', { n: this.best }), x + w / 2, y + 322,
         { font: FONT.ui(14, 700), fill: '#3fbf4a', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+
+    const hint = this.hits.find(h => h.id === 'hint');
+    if (hint) textBtn(ctx, hint.x, hint.y, hint.w, hint.h, t('pairHint', { n: this.hints }), {
+      press: hint.press, hover: hint.hover,
+      colour: this.hints > 0 ? '#7560c8' : '#77788a', dark: this.hints > 0 ? '#3e2d82' : '#454653',
+      lite: this.hints > 0 ? '#b9a8ff' : '#a9aab4', font: FONT.disp(18),
+    });
 
     const fin = this.hits.find(h => h.id === 'finishNow');
     if (fin) {

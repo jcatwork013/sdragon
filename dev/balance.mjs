@@ -18,7 +18,7 @@ globalThis.requestAnimationFrame = () => 0;
 
 await import(new URL('../js/main.js', import.meta.url).href);
 await new Promise(r => setTimeout(r, 120));
-const G = globalThis.window.SDRAKON;
+const G = globalThis.window.CRICKO;
 const { ALL_LEVELS } = await import(new URL('../js/data/levels.js', import.meta.url).href);
 
 const TRIALS = Number(process.argv[2] || 30);
@@ -34,10 +34,11 @@ console.log('Man | target | thang |  p25   p50   p75  | sao TB | gucNga/hetGio |
 console.log('----+--------+-------+-------------------+--------+---------------+---------');
 const rates = [];
 for (let i = 0; i < LEVELS_TO_TEST; i += STEP) {
-  if (ALL_LEVELS[i].mode === 'shoot') continue;      // công cụ này chỉ đo chế độ Ghép Đá
+  if (ALL_LEVELS[i].mode !== 'match3') continue;     // công cụ này chỉ đo chế độ Ghép Đá
   let wins = 0, starSum = 0, vit = 0, moves0 = 0;
   const scores = [];
   for (let k = 0; k < TRIALS; k++) {
+    G.save.fed = G.FED_MAX;  // mô phỏng không đo thể lực — luôn no để đo đúng độ khó màn
     G.startLevel(i, true);   // bỏ qua hoạt cảnh
     const s = G.scene;
     let think = 0, frames = 0;

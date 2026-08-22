@@ -8,6 +8,7 @@ import { Hit, textBtn, card, glassPanel, roundBtn, icon, matIcon, sunburst, pill
 import { MOVES, beats, makeFoe, heroPower, rankById } from '../data/duel.js';
 import { pickOuch } from '../data/beats.js';
 import { Enemy, ENEMIES } from '../game/enemy.js';
+import { Cricket } from '../game/cricket.js';
 import { BREEDS, stageFor } from '../data/characters.js';
 import { rollMats, addMats, MATS } from '../data/gear.js';
 import { bleed } from '../core/layout.js';
@@ -26,14 +27,31 @@ export default {
     this.me = heroPower(G.save);
     this.hp = this.me.hp; this.maxHp = this.me.hp;
     this.foe = makeFoe(G.save, arg.bias || 1);
-    this.foeArt = new Enemy(this.foe.def.art, 1);
-    // Trộn bảng DARK đè lên bảng ENEMIES sẽ ghi đè luôn cả `id` — mà hàm vẽ
-    // lại rẽ nhánh theo `id`. Hậu quả: MỌI đối thủ hắc ám đều ra con kiến,
-    // kể cả Nhện Goá Phụ hay Bọ Ngựa Xám. Giữ lại id của LOÀI để vẽ đúng hình.
-    this.foeArt.def = { ...ENEMIES[this.foe.def.art], ...this.foe.def, id: this.foe.def.art };
-    this.foeArt.maxHp = this.foe.max; this.foeArt.hp = this.foe.hp;
+    if (this.foe.def.cricket) {
+      // Đối thủ là DẾ: vẽ bằng hàm vẽ nhân vật, bọc lại cho khớp API của Enemy
+      // (damage/update/draw) để phần còn lại của màn không phải rẽ nhánh.
+      const rival = new Cricket(this.foe.def.breed, 5200);
+      rival.gear = {};
+      this.foeArt = {
+        rival,
+        def: this.foe.def,
+        damage: (d) => { rival.react('hurt', .7); if (this.foe.hp <= 0) rival.setPose('ko'); },
+        update: (dt) => rival.update(dt),
+        draw: (ctx, x, y, s) => rival.draw(ctx, x, y, s * .58, -1),
+      };
+    } else {
+      this.foeArt = new Enemy(this.foe.def.art, 1);
+      // Trộn bảng DARK đè lên bảng ENEMIES sẽ ghi đè luôn cả `id` — mà hàm vẽ
+      // lại rẽ nhánh theo `id`. Hậu quả: MỌI đối thủ hắc ám đều ra con kiến,
+      // kể cả Nhện Goá Phụ hay Bọ Ngựa Xám. Giữ lại id của LOÀI để vẽ đúng hình.
+      this.foeArt.def = { ...ENEMIES[this.foe.def.art], ...this.foe.def, id: this.foe.def.art };
+      this.foeArt.maxHp = this.foe.max; this.foeArt.hp = this.foe.hp;
+    }
 
     this.round = 0; this.charge = 0; this.streak = 0;
+    // Gồng nạp bằng THẮNG liên tiếp · Nộ nạp bằng ĂN ĐÒN. Hai thanh khác nhau:
+    // một cái thưởng cho người đang trên cơ, một cái gỡ cho người đang bị đè.
+    this.rage = 0; this.fury = false;
     // intro = màn VS · reveal = khoe chiêu · clash = lao vào nhau · resolve = ăn đòn
     this.phase = 'intro';
     this.introT = 0; this.clashT = 0; this.impacted = false;
@@ -94,15 +112,35 @@ export default {
   resolve(G) {
     const a = this.pickMine, b = this.pickFoe;
     const crit = (p) => Math.random() * 100 < p;
-    if (a === b) {                                   // hoà: cả hai sượt nhẹ
-      const d = Math.round(this.me.atk * .18);
-      this.hp -= d; this.foe.hp -= Math.round(this.foe.atk * .18);
-      this.push(t('duelTie'), '#c9b8ff');
-      G.sfx('tick');
+    const fury = this.fury;                          // hiệp này có nổi nộ không
+    if (a === b) {
+      // RA CÙNG MỘT ĐÒN = ĐỌ CÀNG, không phải hiệp trắng.
+      // Bản cũ cho cả hai sượt nhẹ 18% rồi thôi; ra cùng đòn xảy ra 1/3 số hiệp
+      // nên trận toàn những hiệp chẳng đi tới đâu — đúng cái "trùng nhau hoài".
+      // Nay ai khoẻ hơn thì đè được, thua đọ vẫn mất máu thật.
+      const mine = this.me.atk * rand(1.18, .82) * (fury ? 1.5 : 1);
+      const theirs = this.foe.atk * rand(1.18, .82);
+      if (mine >= theirs) {
+        const d = Math.round(this.me.atk * .55 * (fury ? 1.5 : 1));
+        this.foe.hp -= d; this.foeArt.damage(d);
+        this.lungeMe = 1; this.flash = .28;
+        this.push(t('duelClashWin') + ` -${d}`, '#8ef08a');
+        G.fx.float(this.pos(G).fx, GY - 120, '-' + d, { size: 30, fill: '#fff', stroke: '#5c0010' });
+        G.fx.shake(12); G.sfx('blast');
+        this.charge = Math.min(1, this.charge + 0.16 * this.me.charge);
+      } else {
+        const d = Math.round(this.foe.atk * .55);
+        this.hp -= d;
+        this.lungeFoe = 1; this.flash = .3;
+        this.push(t('duelClashLose') + ` -${d}`, '#ff7a90');
+        G.fx.float(this.pos(G).hx, GY - 120, '-' + d, { size: 28, fill: '#ffb0bc', stroke: '#5c0010' });
+        G.fx.shake(12); G.sfx('invalid'); G.hero.react('hurt', .8);
+        this.addRage(d);
+      }
       this.streak = 0;
     } else if (beats(a, b)) {                        // ta thắng thế
-      const boost = this.charge >= 1 ? 2 : 1;
-      const isCrit = crit(this.me.crit);
+      const boost = (this.charge >= 1 ? 2 : 1) * (fury ? 1.9 : 1);
+      const isCrit = crit(this.me.crit) || fury;
       const d = Math.round(this.me.atk * boost * (isCrit ? 1.7 : 1) * rand(1.1, .9));
       this.foe.hp -= d;
       this.lungeMe = 1; this.flash = .3;
@@ -116,9 +154,16 @@ export default {
       this.charge = Math.min(1, this.charge + 0.34 * this.me.charge);
       this.foeArt.damage(d);
     } else {                                         // địch thắng thế
-      const isCrit = crit(this.foe.crit);
-      const d = Math.round(this.foe.atk * (isCrit ? 1.6 : 1) * rand(1.1, .9));
+      const isCrit = crit(this.foe.crit) && !fury;
+      // Đang NỘ thì đau mấy cũng không đứng yên: chỉ ăn 45% đòn và vẫn quật lại.
+      const d = Math.round(this.foe.atk * (isCrit ? 1.6 : 1) * rand(1.1, .9) * (fury ? .45 : 1));
       this.hp -= d;
+      if (fury) {
+        const back = Math.round(this.me.atk * .6);
+        this.foe.hp -= back; this.foeArt.damage(back);
+        this.lungeMe = 1;
+        G.fx.float(this.pos(G).fx, GY - 150, '-' + back, { size: 26, fill: '#ffd45c', stroke: '#5c2a00' });
+      }
       this.lungeFoe = 1; this.flash = .35;
       this.push((isCrit ? t('duelCrit') + ' ' : '') + `-${d}`, '#ff7a90');
       G.fx.float(this.pos(G).hx, GY - 120, '-' + d, { size: isCrit ? 42 : 32, fill: '#ffb0bc', stroke: '#5c0010' });
@@ -138,11 +183,21 @@ export default {
       }
       this.streak = 0;
       this.charge = Math.max(0, this.charge - .12);
+      this.addRage(d);
     }
+    // Nộ chỉ giữ đúng MỘT hiệp: nổi lên, dứt điểm, rồi về 0.
+    if (fury) { this.fury = false; this.rage = 0; }
     this.hp = Math.max(0, this.hp);
     this.foe.hp = Math.max(0, this.foe.hp);
     if (this.foe.hp <= 0) return this.finish(G, true);
     if (this.hp <= 0) return this.finish(G, false);
+  },
+
+  /** Ăn đòn thì máu nóng lên. Đầy thanh là hiệp sau nổi điên. */
+  addRage(d) {
+    if (this.fury) return;
+    this.rage = clamp(this.rage + (d / this.maxHp) * 1.25, 0, 1);
+    if (this.rage >= 1) { this.fury = true; this.push(t('duelRageReady'), '#ff9a2b'); }
   },
 
   push(msg, col) { this.log.unshift({ msg, col, t: 0 }); this.log.length = Math.min(this.log.length, 4); },
@@ -162,14 +217,16 @@ export default {
     const S = G.save;
     if (win) {
       const RK = this.foe.rank || rankById('norm');
-      this.rewardGold = Math.round((120 + this.foe.power * 3.2) * RK.reward);
+      this.rewardGold = Math.round((70 + this.foe.power * 1.7) * RK.reward);
       this.rewardXp = Math.round((150 + this.foe.power * 2) * RK.reward);
       S.gold += this.rewardGold; S.xp += this.rewardXp;
-      if (Math.random() < .45) S.food += 1;
+      S.duelStreak = (S.duelStreak || 0) + 1;      // thắng liên tiếp → sân khấu đổi màu
+      if (Math.random() < .30) S.food += 1;
       this.matsGot = addMats(S, rollMats(1 + Math.round(this.foe.ratio * 2) + RK.mats, this.me.stage * 8));
       G.hero.xp = S.xp; G.persist();
       G.sfx('win'); G.hero.react('happy', 2.2); G.hero.setPose('taunt'); G.music('nest');
     } else if (!fled) {
+      S.duelStreak = 0;
       this.penaltyGold = Math.round(S.gold * .12);
       S.gold = Math.max(0, S.gold - this.penaltyGold);
       // Thua thì học được thói quen của nó — lần sau vào trận là đã biết trước.
@@ -304,6 +361,32 @@ export default {
     this.bar(ctx, W - 510, 128, 420, 30, this.foe.hp / this.foe.max, '#e8384f',
              `${Math.ceil(this.foe.hp)} / ${this.foe.max}`, tx(this.foe.def, 'name'), true);
 
+    // ── THANH NỘ ─────────────────────────────────────────────────────────
+    // Đặt ngay dưới thanh máu của mình: ăn đòn thì nó dâng lên, nhìn là hiểu
+    // "đau thì điên", không cần đọc hướng dẫn.
+    {
+      // Rộng 420 thì mép phải chui xuống dưới huy hiệu đòn vừa ra — cắt còn 330.
+      const rx = 90, ry = 166, rw = 330, rh = 20, on = this.fury;
+      roundRect(ctx, rx, ry, rw, rh, rh / 2);
+      ctx.fillStyle = 'rgba(12,7,22,.85)'; ctx.fill();
+      ctx.save(); roundRect(ctx, rx + 2, ry + 2, rw - 4, rh - 4, (rh - 4) / 2); ctx.clip();
+      const rg = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+      if (on) { rg.addColorStop(0, '#fff2a8'); rg.addColorStop(.5, '#ff9a2b'); rg.addColorStop(1, '#ff2f4e'); }
+      else { rg.addColorStop(0, '#ff7a3a'); rg.addColorStop(1, '#ff2f4e'); }
+      ctx.fillStyle = rg;
+      ctx.fillRect(rx + 2, ry + 2, (rw - 4) * (on ? 1 : clamp(this.rage, 0, 1)), rh - 4);
+      if (on) {
+        ctx.globalAlpha = .3; ctx.fillStyle = '#fff';
+        for (let i = -2; i < rw / 18 + 2; i++) ctx.fillRect(rx + i * 18 + ((this.t * 70) % 18), ry, 8, rh);
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+      ctx.strokeStyle = on ? `rgba(255,190,90,${.6 + .4 * Math.sin(this.t * 7)})` : 'rgba(255,140,90,.5)';
+      ctx.lineWidth = 2; roundRect(ctx, rx, ry, rw, rh, rh / 2); ctx.stroke();
+      strokeText(ctx, on ? t('duelRageOn') : t('duelRage'), rx + rw / 2, ry + rh / 2 + 1,
+        { font: FONT.ui(12, 800), fill: '#fff', stroke: '#5c1000', lw: 3, baseline: 'middle', shadow: null });
+    }
+
     // so sánh lực — cho biết trận này cân hay lệch
     const r = this.foe.ratio;
     const lbl = r < .95 ? t('duelWeaker') : r > 1.05 ? t('duelStronger') : t('duelEven');
@@ -326,6 +409,43 @@ export default {
       const k = clamp(this.phaseT / .34, 0, 1);
       this.moveBadge(ctx, P.hx + 150, 202, this.pickMine, ease.outBack(k), '#8ef08a');
       this.moveBadge(ctx, P.fx - 150, 202, this.phaseT > .3 ? this.pickFoe : null, ease.outBack(clamp((this.phaseT - .3) / .3, 0, 1)), '#ff9aa8');
+    }
+
+    // ── VÒNG KHẮC CHẾ ────────────────────────────────────────────────────
+    // "Chơi không hiểu đòn nào hơn đòn nào" là lỗi của màn hình, không phải của
+    // người chơi. Vẽ thẳng vòng Húc ▸ Vụt ▸ Đỡ ▸ Húc ra đây, luôn hiện.
+    if (!this.over) {
+      const ly = H - 240, RING = ['huc', 'vut', 'do', 'huc'];
+      const names = RING.map(id => tx(MOVES.find(m => m.id === id), 'vi'));
+      ctx.font = FONT.disp(18);
+      const tw = names.map(nm => ctx.measureText(nm).width);
+      const IC = 28, GAP = 7, ARR = 21;
+      const total = tw.reduce((a, b) => a + b, 0) + RING.length * (IC + GAP) + (RING.length - 1) * ARR;
+      let px = W / 2 - total / 2;
+      // Tấm kính mờ phía sau: đặt chữ thẳng lên nền đấu trường thì chìm nghỉm.
+      glassPanel(ctx, W / 2 - total / 2 - 22, ly - 40, total + 44, 66, 16);
+      strokeText(ctx, t('duelRing'), W / 2, ly - 24,
+        { font: FONT.ui(13, 800), fill: '#ffd45c', stroke: '#3a1d00', lw: 3, baseline: 'middle' });
+      RING.forEach((id, i) => {
+        const faded = i === 3 ? .45 : 1;             // ô cuối chỉ để khép vòng
+        ctx.save(); ctx.globalAlpha = faded;
+        ctx.translate(px + IC / 2, ly); moveIcon(ctx, id, IC); ctx.restore();
+        px += IC + GAP;
+        strokeText(ctx, names[i], px, ly, { font: FONT.disp(18), fill: i === 3 ? '#9a8fc0' : '#ffffff',
+          stroke: '#1a0f30', lw: 4, align: 'left', baseline: 'middle' });
+        px += tw[i];
+        if (i < RING.length - 1) {
+          // Mũi tên vẽ tay: ký tự '▸' không có trong bộ font đóng gói nên trên
+          // một số máy nó ra ô vuông rỗng, đúng chỗ cần chỉ rõ "cái này thắng cái kia".
+          const ax = px + ARR / 2;
+          ctx.beginPath();
+          ctx.moveTo(ax - 5, ly - 7); ctx.lineTo(ax + 6, ly); ctx.lineTo(ax - 5, ly + 7);
+          ctx.closePath();
+          ctx.fillStyle = '#ffd45c'; ctx.fill();
+          ctx.strokeStyle = '#1a0f30'; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke();
+          px += ARR;
+        }
+      });
     }
 
     // ── thanh Gồng ────────────────────────────────────────────────────────
@@ -363,7 +483,7 @@ export default {
         moveIcon(ctx, m.id, 54); ctx.restore();
         strokeText(ctx, tx(m, 'vi'), h.x + 118, cyy - 8,
           { font: FONT.disp(24), fill: '#fff', stroke: '#12263e', lw: 5, baseline: 'middle', shadow: null });
-        strokeText(ctx, `[${i + 1}]  ▸ ${tx(MOVES.find(x => x.id === m.beats), 'vi')}`, h.x + 118, cyy + 16,
+        strokeText(ctx, `[${i + 1}] · ${t('duelBeats')} > ${tx(MOVES.find(x => x.id === m.beats), 'vi')}`, h.x + 118, cyy + 16,
           { font: FONT.ui(12, 700), fill: '#cfe6ff', stroke: null, lw: 0, baseline: 'middle', shadow: null });
       });
       const fl = this.hits.find(h => h.id === 'flee');
@@ -617,43 +737,110 @@ export default {
   },
 };
 
-/** Ba biểu tượng đòn — vẽ tay cho rõ ràng ở mọi cỡ. */
-function moveIcon(ctx, id, s) {
+/**
+ * Ba biểu tượng đòn — vẽ bằng chính bộ phận của con dế, không mượn giáo/khiên/roi.
+ * Trước đây là mũi giáo, cái khiên và ngọn roi: nhìn ra hiệp sĩ chứ không ra dế.
+ *   HÚC = đầu chúi tới   ·   ĐỠ = cánh cứng dựng lên   ·   VỤT = càng sau quật
+ */
+export function moveIcon(ctx, id, s) {
   ctx.save();
   ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-  if (id === 'huc') {                                  // HÚC: đầu lao tới + hai vạch gió
-    ctx.fillStyle = '#ffd45c'; ctx.strokeStyle = '#7a4a05'; ctx.lineWidth = s * .07;
-    ctx.beginPath(); ctx.ellipse(s * .05, 0, s * .24, s * .19, 0, 0, TAU); ctx.fill(); ctx.stroke();
-    poly(ctx, [[s * .22, -s * .16], [s * .40, 0], [s * .22, s * .16]]);
-    ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = s * .055;
-    ctx.beginPath(); ctx.moveTo(-s * .40, -s * .10); ctx.lineTo(-s * .18, -s * .10);
-    ctx.moveTo(-s * .40, s * .10); ctx.lineTo(-s * .18, s * .10); ctx.stroke();
-  } else if (id === 'do') {                            // ĐỠ: khiên
+  if (id === 'huc') {                                  // HÚC: đầu dế chúi tới
+    // râu vuốt ngược ra sau
+    ctx.strokeStyle = '#5a3a12'; ctx.lineWidth = s * .055;
     ctx.beginPath();
-    ctx.moveTo(0, -s * .32);
-    ctx.quadraticCurveTo(s * .30, -s * .24, s * .28, s * .04);
-    ctx.quadraticCurveTo(s * .22, s * .28, 0, s * .36);
-    ctx.quadraticCurveTo(-s * .22, s * .28, -s * .28, s * .04);
-    ctx.quadraticCurveTo(-s * .30, -s * .24, 0, -s * .32);
-    ctx.closePath();
-    const g = ctx.createLinearGradient(0, -s * .32, 0, s * .36);
-    g.addColorStop(0, '#dfe9ff'); g.addColorStop(1, '#6f7b90');
-    ctx.fillStyle = g; ctx.fill();
-    ctx.strokeStyle = '#3a4358'; ctx.lineWidth = s * .07; ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = s * .05;
-    ctx.beginPath(); ctx.moveTo(0, -s * .20); ctx.lineTo(0, s * .22); ctx.stroke();
-  } else {                                             // VỤT: đuôi quất
-    ctx.strokeStyle = '#7a4a05'; ctx.lineWidth = s * .13;
-    ctx.beginPath();
-    ctx.moveTo(-s * .34, s * .22);
-    ctx.quadraticCurveTo(s * .04, s * .08, s * .16, -s * .28);
+    ctx.moveTo(-s * .02, -s * .16);
+    ctx.quadraticCurveTo(-s * .26, -s * .34, -s * .44, -s * .22);
+    ctx.moveTo(-s * .04, -s * .06);
+    ctx.quadraticCurveTo(-s * .28, -s * .18, -s * .46, -s * .04);
     ctx.stroke();
-    ctx.strokeStyle = '#ffd45c'; ctx.lineWidth = s * .075; ctx.stroke();
-    ctx.fillStyle = '#fff4d8'; ctx.strokeStyle = '#7a4a05'; ctx.lineWidth = s * .045;
-    ctx.beginPath(); ctx.ellipse(s * .18, -s * .30, s * .10, s * .07, -.6, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = s * .05;
-    ctx.beginPath(); ctx.arc(-s * .06, -s * .04, s * .30, -1.1, .3); ctx.stroke();
+    // đầu: bầu về phía trước, hàm nhọn chúc xuống
+    ctx.beginPath();
+    ctx.moveTo(-s * .18, -s * .22);
+    ctx.quadraticCurveTo(s * .24, -s * .26, s * .34, s * .02);
+    ctx.quadraticCurveTo(s * .22, s * .28, -s * .18, s * .22);
+    ctx.quadraticCurveTo(-s * .30, 0, -s * .18, -s * .22);
+    ctx.closePath();
+    const hg = ctx.createLinearGradient(-s * .2, -s * .24, s * .3, s * .2);
+    hg.addColorStop(0, '#f0c069'); hg.addColorStop(1, '#a86a24');
+    ctx.fillStyle = hg; ctx.fill();
+    ctx.strokeStyle = '#4a2c10'; ctx.lineWidth = s * .06; ctx.stroke();
+    // mắt to
+    ctx.beginPath(); ctx.ellipse(s * .06, -s * .04, s * .10, s * .12, 0, 0, TAU);
+    ctx.fillStyle = '#fffdf2'; ctx.fill(); ctx.strokeStyle = '#4a2c10'; ctx.lineWidth = s * .035; ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(s * .09, -s * .02, s * .045, s * .06, 0, 0, TAU);
+    ctx.fillStyle = '#2b1740'; ctx.fill();
+    // vạch gió phía sau
+    ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = s * .05;
+    ctx.beginPath();
+    ctx.moveTo(-s * .46, s * .12); ctx.lineTo(-s * .24, s * .12);
+    ctx.moveTo(-s * .40, s * .26); ctx.lineTo(-s * .22, s * .26);
+    ctx.stroke();
+  } else if (id === 'do') {                            // ĐỠ: cánh cứng dựng chắn
+    ctx.save(); ctx.translate(s * .04, 0); ctx.rotate(-.52);
+    // Cánh nhìn nghiêng: bản lề ở đầu trên, mép trước THẲNG, đuôi thuôn nhọn —
+    // đối xứng quá thì ra hạt hạnh nhân chứ không ra cánh.
+    ctx.beginPath();
+    ctx.moveTo(-s * .14, -s * .36);
+    ctx.lineTo(s * .10, -s * .30);
+    ctx.quadraticCurveTo(s * .26, s * .04, s * .06, s * .36);
+    ctx.quadraticCurveTo(-s * .12, s * .30, -s * .20, s * .02);
+    ctx.quadraticCurveTo(-s * .24, -s * .24, -s * .14, -s * .36);
+    ctx.closePath();
+    const wg = ctx.createLinearGradient(-s * .22, -s * .34, s * .24, s * .34);
+    wg.addColorStop(0, '#fff3d4'); wg.addColorStop(.5, '#dfae52'); wg.addColorStop(1, '#7d5019');
+    ctx.fillStyle = wg; ctx.fill();
+    ctx.strokeStyle = '#4a2c10'; ctx.lineWidth = s * .065; ctx.stroke();
+    // mép trước dày — chỗ hứng đòn
+    ctx.strokeStyle = '#3a2109'; ctx.lineWidth = s * .09;
+    ctx.beginPath(); ctx.moveTo(-s * .14, -s * .35); ctx.lineTo(s * .10, -s * .29); ctx.stroke();
+    // gân cánh toả từ bản lề
+    ctx.strokeStyle = 'rgba(74,44,16,.55)'; ctx.lineWidth = s * .032;
+    for (const [ex, ey] of [[s * .12, s * .10], [s * .02, s * .28], [-s * .12, s * .18]]) {
+      ctx.beginPath(); ctx.moveTo(-s * .06, -s * .28);
+      ctx.quadraticCurveTo(ex * .5, ey * .4, ex, ey); ctx.stroke();
+    }
+    ctx.restore();
+    // tia va chạm bật ra ở mép trái
+    ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = s * .05;
+    ctx.beginPath();
+    ctx.moveTo(-s * .34, -s * .20); ctx.lineTo(-s * .48, -s * .28);
+    ctx.moveTo(-s * .38, s * .00); ctx.lineTo(-s * .52, s * .00);
+    ctx.moveTo(-s * .32, s * .20); ctx.lineTo(-s * .46, s * .30);
+    ctx.stroke();
+  } else {                                             // VỤT: càng sau quật ngang
+    // vệt quật
+    ctx.strokeStyle = 'rgba(255,255,255,.8)'; ctx.lineWidth = s * .055;
+    ctx.beginPath(); ctx.arc(-s * .04, s * .04, s * .42, -1.45, .35); ctx.stroke();
+    // ĐÙI: khối to hình giọt, gốc ở dưới trái, đầu gối trên phải
+    ctx.beginPath();
+    ctx.moveTo(-s * .34, s * .30);
+    ctx.quadraticCurveTo(-s * .30, s * .02, -s * .06, -s * .18);
+    ctx.quadraticCurveTo(s * .10, -s * .06, s * .00, s * .14);
+    ctx.quadraticCurveTo(-s * .12, s * .34, -s * .34, s * .30);
+    ctx.closePath();
+    const fg = ctx.createLinearGradient(-s * .34, s * .32, s * .04, -s * .18);
+    fg.addColorStop(0, '#8a5a1e'); fg.addColorStop(1, '#f5cd7c');
+    ctx.fillStyle = fg; ctx.fill();
+    ctx.strokeStyle = '#4a2c10'; ctx.lineWidth = s * .065; ctx.stroke();
+    // vân đùi
+    ctx.strokeStyle = 'rgba(74,44,16,.45)'; ctx.lineWidth = s * .028;
+    ctx.beginPath(); ctx.moveTo(-s * .26, s * .22); ctx.lineTo(-s * .12, s * .10);
+    ctx.moveTo(-s * .22, s * .30); ctx.lineTo(-s * .06, s * .16); ctx.stroke();
+    // ĐẦU GỐI
+    ctx.beginPath(); ctx.arc(-s * .05, -s * .16, s * .075, 0, TAU);
+    ctx.fillStyle = '#e8b45a'; ctx.fill();
+    ctx.strokeStyle = '#4a2c10'; ctx.lineWidth = s * .045; ctx.stroke();
+    // ỐNG CHÂN vươn ra + gai
+    ctx.strokeStyle = '#4a2c10'; ctx.lineWidth = s * .085;
+    ctx.beginPath(); ctx.moveTo(-s * .05, -s * .16); ctx.lineTo(s * .36, s * .10); ctx.stroke();
+    ctx.strokeStyle = '#f0c069'; ctx.lineWidth = s * .045; ctx.stroke();
+    ctx.strokeStyle = '#4a2c10'; ctx.lineWidth = s * .032;
+    for (let i = 1; i <= 3; i++) {
+      const k = i / 4, bx = lerp(-s * .05, s * .36, k), by = lerp(-s * .16, s * .10, k);
+      ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(bx + s * .06, by - s * .10); ctx.stroke();
+    }
   }
   ctx.restore();
 }
+

@@ -210,11 +210,14 @@ export default {
     ctx.translate(W / 2, H * .34); ctx.scale(k, k); ctx.translate(-W / 2, -(H * .34));
     glassPanel(ctx, W / 2 - bw2 / 2, H * .34 - bh2 / 2, bw2, bh2, 24,
       { top: 'rgba(30,18,58,.94)', bot: 'rgba(12,7,26,.96)', rim: 'rgba(255,214,110,.7)' });
-    strokeText(ctx, t('regionNew'), W / 2, H * .34 - 40,
+    // Mảnh kế ĐÃ MỞ thì mời đi tiếp; CHƯA MỞ thì nói thẳng là còn đang khai phá,
+    // đừng hô "vùng đất mới" rồi bắt người chơi đâm đầu vào chỗ chưa có gì.
+    const ready = !!(this.next && this.next.open);
+    strokeText(ctx, ready ? t('regionNew') : t('regionSoon'), W / 2, H * .34 - 40,
       { font: FONT.ui(15, 800), fill: '#ffe9a8', stroke: '#3a2000', lw: 3, baseline: 'middle' });
     strokeText(ctx, tx(this.next || {}, 'name') || t('regionSoon'), W / 2, H * .34 + 2,
       { font: FONT.disp(42), fill: '#ffd23f', stroke: '#5a2a00', lw: 9, baseline: 'middle' });
-    strokeText(ctx, t('regionSoonNote'), W / 2, H * .34 + 46,
+    strokeText(ctx, ready ? tx(this.next, 'teaser') || '' : t('regionSoonNote'), W / 2, H * .34 + 46,
       { font: FONT.ui(14, 600), fill: '#cfc4ea', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     ctx.restore();
 

@@ -36,7 +36,7 @@ for (const [name, dw, dh, scene] of DEVICES) {
   globalThis.window = { addEventListener(){}, innerWidth:dw, innerHeight:dh, devicePixelRatio:1, AudioContext:undefined };
   const mod = await import(new URL('../js/main.js', import.meta.url).href + '?d=' + name);
   await new Promise(r => setTimeout(r, 120));
-  const G = globalThis.window.SDRAKON;
+  const G = globalThis.window.CRICKO;
   G.save.breed='ember'; G.save.xp=3250; G.save.unlocked=20;
   G.hero.xp=3250;
   G.save.mats={vo:9,to:10,nhua:7,da:12,sung:9,canh:5}; G.save.crafted={helm1:1,wep1:1,arm2:1}; G.save.equip={helm:'helm1',armor:'arm2',weapon:'wep1'};

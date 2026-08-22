@@ -14,13 +14,14 @@ Chạy bằng **HTML5 Canvas + Web Audio**, **không dùng thư viện ngoài, k
 
 | File trong `dist/` | Nền tảng |
 |---|---|
-| `Cricko-1.8.0.apk` | **Android 7+** — chép vào máy, bật "cài từ nguồn không xác định" |
-| `Cricko Setup 1.8.0.exe` | **Windows** — bộ cài |
-| `Cricko 1.8.0.exe` | **Windows** — bản portable, chạy thẳng |
-| `Cricko-1.8.0-arm64.dmg` | **macOS** Apple Silicon |
-| `Cricko-1.8.0.dmg` | **macOS** Intel |
+| `Cricko-1.19.0.apk` | **Android 7+** — chép vào máy, bật "cài từ nguồn không xác định" |
+| `Cricko Setup 1.19.0.exe` | **Windows** — bộ cài |
+| `Cricko 1.19.0.exe` | **Windows** — bản portable, chạy thẳng |
+| `Cricko-1.19.0-arm64.dmg` | **macOS** Apple Silicon |
+| `Cricko-1.19.0.dmg` | **macOS** Intel |
+| `Cricko-1.19.0.AppImage` | **Linux** x64 — chạy trực tiếp |
 
-Dựng lại: `npm run apk` (Android) · `npm run build:mac` · `npm run build:win`.
+Dựng lại: `npm run apk` (Android) · `npm run build:mac` · `npm run build:win` · `npm run build:linux`.
 Đổi phiên bản: `npm run version -- 1.1.0` (tự đồng bộ package.json · sw.js · Android).
 
 ## Chạy thử
@@ -45,7 +46,7 @@ npm start                 # hoặc:  python3 -m http.server 8080
 | **Đồng hồ** | Đếm ngược liên tục; hết giờ là thua và phải chơi lại. Nhặt huy hiệu ĐỒNG HỒ để +5 giây |
 | **Vật phẩm** | Viên đá có thể mang huy hiệu: đồng hồ (+giờ) · túi vàng (+vàng) · ngôi sao (+điểm) |
 | **Cốt truyện** | 7 hồi, hoạt cảnh vẽ bằng code, chữ hiện dần; mỗi hồi đổi nhạc + bảng màu |
-| **Thiên địch** | Kiến Lính · Nhện Cỏ · Ong Vò Vẽ · Bọ Ngựa · Cóc Già (trùm). Có máu, có đồng hồ ra đòn riêng: cắn · cướp vàng · giăng tơ khoá ô · hút giờ |
+| **Thiên địch** | Kiến Lính · Nhện Cỏ · Ong Vò Vẽ · Bọ Ngựa · Cóc Già · Cốc Mỏ Sắt. Có máu, đồng hồ riêng và cú lao vào quấy chú dế: cắn · cướp vàng · giăng tơ · hút giờ |
 | **Chế tài** | Thua thì **mất 15% vàng và 120 EXP**. Đi sai nước **vẫn mất 1 lượt**. Bỏ sót thiên địch → chỉ 1 sao, mất 25% vàng |
 | **Match-3** | Cascade nhiều tầng, hệ số liên hoàn, tự phát hiện hết nước đi rồi xáo bài, gợi ý sau 4,5 giây đứng yên |
 | **Gem đặc biệt** | Thương Lửa (4 viên) · Thập Long (hình L/T) · Trứng Lăng Kính (5 viên) — có cả combo khi hoán đổi 2 gem đặc biệt với nhau |
@@ -54,12 +55,12 @@ npm start                 # hoặc:  python3 -m http.server 8080
 | **Chế tạo** | Nhặt 6 loại nguyên liệu → chế 9 món đồ → **mặc lên người** (thấy được trên hình): mũ · giáp · vũ khí. Full T3 tăng lực chiến ~60% |
 | **Tương tác truyện** | Nhân vật nói chuyện ngay trong ván theo sự kiện thật; Hồi VI có **lựa chọn thật** (đánh hay kể thật) đổi phần thưởng, độ khó màn trùm và câu kết |
 | **Đa thiết bị** | Khung logic co theo tỉ lệ màn hình (1000–1700 × 720). Màn hẹp (iPad 4:3, máy gập) tự chuyển bố cục gọn. Đã kiểm chứng: iPad · iPhone 16:9 · Galaxy 20:9 · laptop 16:10 |
-| **Bản đồ lớn** | 10 mảnh — mảnh 1 đang mở (3 chương, 45 màn), 9 mảnh sau hiện dấu **???** |
+| **Bản đồ lớn** | 10 mảnh tạo thành một hành trình nguyên bản có mở đầu–cao trào–kết thúc; 4 mảnh đầu đã chơi được (12 chương, 180 màn). Mỗi vùng có bưu hoạ và nhật ký truyện khi chạm vào, kèm chỉ dẫn **Bạn đang ở đây** |
 | **Nhân vật** | 4 loài (dế · muỗm · châu chấu · cào cào) khác nhau râu/bụng/càng · 5 giai đoạn lớn lên · thở, chớp mắt, ngáp, chùi râu, nhún nhảy, gáy — vẽ bằng path, không sprite |
 | **Nhạc 8-bit** | 7 bản gốc (mở đầu · vui · ấm · hùng tráng · buồn · cao trào · gấp rút) trên bộ tổng hợp kiểu NES: 2 kênh pulse + triangle + noise (LFSR), sequencer lookahead 120 ms |
 | **SFX** | 19 hiệu ứng tổng hợp tại chỗ — cao độ đổi theo bậc cascade |
 | **2 ngôn ngữ** | Tiếng Việt / English, tự nhận theo trình duyệt, đổi được trong game, nhớ lựa chọn |
-| **Hiệu ứng** | Mảnh vỡ, tia nổ hàng/cột, sóng xung kích, số điểm bay, rung màn |
+| **Hiệu ứng** | Mảnh vỡ, tia nổ hàng/cột, sóng xung kích, số điểm bay, rung màn; nền có hoa dại, ong, bướm, đom đóm và không khí riêng theo sinh cảnh |
 | **Hiệu năng** | Khoá 60 fps (màn 120Hz không còn vẽ gấp đôi), nướng lớp nền tĩnh, cache panel, tự hạ chất lượng khi máy yếu. Bấm **F** để xem đồng hồ fps |
 | **Nền** | Parallax 6 lớp: trời · núi tuyết · đồi · cây · cỏ đung đưa · phấn hoa, đổi tông theo chương |
 

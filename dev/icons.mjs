@@ -1,4 +1,4 @@
-// Sinh bộ icon PWA/desktop bằng chính hàm vẽ rồng của game — không dùng ảnh ngoài.
+// Sinh bộ icon PWA/desktop bằng chính hàm vẽ dế của game — không dùng ảnh ngoài.
 // Chạy:  node dev/icons.mjs
 import { createCanvas } from '@napi-rs/canvas';
 import fs from 'node:fs';

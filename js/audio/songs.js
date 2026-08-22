@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  Nhạc gốc cho SDrakon — soạn tay, không sample, không cover.              ║
+// ║  Nhạc gốc cho CRICKO — soạn tay, không sample, không cover.               ║
 // ║  Ký hiệu:  "NỐT/ĐỘ_DÀI"  với độ dài tính bằng nốt móc kép (1/16).        ║
 // ║  Trống:    1 ký tự = 1 móc kép — k kick · s snare · h hat · H hat mạnh    ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
@@ -61,8 +61,63 @@ export const SONG_BATTLE = compileSong({
   ],
 });
 
-// ── 2. NHẠC MÀN MỞ ĐẦU — "Lời Nguyện Cổ" · Rê thứ · 88 BPM · 8 ô nhịp ───────
+// ── 2. NHẠC MÀN MỞ ĐẦU — "Hội Cỏ Đêm" · Sol trưởng · 124 BPM · 16 ô nhịp ────
+// Màn mở đầu là ấn tượng đầu tiên, nên bài này đi hẳn sang SOL TRƯỞNG, nhịp
+// vừa chân, giai điệu hát theo được. Vòng I–V–vi–IV cho đoạn A (ấm, mời gọi),
+// đoạn B đẩy lên quãng tám cao rồi rơi về chủ âm — nghe là muốn bấm "Chơi".
+// Điểm nhấn riêng của game: cuối mỗi câu có hai nốt móc kép nhại tiếng dế gáy.
+const TT_CH = ['G','D','Em','C', 'G','C','D','G', 'Em','C','G','D', 'Em','C','D','G'];
+const TT_ARP = {
+  G:  ['G4','B4','D5','G5'], D: ['D4','F#4','A4','D5'],
+  Em: ['E4','G4','B4','E5'], C: ['C4','E4','G4','C5'],
+};
+const TT_BASS = {
+  G:  ['G2','G2','D3','G2','G2','B2','D3','G2'],
+  D:  ['D3','D3','A2','D3','D3','F#3','A2','D3'],
+  Em: ['E3','E3','B2','E3','E3','G3','B2','E3'],
+  C:  ['C3','C3','G2','C3','C3','E3','G2','C3'],
+};
+const TITLE_LEAD = bar([
+  'D5/2 G5/2 B5/2 G5/2 A5/4 B5/4',                //  1 G  — câu chào
+  'A5/2 F#5/2 D5/2 F#5/2 A5/6 -/2',               //  2 D
+  'B4/2 E5/2 G5/2 B5/2 A5/4 G5/4',                //  3 Em
+  'E5/2 G5/2 C6/4 B5/4 G5/4',                     //  4 C
+  'D5/2 G5/2 B5/2 D6/2 B5/4 G5/4',                //  5 G
+  'C6/2 B5/2 A5/2 G5/2 E5/4 G5/4',                //  6 C
+  'F#5/2 A5/2 D6/4 C6/4 A5/4',                    //  7 D
+  'G5/4 B5/2 D6/2 G6/4 -/2 D6/1 D6/1',            //  8 G  — hai nốt cuối: tiếng gáy
+  'E5/1 E5/1 G5/2 B5/2 A5/2 G5/2 E5/4 -/2',       //  9 Em — đoạn B, nghịch hơn
+  'C5/1 C5/1 E5/2 G5/2 C6/4 B5/2 G5/4',           // 10 C
+  'D6/2 B5/2 G5/2 B5/2 D6/4 G6/4',                // 11 G  — lên quãng tám
+  'A5/2 D6/2 F#6/4 D6/4 A5/4',                    // 12 D
+  'G5/2 B5/2 E6/4 D6/2 B5/2 G5/4',                // 13 Em
+  'E6/4 C6/2 G5/2 E5/4 G5/4',                     // 14 C
+  'F#5/2 A5/2 C6/2 D6/2 C6/2 A5/2 F#5/4',         // 15 D  — dồn về chủ âm
+  'G5/6 -/2 B5/1 B5/1 D6/2 G5/4',                 // 16 G  — gáy một tiếng rồi lặng
+]);
+// Trống nhẹ tay: kick chắc phách, hat rải, cuối mỗi đoạn có một nhịp vẫy tay.
+const TITLE_DRUMS = TT_CH.map((_, i) =>
+  i === 7  ? 'k-h-s-h-k-h-s-hH' :
+  i === 15 ? 'k-h-s-h-k-khs-hH' :
+  i % 2    ? 'k-h-s-h-k-h-s-h-' :
+             'k-h-s-h-k-hks-h-').join('');
+
 export const SONG_TITLE = compileSong({
+  name: 'Hội Cỏ Đêm', bpm: 124, steps: 256,
+  tracks: [
+    { chan: 'p50', vol: 0.30, legato: 0.90, opts: { vib: 0.004, vibRate: 5.4, rel: 0.07, atk: 0.008 },
+      pattern: TITLE_LEAD },
+    { chan: 'p25', vol: 0.12, legato: 0.66, pattern: TT_CH.map(c => arp(...TT_ARP[c])).join(' ') },
+    { chan: 'tri', vol: 0.32, legato: 0.88, pattern: TT_CH.map(c => bass(...TT_BASS[c])).join(' ') },
+    { chan: 'drum', vol: 0.44, pattern: TITLE_DRUMS },
+  ],
+});
+
+// ── 2b. TRANG NGHIÊM — "Lời Nguyện Cổ" · Rê thứ · 88 BPM · 8 ô nhịp ─────────
+// Bài này TỪNG là nhạc màn mở đầu, nhưng rê thứ + quãng nửa cung của thứ hoà
+// thanh nghe ra Halloween chứ không ra "về nhà". Giữ lại cho Hồi VI (Giếng Trời)
+// — đúng chỗ cần một bài trầm và nghiêm.
+export const SONG_VOW = compileSong({
   name: 'Lời Nguyện Cổ', bpm: 88, steps: 128,
   tracks: [
     { chan: 'p50', vol: 0.30, legato: 0.96, opts: { vib: 0.007, vibRate: 5.0, rel: 0.14, atk: 0.02 },
@@ -97,7 +152,7 @@ export const SONG_TITLE = compileSong({
   ],
 });
 
-// ── 3. NHẠC TỔ RỒNG & BẢN ĐỒ — "Tổ Ấm" · Đô trưởng · 104 BPM · 8 ô nhịp ────
+// ── 3. NHẠC TỔ DẾ & BẢN ĐỒ — "Tổ Ấm" · Đô trưởng · 104 BPM · 8 ô nhịp ──────
 const NEST_ARP = [
   ['C4','E4','G4','C5','G4','E4','C4','E4'],
   ['A3','C4','E4','A4','E4','C4','A3','C4'],
@@ -346,8 +401,41 @@ export const SONG_TRAIL = compileSong({
   ],
 });
 
+
+// ── 11. SÁT GIỜ — "Cháy Tới Chân" · La thứ · 184 BPM · vòng 4 ô nhịp ────────
+// Bài này chỉ bật ở 10 giây cuối. "Lửa Đồng" đã gấp, nhưng khi sắp hết giờ mà
+// nhạc vẫn y nguyên thì người chơi không cảm được cái vạch cuối. Ở đây bass
+// chạy móc kép không nghỉ, trống dồn, hoà thanh Am–F–G–E ép về phía trước.
+const PN_CH = ['Am', 'F', 'G', 'E'];
+const PN_ARP = {
+  Am: ['A4','C5','E5','A5'], F: ['F4','A4','C5','F5'],
+  G:  ['G4','B4','D5','G5'], E: ['E4','G#4','B4','E5'],
+};
+const PN_BASS = {
+  Am: ['A2','A2','A2','E3','A2','A2','E3','G2'],
+  F:  ['F2','F2','F2','C3','F2','F2','C3','E2'],
+  G:  ['G2','G2','G2','D3','G2','G2','D3','F2'],
+  E:  ['E2','E2','E2','B2','E2','E2','B2','D3'],
+};
+export const SONG_PANIC = compileSong({
+  name: 'Cháy Tới Chân', bpm: 184, steps: 64,
+  tracks: [
+    { chan: 'p50', vol: 0.30, legato: 0.86, opts: { rel: 0.04, atk: 0.005 },
+      pattern: bar([
+        'A5/2 E5/2 A5/2 C6/2 B5/2 A5/2 E5/4',
+        'F5/2 A5/2 C6/2 A5/2 G5/2 F5/2 E5/4',
+        'G5/2 B5/2 D6/2 B5/2 A5/2 G5/2 D5/4',
+        'E5/2 G#5/2 B5/2 E6/2 D6/2 B5/2 G#5/4',
+      ]) },
+    { chan: 'p25', vol: 0.13, legato: 0.60, pattern: PN_CH.map(c => arp(...PN_ARP[c])).join(' ') },
+    { chan: 'tri', vol: 0.34, legato: 0.80, pattern: PN_CH.map(c => bass(...PN_BASS[c])).join(' ') },
+    { chan: 'drum', vol: 0.58, pattern: 'k-ksh-s-k-ksh-sH' + 'k-ksh-s-k-ksh-sH' + 'k-ksh-s-k-ksh-sH' + 'kkksHsHskkksHsHs' },
+  ],
+});
+
 export const SONGS = {
-  title:  SONG_TITLE,     // mở đầu — trang nghiêm
+  title:  SONG_TITLE,     // mở đầu — tươi, mời gọi
+  solemn: SONG_VOW,       // Giếng Trời — trầm, trang nghiêm
   battle: SONG_ROMP,      // chơi thường — vui, nảy
   nest:   SONG_NEST,      // tổ dế — ấm áp
   trail:  SONG_TRAIL,     // bản đồ — hành khúc phiêu lưu
@@ -355,15 +443,21 @@ export const SONGS = {
   sad:    SONG_SAD,       // mất mát — chậm, thưa
   climax: SONG_CLIMAX,    // cao trào — dồn dập
   chase:  SONG_CHASE,     // gấp rút — nghẹt thở
+  panic:  SONG_PANIC,     // 10 giây cuối — cháy tới chân
   hop:    SONG_HOP,       // chơi thường — nảy, tinh nghịch
   market: SONG_MARKET,    // chơi thường — tung tăng, ngộ nghĩnh
 };
 
 /**
- * Nhạc nền cho MÀN CHƠI: mỗi màn một bài khác nhau, xoay vòng theo số màn để
- * hai màn liền nhau không bao giờ trùng nhạc.
+ * Nhạc nền cho MÀN CHƠI: BỐC NGẪU NHIÊN mỗi lần vào màn, chỉ trừ bài vừa nghe.
+ *
+ * Trước đây xoay vòng theo số màn nên chơi lại một màn là y hệt bài cũ, và
+ * đi tuần tự thì thứ tự bài lặp răm rắp — nghe vài lượt là đoán được.
  */
 const LEVEL_TRACKS = ['battle', 'hop', 'market', 'epic'];
-export const trackForLevel = (levelIndex, mode) =>
-  mode === 'shoot' ? LEVEL_TRACKS[(levelIndex * 2 + 1) % LEVEL_TRACKS.length]
-                   : LEVEL_TRACKS[levelIndex % LEVEL_TRACKS.length];
+let _lastTrack = null;
+export function trackForLevel() {
+  const pool = LEVEL_TRACKS.filter(k => k !== _lastTrack);
+  _lastTrack = pool[(Math.random() * pool.length) | 0];
+  return _lastTrack;
+}

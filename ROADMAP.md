@@ -1,6 +1,6 @@
-# SDrakon — Proto-Dragon Realm · Roadmap
+# CRICKO — Miền Cỏ Cháy · Roadmap
 
-> Match-3 nuôi rồng. Motif "chơi màn theo bản đồ, mỗi tuần mở cửa mới" —
+> Match-3 nuôi dế. Motif "chơi màn theo bản đồ, mỗi tuần mở cửa mới" —
 > nhưng **toàn bộ tài sản là nguyên gốc** (xem §5 An toàn bản quyền).
 
 ---
@@ -10,20 +10,20 @@
 ```
 Chọn trứng  →  Ấp nở  →  Bản đồ màn  →  Match-3  →  Thưởng (Vàng / EXP / Thức ăn)
       ↑                                                          │
-      └──────────  Tổ rồng: Cho ăn · Huấn luyện · Tiến hóa  ◄────┘
+      └──────────  Tổ dế: Cho ăn · Huấn luyện · Tiến hóa  ◄────┘
 ```
 
-Rồng **không phải vật trang trí** — chỉ số rồng đổi luật chơi:
+Dế **không phải vật trang trí** — chỉ số dế đổi luật chơi:
 
 | Chỉ số | Train bằng | Ảnh hưởng trong màn |
 |---|---|---|
 | **Sức mạnh** (Might) | Vàng | Nổ gem đặc biệt lan rộng hơn |
 | **Ý chí** (Spirit) | Thức ăn | Thanh Sinh lực tụt chậm hơn |
 | **May mắn** (Fortune) | Vàng + EXP | Tỉ lệ rơi gem đặc biệt cao hơn |
-| **Hơi lửa** (Breath) | Nhiệm vụ | Kỹ năng "Phun lửa" xóa 1 hàng, hồi theo combo |
+| **Tiếng gáy** (Chirp) | Nhiệm vụ | Kỹ năng "Gáy vang" xoá 1 hàng, hồi theo combo |
 
-5 giai đoạn tiến hóa: `Trứng → Rồng con → Rồng nhỡ → Rồng trưởng thành → Cổ Long`.
-Mỗi giai đoạn đổi **hình dáng, sải cánh, số sừng, hiệu ứng lửa** — vẽ bằng code nên thêm giai đoạn = thêm data.
+5 giai đoạn tiến hóa: `Trứng → Dế con → Dế choai → Dế trưởng thành → Dế Lữ Khách`.
+Mỗi giai đoạn đổi **hình dáng, sải cánh, độ dài râu, tiếng gáy** — vẽ bằng code nên thêm giai đoạn = thêm data.
 
 ---
 
@@ -31,26 +31,26 @@ Mỗi giai đoạn đổi **hình dáng, sải cánh, số sừng, hiệu ứng 
 
 Mỗi **Episode = 15 màn**, ra **1 episode/tuần**. Thêm episode chỉ cần push 1 object vào `js/data/levels.js` — không đụng engine.
 
-| Tuần | Ver | Episode | Màn | Cơ chế mới | Nội dung rồng |
+| Tuần | Ver | Episode | Màn | Cơ chế mới | Nội dung dế |
 |---|---|---|---|---|---|
 | — | **0.9** | *(bản hiện tại)* | 1–20 | Gem đặc biệt, Sinh lực real-time | 4 giống trứng, 5 giai đoạn |
 | W1 | 1.0 | **Nứt Vỏ** — Shellbreak | 1–15 | Tutorial, mục tiêu điểm | Nở trứng, cốt truyện mở |
 | W2 | 1.1 | **Đồng Cỏ Tro** — Ashmeadow | 16–30 | Ô băng (phá 2 lần) | Train Sức mạnh |
-| W3 | 1.2 | **Hang Thạch Anh** — Quartz Hollow | 31–45 | Đá chặn không rơi | Skin vảy thạch anh |
+| W3 | 1.2 | **Hang Thạch Anh** — Quartz Hollow | 31–45 | Đá chặn không rơi | Skin cánh thạch anh |
 | W4 | 1.3 | **Đầm Rêu** — Mirebog | 46–60 | Dây leo lan mỗi lượt | Pet phụ: Đom đóm |
 | W5 | 1.4 | **Đỉnh Gió** — Windspire | 61–75 | Gió đẩy lệch cột | Kỹ năng lượn |
-| W6 | 1.5 | **Lò Than** — Emberforge | 76–90 | Dung nham đếm ngược | Tiến hóa Cổ Long |
+| W6 | 1.5 | **Lò Than** — Emberforge | 76–90 | Dung nham đếm ngược | Tiến hóa Dế Lữ Khách |
 | W7 | 1.6 | **Băng Nguyên** — Frostreach | 91–105 | Đóng băng gem đặc biệt | Giống trứng thứ 5 |
-| W8 | 1.7 | **Vương Miện Cổ** — Elder Crown | 106–120 | **Boss**: Long Vương 3 pha | Kết chương 1 |
+| W8 | 1.7 | **Vương Miện Cổ** — Elder Crown | 106–120 | **Boss**: Chúa Bóng 3 pha | Kết chương 1 |
 
-**Live-ops xen kẽ:** Trứng hằng ngày (W2+) · Giải đấu cuối tuần (W4+) · Sự kiện Trăng Rồng (W6+).
+**Live-ops xen kẽ:** Trứng hằng ngày (W2+) · Giải đấu cuối tuần (W4+) · Sự kiện Trăng Đồng (W6+).
 
 ---
 
 ## 3. Backlog kỹ thuật
 
 - [x] Engine match-3: cascade, combo, phát hiện hết nước đi, xáo bài
-- [x] Gem đặc biệt: Thương Lửa (4) · Thập Long (L/T) · Trứng Lăng Kính (5)
+- [x] Gem đặc biệt: Thương Lửa (4) · Thập Càng (L/T) · Trứng Lăng Kính (5)
 - [x] **Chế độ thứ hai: Bắn Đá** (lưới lục giác, nảy tường, cụm rơi) — cứ 4 màn có 1
 - [x] **Đồng hồ đếm ngược** — hết giờ là thua, phải chơi lại
 - [x] **Vật phẩm bất ngờ** trên viên đá: đồng hồ +5s · túi vàng · ngôi sao điểm
@@ -71,7 +71,15 @@ Mỗi **Episode = 15 màn**, ra **1 episode/tuần**. Thêm episode chỉ cần 
 - [x] Sửa vùng nổ: Thương Lửa đúng MỘT hàng/cột, chặn phản ứng dây chuyền quá 2 tầng
 - [x] Chiptune 8-bit 4 kênh + sequencer lookahead + SFX tổng hợp
 - [x] Nền parallax, particle, screen-shake, số điểm bay
-- [x] Chọn trứng · Tổ rồng · Bản đồ màn
+- [x] Chọn trứng · Tổ dế · Bản đồ màn
+- [x] **Thể lực**: đi màn −18 · đấu trường −12 · bị chặn đường −6 · thua −6 ·
+      cho ăn +60 · hết sức thì tự hồi 1 điểm/phút theo đồng hồ thật
+- [x] **Dàn vai kể chuyện**: giống người chơi chọn đóng vai chính, ba giống còn lại
+      nhận ba vai phụ (`js/data/cast.js`)
+- [x] **Mảnh 2 · Đầm Rêu** · **Mảnh 3 · Đỉnh Gió** · **Mảnh 4 · Rừng Nấm** đã mở —
+      mỗi mảnh 3 chương / 45 màn, tổng **180 màn**, nối nhau bằng hoạt cảnh chuyển vùng
+- [x] **Nền theo chủ đề** (`biome` trong js/data/levels.js): grass · bog · peak · mush —
+      đổi hẳn cảnh vật (sậy · cột đá · nấm phát sáng · sao đêm), không chỉ đổi bảng màu
 - [x] Lưu tiến trình `localStorage` có đánh phiên bản
 - [x] Song ngữ VI/EN + font có dấu tiếng Việt (OFL)
 - [x] Công cụ mô phỏng cân bằng + chụp ảnh màn hình ngoài trình duyệt
@@ -96,8 +104,8 @@ Chạy `npm run balance` (mô phỏng người chơi tự động trên chính e
 
 Mọi hằng số trong `js/data/levels.js` đều dẫn xuất từ bảng này, không đặt bằng cảm tính.
 
-**Còn cần theo dõi khi phát hành:** Retention D1/D7 · số lượt train rồng mỗi phiên ·
-màn khiến người chơi bỏ · tỉ lệ dùng kỹ năng Hơi lửa.
+**Còn cần theo dõi khi phát hành:** Retention D1/D7 · số lượt train dế mỗi phiên ·
+màn khiến người chơi bỏ · tỉ lệ dùng kỹ năng Tiếng gáy.
 
 ---
 
@@ -116,6 +124,22 @@ tên/nhân vật của tác phẩm đang được bảo hộ**.
 | Luật chơi | Match-3 và bắn bóng là **ý tưởng**, không được bảo hộ bản quyền | Thấp |
 
 ### Hai thứ ĐÃ CHỦ ĐỘNG TRÁNH
+
+### Mạch truyện: lấy CHỦ ĐỀ, không lấy TÌNH TIẾT
+
+Cốt truyện của game đi theo mạch trưởng thành cổ điển: kiêu ngạo → vô tâm gây
+hậu quả → hối hận, lên đường → tình bạn → khiêm nhường → dùng sức mình che cho
+kẻ yếu → hoà giải. **Chủ đề, thông điệp và mô-típ không được bảo hộ bản quyền** —
+ai cũng viết được truyện trưởng thành, truyện phản chiến, truyện tình bạn.
+
+Cái ĐƯỢC bảo hộ là *cách kể cụ thể*, nên game cố ý khác ở từng tình tiết:
+
+| Chi tiết | Game làm khác |
+|---|---|
+| Người hàng xóm yếu qua đời | **Cỏ May** — nhân vật gốc, chết vì đứng chắn kho hạt khi đàn kiến cướp, do nhân vật chính mải khoe tài. Không có trò trêu chọc nào, không có con chim nào ra tay |
+| Bạn đồng hành | Ba vai phụ do chính bốn giống người chơi chọn đóng (`js/data/cast.js`), không có nhân vật cố định nào |
+| Kẻ thù lớn | Cóc Già giữ Giếng Trời · Cốc Mỏ Sắt (tên loài + tên tự đặt) |
+| Thông điệp hoà giải | Kể bằng một hành động cụ thể của riêng game: chia nước Giếng Trời cho chính đàn kiến từng cướp kho — "cỏ cháy thì ai cũng khát" |
 
 **1. Truyện "Dế Mèn phiêu lưu ký" — Tô Hoài (1941).**
 Việt Nam bảo hộ suốt đời tác giả + 50 năm → tới khoảng **2064**. Vì vậy game

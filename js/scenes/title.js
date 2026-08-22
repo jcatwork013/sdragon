@@ -40,7 +40,7 @@ export default {
   enter(G) {
     this.t = 0;
     this.hero = new Cricket(BREEDS.find(b => b.id === (G.save.breed || 'ember')) || BREEDS[0], 9800);
-    this.hero.onFire = (x, y, dx, dy) => G.fx.fire(x, y, dx, dy, 3);
+    this.hero.onChirp = (x, y, dx, dy) => G.fx.chirp(x, y, dx, dy, 3);
     this.fireAt = 2.4;
     // DÀN NHÂN VẬT — cả xóm kéo ra xem, mỗi con một nhịp riêng nên màn hình
     // không bao giờ đứng im. Dùng lại đúng bộ thiên địch trong game, không vẽ
@@ -72,7 +72,7 @@ export default {
     this.t += dt;
     this.hero.update(dt);
     this.fireAt -= dt;
-    if (this.fireAt <= 0) { this.fireAt = 5.5 + Math.random() * 4; this.hero.breatheFire(1.0); G.sfx('roar'); }
+    if (this.fireAt <= 0) { this.fireAt = 5.5 + Math.random() * 4; this.hero.chirpBurst(1.0); G.sfx('chirp'); }
     for (const m of motes) { m.y -= m.v * dt; if (m.y < -.08) { m.y = 1.08; m.x = Math.random(); } }
     for (const c of this.cast) c.art.update(dt);
     this.pal.update(dt);

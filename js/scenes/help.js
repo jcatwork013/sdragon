@@ -155,11 +155,11 @@ export default {
   drawPage3(G, ctx) { HELP_EXTRA.drawPage3.call(this, G, ctx); },
 
   /**
-   * Trang 4 — chế độ GHÉP ĐÔI.
+   * Trang 4 — chế độ NỐI CẶP.
    *
    * Chế độ này xen vào hành trình 7 màn một lần mà trang hướng dẫn không hề
-   * nhắc tới, nên người chơi gặp nó lần đầu là ngơ ngác. Vẽ luôn mấy tấm thẻ
-   * mẫu: nhìn hình dễ hiểu hơn đọc chữ nhiều lần.
+   * nhắc tới, nên người chơi gặp nó lần đầu là ngơ ngác. Vẽ luôn một đường
+   * nối hai góc vòng qua ô cản: nhìn là hiểu luật nhanh hơn đọc chữ.
    */
   drawPage4(G, ctx) {
     const { W } = G;
@@ -167,36 +167,31 @@ export default {
     strokeText(ctx, t('htPairT'), W / 2, 118,
       { font: FONT.disp(28), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, baseline: 'middle' });
 
-    // ba tấm thẻ mẫu: hai úp, một ngửa
-    const cw = 96, ch = 112, gap = 26;
+    // Ba ô mở: viên giữa chặn đường thẳng, cặp cùng hình phải vòng lên trên.
+    const cw = 96, ch = 100, gap = 26;
     const total = cw * 3 + gap * 2, sx = W / 2 - total / 2, sy = 168;
-    const card = (i, up) => {
+    const card = (i, face) => {
       const x = sx + i * (cw + gap);
       roundRect(ctx, x, sy + 7, cw, ch, 16);
-      ctx.fillStyle = up ? '#6b4a9a' : '#2a2140'; ctx.fill();
+      ctx.fillStyle = '#6b4a9a'; ctx.fill();
       roundRect(ctx, x, sy, cw, ch, 16);
       const g = ctx.createLinearGradient(0, sy, 0, sy + ch);
-      if (up) { g.addColorStop(0, '#fff6e2'); g.addColorStop(1, '#dcc8f0'); }
-      else { g.addColorStop(0, '#5a4a86'); g.addColorStop(1, '#312452'); }
+      g.addColorStop(0, '#fff6e2'); g.addColorStop(1, '#dcc8f0');
       ctx.fillStyle = g; ctx.fill();
-      ctx.strokeStyle = up ? '#8a5fd0' : '#1d1633'; ctx.lineWidth = 3; ctx.stroke();
+      ctx.strokeStyle = i === 1 ? '#8a5fd0' : '#73e9ff'; ctx.lineWidth = i === 1 ? 3 : 4; ctx.stroke();
       ctx.save(); roundRect(ctx, x, sy, cw, ch, 16); ctx.clip();
       ctx.fillStyle = 'rgba(255,255,255,.30)';
       roundRect(ctx, x + cw * .10, sy + ch * .07, cw * .80, ch * .22, 10); ctx.fill();
-      if (up) drawGem(ctx, 4, x + cw / 2, sy + ch * .54, cw * .68, { t: this.t, seed: i });
-      else {
-        ctx.strokeStyle = 'rgba(190,165,255,.34)'; ctx.lineWidth = cw * .045; ctx.lineCap = 'round';
-        for (let k = -2; k <= 2; k++) {
-          ctx.beginPath();
-          ctx.moveTo(x + cw * .24, sy + ch / 2 + k * 18 + 10);
-          ctx.lineTo(x + cw / 2, sy + ch / 2 + k * 18 - 4);
-          ctx.lineTo(x + cw * .76, sy + ch / 2 + k * 18 + 10);
-          ctx.stroke();
-        }
-      }
+      drawGem(ctx, face, x + cw / 2, sy + ch * .54, cw * .63, { t: this.t, seed: i });
       ctx.restore();
     };
-    card(0, true); card(1, false); card(2, true);
+    card(0, 4); card(1, 1); card(2, 4);
+    ctx.save(); ctx.globalCompositeOperation = 'lighter'; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+    const ax = sx + cw / 2, bx = sx + 2 * (cw + gap) + cw / 2, cy = sy + ch / 2, top = sy - 18;
+    ctx.shadowColor = '#73e9ff'; ctx.shadowBlur = 16; ctx.strokeStyle = '#fff'; ctx.lineWidth = 8;
+    ctx.beginPath(); ctx.moveTo(ax, cy); ctx.lineTo(ax, top); ctx.lineTo(bx, top); ctx.lineTo(bx, cy); ctx.stroke();
+    ctx.strokeStyle = '#5ceaff'; ctx.lineWidth = 3; ctx.setLineDash([13, 8]); ctx.lineDashOffset = -this.t * 70; ctx.stroke();
+    ctx.restore();
 
     const rows = [t('htPair1'), t('htPair2'), t('htPair3')];
     rows.forEach((txt, i) => {
@@ -251,7 +246,7 @@ export default {
 
     strokeText(ctx, t('htSkillT'), L, 486,
       { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
-    const skills = [[icon.flame, t('htSkFire')], [null, t('htSkHammer')], [icon.restart, t('htSkShuffle')]];
+    const skills = [[icon.chirp, t('htSkFire')], [null, t('htSkHammer')], [icon.restart, t('htSkShuffle')]];
     skills.forEach(([ic, txt], i) => {
       const x = L + i * 380;
       glassPanel(ctx, x, 512, 356, 62, 14);

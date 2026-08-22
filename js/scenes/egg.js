@@ -5,6 +5,7 @@ import { Hit, textBtn, roundBtn, card, glassPanel, icon, C, FONT } from '../ui/w
 import { BREEDS } from '../data/characters.js';
 import { Cricket, drawEgg } from '../game/cricket.js';
 import { bleed } from '../core/layout.js';
+import { setHero } from '../core/lore.js';
 
 const STATS = ['might', 'spirit', 'fortune', 'breath'];
 
@@ -45,7 +46,7 @@ export default {
       if (prev < .55 && this.hatchT >= .55) G.sfx('crack');
       if (prev < 1.1 && this.hatchT >= 1.1) G.sfx('crack');
       if (prev < 1.75 && this.hatchT >= 1.75) {
-        G.sfx('roar');
+        G.sfx('chirp');
         G.fx.burst(G.W / 2, 330, { lite: b.shellA, base: b.shellB, dark: shade(b.shellB, -.3), spark: b.spot }, 30, 1.5);
         G.fx.ring(G.W / 2, 330, b.eye, 20, 300, .7, 12);
         G.fx.sparkle(G.W / 2, 330, b.eye, 30);
@@ -60,6 +61,7 @@ export default {
       this.baby.update(dt);
       if (this.hatchT > 3.4) {
         G.save.breed = BREEDS[this.sel].id;
+        setHero(G.save.breed);              // truyện gọi đúng tên giống vừa chọn
         G.save.xp = 600;
         Object.assign(G.save.stats, { ...BREEDS[this.sel].stats });
         // Lần chơi đầu: dẫn thẳng vào màn hướng dẫn thay vì thả người chơi vào bản đồ
@@ -97,7 +99,7 @@ export default {
           font: FONT.disp(23), fill: on ? '#ffe066' : '#fff', stroke: '#33194f', lw: 6, baseline: 'middle' });
       });
 
-      // bảng thông tin giống rồng
+      // bảng thông tin giống dế
       const b = BREEDS[this.sel];
       const px = W / 2 - 300, py = 418, pw = 600, ph = 168;
       card(ctx, px, py, pw, ph, 20, { top: '#fffdf7', bot: '#e3eefb' });

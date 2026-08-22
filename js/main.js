@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  SDrakon — Proto-Cricket Realm                                            ║
+// ║  CRICKO — Miền Cỏ Cháy                                                   ║
 // ║  Điểm khởi động: quản lý màn, vòng lặp, nhập liệu, co giãn theo màn hình ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { clamp } from './core/util.js';
@@ -20,6 +20,7 @@ import { BREEDS } from './data/characters.js';
 import { EPISODES, ALL_LEVELS, TOTAL_LEVELS, isRegionEnd, regionOf, nextRegion } from './data/levels.js';
 import { pickQuip } from './data/beats.js';
 import { actAt, currentAct } from './data/story.js';
+import { setHero } from './core/lore.js';
 
 import titleScene from './scenes/title.js';
 import eggScene   from './scenes/egg.js';
@@ -85,6 +86,7 @@ const G = {
 
   // ── điều hướng ────────────────────────────────────────────────────────────
   go(name, arg) {
+    setHero(G.save.breed);                      // dàn vai luôn khớp giống đang nuôi
     G.modal = null; G.quipBox = null;           // đổi màn thì bỏ hộp và câu đang hiện
     if (G.scene?.exit) G.scene.exit(G);
     G.fx.clear();
@@ -93,9 +95,66 @@ const G = {
     G.scene.hits = [];
     G.scene.enter(G, arg);
   },
-  /** Mỗi màn ngốn bấy nhiêu độ no. */
-  FED_COST: 15,
-  get hungry() { return (G.save.fed ?? 100) <= 0; },
+  // ── THỂ LỰC ───────────────────────────────────────────────────────────────
+  // Độ no là thứ duy nhất chặn người chơi cày liên tục, nên nó phải có giá:
+  // đi màn tốn, ra đấu trường tốn, thua còn tốn thêm. Hết sức mà không còn
+  // thức ăn thì phải NGHỈ — sức tự hồi theo đồng hồ thật, mỗi phút 1 điểm.
+  FED_MAX: 100,
+  FED_COST: 18,          // vào một màn
+  FED_COST_ARENA: 12,    // tự đi đấu trường
+  FED_COST_AMBUSH: 6,    // bị chặn đường giữa hành trình — không phải mình chọn nên nhẹ hơn
+  FED_LOSE: 6,           // thua thì mất thêm, để không ai thử lại vô tội vạ
+  FED_FEED: 60,          // một phần thức ăn hồi bấy nhiêu, KHÔNG no căng luôn
+  FED_REGEN_MS: 60000,   // nghỉ 1 phút = 1 điểm sức
+
+  /**
+   * Cộng phần sức đã hồi kể từ mốc `fedAt`. Gọi mỗi lần đổi màn nên người chơi
+   * mở game lại là thấy số đúng, không cần bộ đếm chạy nền.
+   */
+  tickFed() {
+    const S = G.save, now = Date.now();
+    if (!S.fedAt || S.fedAt > now) S.fedAt = now;      // save cũ hoặc đồng hồ máy bị chỉnh lùi
+    if ((S.fed ?? 100) >= G.FED_MAX) { S.fedAt = now; return; }
+    const gained = Math.floor((now - S.fedAt) / G.FED_REGEN_MS);
+    if (gained <= 0) return;
+    S.fed = Math.min(G.FED_MAX, (S.fed ?? 0) + gained);
+    S.fedAt = S.fed >= G.FED_MAX ? now : S.fedAt + gained * G.FED_REGEN_MS;
+    G.persist();
+  },
+  /** Còn bao nhiêu mili giây nữa thì đủ `cost` sức. 0 = đủ rồi. */
+  fedWaitMs(cost) {
+    const S = G.save, need = cost - (S.fed ?? 0);
+    if (need <= 0) return 0;
+    const intoTick = Date.now() - (S.fedAt || Date.now());
+    return Math.max(0, need * G.FED_REGEN_MS - intoTick);
+  },
+  /** "12:07" hoặc "1:23:04" — đồng hồ đếm ngược hồi sức. */
+  fedClock(ms) {
+    const s = Math.max(0, Math.ceil(ms / 1000));
+    const h = Math.floor(s / 3600), m = Math.floor(s / 60) % 60, ss = s % 60;
+    return h ? `${h}:${String(m).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
+             : `${m}:${String(ss).padStart(2, '0')}`;
+  },
+  /** Đủ sức làm việc này không? Không đủ thì báo còn phải chờ bao lâu. */
+  fedEnough(cost, { quiet = false } = {}) {
+    G.tickFed();
+    if ((G.save.fed ?? 0) >= cost) return true;
+    if (!quiet) {
+      G.sfx('invalid');
+      G.quipBox = null;
+      G.quip((G.save.food || 0) > 0 ? t('hungryBlock')
+                                    : t('restWait', { t: G.fedClock(G.fedWaitMs(cost)) }));
+    }
+    return false;
+  },
+  spendFed(cost) {
+    const S = G.save;
+    G.tickFed();
+    if ((S.fed ?? 100) >= G.FED_MAX) S.fedAt = Date.now();   // rời mốc đầy → bắt đầu đếm hồi
+    S.fed = Math.max(0, (S.fed ?? 100) - cost);
+    G.persist();
+  },
+  get hungry() { G.tickFed(); return (G.save.fed ?? 100) < G.FED_COST; },
 
   /**
    * Cho ăn: đổi một phần thức ăn lấy đầy bụng.
@@ -103,7 +162,9 @@ const G = {
    */
   feedHero() {
     if ((G.save.food || 0) <= 0) { G.sfx('invalid'); return false; }
-    G.save.food--; G.save.fed = 100;
+    G.save.food--;
+    if ((G.save.fed ?? 0) >= G.FED_MAX) G.save.fedAt = Date.now();
+    G.save.fed = Math.min(G.FED_MAX, (G.save.fed ?? 0) + G.FED_FEED);
     G.persist();
     G.sfx('levelup');
     G.hero.react('eat', 1.8);
@@ -113,13 +174,7 @@ const G = {
   startLevel(i, skipStory = false) {
     // ĐÓI thì không đi được. Chặn ngay ở cửa vào chứ không để vào màn rồi mới
     // báo — vào rồi mới đuổi ra thì bực hơn nhiều.
-    if (G.hungry) {
-      G.sfx('invalid');
-      G.quipBox = null;
-      G.quip(t('hungryBlock'));
-      G.go('nest');
-      return;
-    }
+    if ((G.save.fed ?? 0) < G.FED_COST) { G.askRest(); return; }
     G.sess.retries = (i === G.sess.lastLv) ? G.sess.retries + 1 : 0;
     G.sess.lastLv = i;
     G.levelIndex = clamp(i, 0, TOTAL_LEVELS - 1);
@@ -141,16 +196,17 @@ const G = {
     G.act = currentAct(G.levelIndex);
     // ── TÌNH TIẾT NGẪU NHIÊN: thỉnh thoảng bị thế lực hắc ám chặn đường ──
     // Chỉ từ màn 5 trở đi, và không chặn hai lần liên tiếp.
-    if (!skipStory && G.levelIndex >= 4 && !G._justDueled && Math.random() < 0.22) {
+    if (!skipStory && G.levelIndex >= 4 && !G._justDueled && Math.random() < 0.22
+        && (G.save.fed ?? 0) >= G.FED_COST + G.FED_COST_AMBUSH) {
       G._justDueled = true;
+      G.spendFed(G.FED_COST_AMBUSH);           // đánh nhau giữa đường cũng mất sức
       G.go('duel', { after: () => { G._justDueled = false; G.startLevel(G.levelIndex, true); } });
       return;
     }
     G._justDueled = false;
     // Trừ độ no đúng lúc VÀO màn, không trừ lúc thắng — thua cũng phải tốn
     // sức, nếu không thì thua vô hạn mà chẳng mất gì.
-    G.save.fed = Math.max(0, (G.save.fed ?? 100) - G.FED_COST);
-    G.persist();
+    G.spendFed(G.FED_COST);
     G.go(G.level.mode === 'shoot' ? 'shoot' : G.level.mode === 'pair' ? 'pair' : 'play');
   },
   /**
@@ -225,6 +281,32 @@ const G = {
    * nút đổi ngôn ngữ có mặt ở nhiều màn, nhét hộp vào từng scene là chép tay
    * ba bốn bản rồi lệch nhau.
    */
+  /**
+   * Hết sức mà vẫn bấm đi màn → dế nhảy dựng lên phản đối và hiện hộp thoại.
+   * Bản cũ chỉ nhá một câu rồi ĐÁ THẲNG người chơi về Tổ Dế: đang xem bản đồ tự
+   * dưng bị chuyển màn, chẳng ai hiểu vừa xảy ra chuyện gì.
+   */
+  askRest() {
+    G.tickFed();
+    const bw = 560, bh = 268, x = (G.W - bw) / 2, y = (G.H - bh) / 2;
+    G.sfx('invalid');
+    G.hero.react('hurt', 1.4); G.hero.bounce = 1;    // giãy nảy lên một cái
+    const close = () => { G.sfx('button'); G.modal = null; };
+    const hits = [];
+    if ((G.save.food || 0) > 0)
+      hits.push(new Hit('feed', x + 40, y + bh - 82, 230, 56,
+        { label: () => `${t('feed')} (${G.save.food})`, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a',
+          act: () => { if (G.feedHero()) { G.modal = null; } } }));
+    hits.push(new Hit('close', x + bw - (hits.length ? 270 : 150), y + bh - 82, hits.length ? 230 : 110, 56,
+      { label: () => t('close'), act: close }));
+    G.modal = {
+      kind: 'rest', x, y, w: bw, h: bh, t: 0,
+      title: t('restTitle'),
+      lines: () => [t('restBody'), t('restIn', { t: G.fedClock(G.fedWaitMs(G.FED_COST)) })],
+      hits,
+    };
+  },
+
   askLang() {
     G.audio.sfx('button');
     const bw = 460, bh = 286, x = (G.W - bw) / 2, y = (G.H - bh) / 2;
@@ -253,7 +335,7 @@ const G = {
 };
 
 G.hero = new Cricket(BREEDS.find(b => b.id === G.save.breed) || BREEDS[0], G.save.xp);
-G.hero.onFire = (x, y, dx, dy) => G.fx.fire(x, y, dx, dy, 4);
+G.hero.onChirp = (x, y, dx, dy) => G.fx.chirp(x, y, dx, dy, 4);
 G.hero.gear = { ...(G.save.equip || {}) };
 onLangChange(() => { /* mọi chuỗi đọc qua t() nên khung hình sau tự cập nhật */ });
 
@@ -388,6 +470,7 @@ let showFps = false;
 let lastQ = perf.quality;
 let quipAt = 40 + Math.random() * 40;
 const QUIP_LIFE = 5, QUIP_FADE = .7;
+let voiceAt = 40 + Math.random() * 60;      // đếm ngược tới tiếng kêu tiếp theo
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -407,6 +490,18 @@ function frame(now) {
   if (chatty && !G.quipBox && !G.modal && !G.scene?.over) {
     quipAt -= dt;
     if (quipAt <= 0) { quipAt = 55 + Math.random() * 70; G.quip(); }
+  }
+  // Vài phút một lần con dế lên tiếng: gáy một tràng hoặc cười khúc khích.
+  // Không bật trong màn chơi — ở đó đã đủ tiếng động rồi.
+  if (['map', 'nest', 'shop', 'title'].includes(G.scene?.name) && !G.modal) {
+    voiceAt -= dt;
+    if (voiceAt <= 0) {
+      voiceAt = 180 + Math.random() * 120;             // 3–5 phút
+      const laugh = Math.random() < .5;
+      G.sfx(laugh ? 'giggle' : 'chirp');
+      G.hero?.react(laugh ? 'happy' : 'chirp', 1.1);
+      if (!laugh) G.hero?.chirpBurst(.8);
+    }
   }
   if (G.quipBox) {
     const q = G.quipBox;
@@ -447,7 +542,7 @@ function frame(now) {
   }
 }
 
-/** Vẽ hộp chọn ngôn ngữ. */
+/** Vẽ hộp thoại: 'lang' là hộp chọn ngôn ngữ, còn lại là hộp chữ + nút chung. */
 function drawModal() {
   const M = G.modal;
   M.t = Math.min(1, M.t + STEP * 4);
@@ -459,6 +554,22 @@ function drawModal() {
   ctx.scale(.86 + .14 * k, .86 + .14 * k);
   ctx.translate(-(M.x + M.w / 2), -(M.y + M.h / 2));
   glassPanel(ctx, M.x, M.y, M.w, M.h, 26);
+
+  if (M.kind && M.kind !== 'lang') {                 // ── hộp chữ + nút ──
+    strokeText(ctx, M.title, M.x + M.w / 2, M.y + 52,
+      { font: FONT.disp(28), fill: '#ffd45c', stroke: '#3a1d00', lw: 6, baseline: 'middle' });
+    const lines = typeof M.lines === 'function' ? M.lines() : (M.lines || []);
+    lines.forEach((ln, i) =>
+      strokeText(ctx, ln, M.x + M.w / 2, M.y + 100 + i * 26,
+        { font: FONT.ui(16, 600), fill: '#efe8ff', stroke: null, lw: 0, baseline: 'middle', shadow: null }));
+    for (const h of M.hits)
+      textBtn(ctx, h.x, h.y, h.w, h.h, typeof h.label === 'function' ? h.label() : h.label,
+        { press: h.press, hover: h.hover, font: FONT.disp(20),
+          colour: h.colour || '#5b5f74', dark: h.dark || '#33374a', lite: h.lite || '#9aa0b6' });
+    ctx.restore();
+    return;
+  }
+
   strokeText(ctx, t('langPick'), M.x + M.w / 2, M.y + 44,
     { font: FONT.disp(26), fill: '#fff', stroke: '#2b1740', lw: 6, baseline: 'middle' });
 
@@ -494,29 +605,60 @@ function drawQuip() {
   const rise = 1 - Math.pow(1 - Math.min(1, q.t / .3), 3);
   ctx.save();
   ctx.globalAlpha = clamp(fade, 0, 1);
-  ctx.font = FONT.ui(16, 700);
-  const w = Math.min(W - 80, ctx.measureText(q.text).width + 60);
-  const h = 48, x = (W - w) / 2, y = H - 122 - rise * 10;
+  ctx.font = FONT.ui(15, 800);
+  // Toast neo vào chrome phía trên thay vì nằm giữa/bên dưới bàn chơi. Người
+  // chơi vẫn đọc được câu vui nhưng không mất dấu viên đá đang định chạm.
+  const w = Math.min(W - 150, ctx.measureText(q.text).width + 88);
+  const h = 46, x = 18 - (1 - rise) * 34, y = 10;
   q.box = { x, y, w, h };
-  roundRect(ctx, x, y + 4, w, h, 24);
-  ctx.fillStyle = 'rgba(8,4,18,.45)'; ctx.fill();
-  roundRect(ctx, x, y, w, h, 24);
-  const g = ctx.createLinearGradient(0, y, 0, y + h);
-  g.addColorStop(0, 'rgba(46,32,80,.96)'); g.addColorStop(1, 'rgba(22,14,44,.97)');
+  ctx.shadowColor = 'rgba(15,7,35,.42)'; ctx.shadowBlur = 16; ctx.shadowOffsetY = 5;
+  roundRect(ctx, x, y + 4, w, h, 23);
+  ctx.fillStyle = 'rgba(8,4,18,.42)'; ctx.fill();
+  roundRect(ctx, x, y, w, h, 23);
+  const g = ctx.createLinearGradient(x, y, x + w, y + h);
+  g.addColorStop(0, 'rgba(102,72,176,.98)');
+  g.addColorStop(.62, 'rgba(60,39,112,.98)');
+  g.addColorStop(1, 'rgba(35,23,72,.98)');
   ctx.fillStyle = g; ctx.fill();
-  ctx.strokeStyle = q.held ? 'rgba(255,214,110,.95)' : 'rgba(170,145,255,.55)';
+  ctx.shadowColor = 'transparent';
+  ctx.strokeStyle = q.held ? '#ffe98a' : 'rgba(218,200,255,.78)';
   ctx.lineWidth = q.held ? 3 : 2; ctx.stroke();
+
+  // Huy hiệu biểu cảm khiến lời bình giống một sticker bạn đồng hành, không
+  // còn là hộp thông báo hệ thống khô khan.
+  const bx = x + 24, by = y + h / 2;
+  ctx.save(); ctx.translate(bx, by); ctx.rotate(Math.sin(q.t * 7) * .035);
+  const bg = ctx.createRadialGradient(-6, -8, 2, 0, 0, 20);
+  bg.addColorStop(0, '#fff5ad'); bg.addColorStop(1, '#ffb52e');
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(0, 0, 18, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#7a3d08'; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.fillStyle = '#40204f';
+  ctx.beginPath(); ctx.arc(-6, -3, 2.1, 0, Math.PI * 2); ctx.arc(6, -3, 2.1, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#40204f'; ctx.lineWidth = 2.3; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(0, 2, 7, .20, Math.PI - .20); ctx.stroke();
+  ctx.restore();
+
+  const sparkle = (sx, sy, r) => {
+    ctx.fillStyle = '#fff4a8'; ctx.beginPath();
+    ctx.moveTo(sx, sy - r); ctx.lineTo(sx + r * .28, sy - r * .28);
+    ctx.lineTo(sx + r, sy); ctx.lineTo(sx + r * .28, sy + r * .28);
+    ctx.lineTo(sx, sy + r); ctx.lineTo(sx - r * .28, sy + r * .28);
+    ctx.lineTo(sx - r, sy); ctx.lineTo(sx - r * .28, sy - r * .28);
+    ctx.closePath(); ctx.fill();
+  };
+  sparkle(x + w - 18, y + 11, 4 + Math.sin(q.t * 5) * 1.2);
   // đồng hồ cạn dần chạy dọc mép dưới — giữ tay thì nó đứng lại
   const left = clamp(1 - q.t / QUIP_LIFE, 0, 1);
   if (left > 0) {
     ctx.save();
     roundRect(ctx, x, y, w, h, 24); ctx.clip();
-    ctx.fillStyle = q.held ? 'rgba(255,214,110,.85)' : 'rgba(170,145,255,.65)';
-    ctx.fillRect(x, y + h - 4, w * left, 4);
+    ctx.fillStyle = q.held ? '#ffe066' : '#9ff0ff';
+    ctx.fillRect(x, y + h - 3, w * left, 3);
     ctx.restore();
   }
-  strokeText(ctx, q.text, W / 2, y + h / 2 - 1,
-    { font: FONT.ui(16, 700), fill: '#efe8ff', stroke: 'rgba(0,0,0,.55)', lw: 3, baseline: 'middle', shadow: null });
+  strokeText(ctx, q.text, x + 49, y + h / 2 - 1,
+    { font: FONT.ui(15, 800), fill: '#fffaf0', stroke: 'rgba(33,14,65,.8)', lw: 3,
+      align: 'left', baseline: 'middle', shadow: null });
   ctx.restore();
 }
 
@@ -534,5 +676,5 @@ G.drawQuip = drawQuip;   // để công cụ chụp ảnh dev vẽ được lớ
   setTimeout(() => document.getElementById('boot')?.classList.add('hide'), 500);
 })();
 
-window.SDRAKON = G;          // tiện gỡ lỗi từ console
-window.SDRAKON_PERF = perf;  // đồng hồ hiệu năng, dùng cho dev/bench
+window.CRICKO = G;           // tiện gỡ lỗi từ console
+window.CRICKO_PERF = perf;   // đồng hồ hiệu năng, dùng cho dev/bench

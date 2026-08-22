@@ -381,6 +381,65 @@ export const icon = {
     ctx.fillStyle = 'rgba(255,255,255,.55)';
     ctx.beginPath(); ctx.ellipse(-s * .09, -s * .12, s * .05, s * .10, -.35, 0, TAU); ctx.fill();
   },
+  /** Tiếng gáy — cánh dế nghiêng đang rung, kèm ba vòng sóng âm. */
+  chirp(ctx, s) {
+    ctx.save();
+    ctx.translate(-s * .13, 0);
+    ctx.rotate(-.22);
+    // cánh: giọt nước thuôn, đầu nhọn chúc xuống
+    ctx.beginPath();
+    ctx.moveTo(0, -s * .34);
+    ctx.bezierCurveTo(s * .17, -s * .18, s * .17, s * .12, s * .02, s * .32);
+    ctx.bezierCurveTo(-s * .16, s * .12, -s * .17, -s * .16, 0, -s * .34);
+    ctx.closePath();
+    const wg = ctx.createLinearGradient(-s * .16, -s * .34, s * .16, s * .32);
+    wg.addColorStop(0, '#fff3cf'); wg.addColorStop(1, '#e08f18');
+    fillStroke(ctx, wg, s, .085);
+    // gân cánh — chỗ hai cánh cọ vào nhau thành tiếng
+    ctx.strokeStyle = 'rgba(110,55,8,.55)'; ctx.lineWidth = s * .04; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-s * .02, -s * .24); ctx.quadraticCurveTo(s * .06, 0, s * .0, s * .22); ctx.stroke();
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-s * .01, -s * .10 + i * s * .15);
+      ctx.lineTo(-s * .11, -s * .04 + i * s * .15);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // sóng âm — kẻ nền sẫm trước rồi phủ vàng, để nổi trên mọi nền
+    ctx.lineCap = 'round';
+    for (let pass = 0; pass < 2; pass++) {
+      for (let i = 0; i < 3; i++) {
+        ctx.strokeStyle = pass === 0 ? 'rgba(45,22,5,.55)' : `rgba(255,222,130,${1 - i * .22})`;
+        ctx.lineWidth = s * (pass === 0 ? .115 - i * .012 : .07 - i * .011);
+        ctx.beginPath();
+        ctx.arc(s * .02, s * .02, s * (.16 + i * .13), -0.92, 0.92);
+        ctx.stroke();
+      }
+    }
+  },
+  /** Thức ăn của dế: lá cỏ non kèm hạt. */
+  leaf(ctx, s) {
+    ctx.beginPath();
+    ctx.moveTo(-s * .32, s * .26);
+    ctx.bezierCurveTo(-s * .36, -s * .16, -s * .06, -s * .40, s * .30, -s * .30);
+    ctx.bezierCurveTo(s * .31, s * .10, s * .04, s * .33, -s * .32, s * .26);
+    ctx.closePath();
+    const lg = ctx.createLinearGradient(-s * .3, s * .3, s * .3, -s * .3);
+    lg.addColorStop(0, '#3f8f38'); lg.addColorStop(1, '#95e468');
+    fillStroke(ctx, lg, s, .085);
+    ctx.strokeStyle = 'rgba(20,60,15,.5)'; ctx.lineWidth = s * .05; ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(-s * .27, s * .23); ctx.quadraticCurveTo(0, s * .02, s * .23, -s * .25); ctx.stroke();
+    for (let i = 0; i < 2; i++) {
+      ctx.beginPath();
+      ctx.moveTo(-s * .10 + i * s * .17, s * .10 - i * s * .16);
+      ctx.lineTo(-s * .02 + i * s * .17, s * .19 - i * s * .16);
+      ctx.stroke();
+    }
+    // hạt rơi bên dưới
+    ctx.beginPath(); ctx.ellipse(s * .02, s * .32, s * .10, s * .07, .32, 0, TAU);
+    fillStroke(ctx, '#e8c069', s, .055);
+  },
   clock(ctx, s) {
     const r = s * .34;
     ctx.beginPath(); ctx.arc(0, s * .03, r, 0, TAU);
@@ -492,6 +551,68 @@ export function frostCard(ctx, x, y, w, h, r = 20, o = {}) {
   roundRect(ctx, x + .8, y + .8, w - 1.6, h - 1.6, r - 1); ctx.stroke();
   ctx.restore();
 }
+
+/**
+ * Nhãn viên thuốc CÓ CHỮ, canh giữa quanh (cx, cy). Bọc sẵn phần đo chữ để nơi
+ * gọi không phải tự tính bề rộng rồi gọi pillTag() sai tham số.
+ */
+export function pillLabel(ctx, cx, cy, text, base = '#f5a51e', ink = '#4a2c00', size = 13) {
+  ctx.save();
+  ctx.font = FONT.ui(size, 800);
+  const w = ctx.measureText(text).width + 26, h = size + 14;
+  pillTag(ctx, cx - w / 2, cy - h / 2, w, h, { base, lite: shade(base, .35), dark: 'rgba(20,12,40,.5)' });
+  strokeText(ctx, text, cx, cy + 1,
+    { font: FONT.ui(size, 800), fill: '#fff', stroke: ink, lw: 3, baseline: 'middle', shadow: null });
+  ctx.restore();
+}
+
+/**
+ * Nền "ảnh cảnh" của THẺ NHÂN VẬT: trời chuyển sắc · nắng · mây · đồi nhiều
+ * tầng · cỏ đung đưa. Ba màn chơi đều dùng chung hàm này — trước đây màn Ghép
+ * Đôi tự vẽ một bản rút gọn nên thẻ ở đó phẳng lì, nhìn khác hẳn hai màn kia.
+ */
+export function heroCardScene(ctx, x, y, w, h, t = 0) {
+  const g = ctx.createLinearGradient(0, y, 0, y + h);
+  g.addColorStop(0, '#8fc6f5'); g.addColorStop(.34, '#cfe9ff');
+  g.addColorStop(.62, '#ffe3c0'); g.addColorStop(1, '#f7d9a8');
+  ctx.fillStyle = g; ctx.fillRect(x, y, w, h);
+  // nắng
+  ctx.save(); ctx.globalCompositeOperation = 'lighter';
+  const sg = ctx.createRadialGradient(x + w * .74, y + h * .18, 0, x + w * .74, y + h * .18, w * .62);
+  sg.addColorStop(0, 'rgba(255,244,210,.75)'); sg.addColorStop(1, 'rgba(255,230,180,0)');
+  ctx.fillStyle = sg; ctx.beginPath(); ctx.arc(x + w * .74, y + h * .18, w * .62, 0, TAU); ctx.fill();
+  ctx.restore();
+  // mây
+  ctx.fillStyle = 'rgba(255,255,255,.55)';
+  for (const [cx0, cy0, cw] of [[.22, .14, .20], [.62, .26, .15], [.40, .09, .12]]) {
+    ctx.beginPath(); ctx.ellipse(x + w * cx0, y + h * cy0, w * cw, h * cw * .34, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(x + w * (cx0 + cw * .6), y + h * (cy0 + .012), w * cw * .68, h * cw * .26, 0, 0, TAU); ctx.fill();
+  }
+  // đồi nhiều tầng
+  for (const [yy, cxk, col] of [[.50, .70, 'rgba(150,195,140,.60)'],
+                                [.60, .28, 'rgba(120,175,110,.85)'],
+                                [.70, .55, '#79ae62']]) {
+    ctx.fillStyle = col;
+    ctx.beginPath(); ctx.ellipse(x + w * cxk, y + h * (yy + .30), w * .85, h * .27, 0, 0, TAU); ctx.fill();
+  }
+  // cỏ đung đưa dưới chân
+  ctx.strokeStyle = 'rgba(58,102,46,.75)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
+  for (let i = 0; i < 16; i++) {
+    const gx = x + 10 + i * (w - 20) / 15, gh = 10 + (i % 4) * 6;
+    const sw = Math.sin(t * 1.5 + i) * 3;
+    ctx.beginPath(); ctx.moveTo(gx, y + h * .78);
+    ctx.quadraticCurveTo(gx + sw * .5, y + h * .78 - gh * .6, gx + sw, y + h * .78 - gh); ctx.stroke();
+  }
+}
+
+/**
+ * Cỡ vẽ con dế sao cho LỌT hẳn trong thẻ rộng `w`.
+ * Thân dế rộng ≈ 1,9×S và còn nhân thêm `scale` của giai đoạn tiến hoá — Dế Lữ
+ * Khách (1,22) vẽ ở cỡ cố định 100 là thò càng ra ngoài mép thẻ, đúng lỗi
+ * "con dế bị khuất trong khung".
+ */
+export const heroFit = (w, stageScale = 1, max = 104) =>
+  Math.min(max, (w - 44) / (1.9 * (stageScale || 1)));
 
 /** Viên thuốc bo tròn có gờ bóng — dùng cho nhãn nhỏ trong HUD. */
 export function pillTag(ctx, x, y, w, h, o = {}) {

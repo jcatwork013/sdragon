@@ -33,7 +33,7 @@ STAGES.forEach((st, i) => {
 BREEDS.forEach((b, i) => {
   const d = new Cricket(b, 9800);
   d.gear = i % 2 ? { helm: 'helm2', armor: 'arm2', weapon: 'wep2' } : {};
-  if (i === 1) d.react('happy', 3); if (i === 2) d.breatheFire(3);
+  if (i === 1) d.react('happy', 3); if (i === 2) d.chirpBurst(3);
   settle(d);
   d.draw(x, 750 + i * 200, 640, 150, 1);
   cap(b.name + ' · ' + d.mood, 750 + i * 200, 730);

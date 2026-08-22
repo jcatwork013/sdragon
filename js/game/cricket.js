@@ -1,5 +1,5 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
-// ║  DẾ MÈN — nhân vật chính, vẽ 100% bằng Canvas path, không dùng ảnh.      ║
+// ║  CON DẾ — nhân vật chính, vẽ 100% bằng Canvas path, không dùng ảnh.      ║
 // ║                                                                          ║
 // ║  Dáng nghiêng hướng phải, tư thế lữ hành. Bóng dáng đặc trưng của dế:    ║
 // ║  hai râu dài cong · tấm mai ngực (pronotum) như áo giáp · cánh cứng bóng  ║
@@ -188,8 +188,8 @@ export class Cricket {
     this.blink = 0;
     this.blinkAt = 2 + Math.random() * 3;
     this.bounce = 0;
-    this.fireT = 0;
-    this.onFire = null;
+    this.chirpT = 0;
+    this.onChirp = null;
     this.antic = null; this.anticT = 0;
     this.pokeShake = 0;
     this.pose = null;          // null | 'taunt' (ăn mừng đểu) | 'ko' (nằm băng bó)
@@ -209,13 +209,13 @@ export class Cricket {
     const p = pickPoke();
     this.react(p.mood === 'bop' ? 'happy' : p.mood, 1.3);
     if (p.mood === 'bop') { this.antic = 'bop'; this.anticT = 1.1; }
-    if (p.mood === 'chirp') { this.mood = 'chirp'; this.moodT = 1.1; this.fireT = 0; }
+    if (p.mood === 'chirp') { this.mood = 'chirp'; this.moodT = 1.1; this.chirpT = 0; }
     this.bounce = 1;
     this.pokeShake = 1;
     return p;
   }
-  /** "Phun lửa" của rồng → với dế là GÁY: rung cánh phát ra sóng âm. */
-  breatheFire(dur = 0.9) { this.mood = 'chirp'; this.moodT = dur; this.fireT = dur; }
+  /** Đòn GÁY: rung cánh phát ra sóng âm. */
+  chirpBurst(dur = 0.9) { this.mood = 'chirp'; this.moodT = dur; this.chirpT = dur; }
 
   /** Tư thế kết trận. 'taunt' = vênh mặt trêu ngươi · 'ko' = chổng vó băng bó. */
   setPose(p) { this.pose = p; this.poseT = 0; if (p === 'taunt') this.bounce = 1; }
@@ -248,9 +248,9 @@ export class Cricket {
     if (this.blinkAt <= 0) { this.blink = 1; this.blinkAt = 2.2 + Math.random() * 3.4; }
     this.blink = Math.max(0, this.blink - dt * 7);
 
-    if (this.fireT > 0) {
-      this.fireT -= dt;
-      if (this.onFire && this.mouthPos) this.onFire(this.mouthPos.x, this.mouthPos.y, 1, -0.12);
+    if (this.chirpT > 0) {
+      this.chirpT -= dt;
+      if (this.onChirp && this.mouthPos) this.onChirp(this.mouthPos.x, this.mouthPos.y, 1, -0.12);
     }
   }
 
@@ -847,7 +847,7 @@ export class Cricket {
         ctx.restore();
       }
     }
-    // chân mày → nét "ngang tàng" của Dế Mèn
+    // chân mày → nét "ngang tàng" của nhân vật chính
     ctx.strokeStyle = ink; ctx.lineWidth = LW * 1.2; ctx.lineCap = 'round';
     ctx.beginPath();
     ctx.moveTo(ex - er * 1.0, ey - er * (.86 + proud * .22));

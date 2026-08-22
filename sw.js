@@ -1,6 +1,6 @@
 // ── Service worker: chơi được hoàn toàn ngoại tuyến sau lần mở đầu ──────────
 // Đổi CACHE khi phát hành bản mới → bản cũ tự bị dọn.
-const CACHE = 'cricko-v1.8.0';
+const CACHE = 'cricko-v1.19.0';
 
 const SHELL = [
   './',
@@ -11,11 +11,13 @@ const SHELL = [
   './js/audio/songs.js',
   './js/core/i18n.js',
   './js/core/layout.js',
+  './js/core/lore.js',
   './js/core/perf.js',
   './js/core/state.js',
   './js/core/util.js',
   './js/core/version.js',
   './js/data/beats.js',
+  './js/data/cast.js',
   './js/data/characters.js',
   './js/data/duel.js',
   './js/data/gear.js',

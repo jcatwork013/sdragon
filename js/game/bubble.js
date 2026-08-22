@@ -12,12 +12,12 @@ import { TAU, clamp, lerp, ease, rand, randInt, rgba, shade, makeCanvas } from '
 import { perf } from '../core/perf.js';
 
 export const ORB = [
-  { id: 'lam',  base: '#2f7ff0', lite: '#cfe6ff', dark: '#0d2f6b', spark: '#eaf5ff', rune: 'ring'   },
-  { id: 'tia',  base: '#a34df0', lite: '#eccfff', dark: '#43126f', spark: '#f8e9ff', rune: 'bolt'   },
-  { id: 'do',   base: '#f03560', lite: '#ffd0da', dark: '#750b28', spark: '#ffeaf0', rune: 'cross'  },
-  { id: 'vang', base: '#f5a51e', lite: '#ffeec2', dark: '#7d4405', spark: '#fff6dd', rune: 'sun'    },
-  { id: 'luc',  base: '#25c777', lite: '#c6ffe4', dark: '#075131', spark: '#e8fff4', rune: 'leaf'   },
-  { id: 'lam2', base: '#1ed2d8', lite: '#c6ffff', dark: '#065a63', spark: '#e6ffff', rune: 'wave'   },
+  { id: 'lam',  base: '#287cff', lite: '#d8efff', dark: '#08295f', accent: '#38e8ff', spark: '#f1fbff', rune: 'ring'   },
+  { id: 'tia',  base: '#a63cff', lite: '#f3d6ff', dark: '#3b0b69', accent: '#ff66db', spark: '#fff0ff', rune: 'bolt'   },
+  { id: 'do',   base: '#ff315f', lite: '#ffd6df', dark: '#70051f', accent: '#ff8a3d', spark: '#fff0f4', rune: 'cross'  },
+  { id: 'vang', base: '#ffad18', lite: '#fff0b8', dark: '#704000', accent: '#f6e33a', spark: '#fff9df', rune: 'sun'    },
+  { id: 'luc',  base: '#1fce72', lite: '#d3ffe6', dark: '#064b2d', accent: '#63f0bf', spark: '#effff7', rune: 'leaf'   },
+  { id: 'lam2', base: '#14d6dc', lite: '#d3ffff', dark: '#04545f', accent: '#7e8cff', spark: '#efffff', rune: 'wave'   },
 ];
 
 const SPRITE = 160;
@@ -26,16 +26,27 @@ const cache = [];
 /** Vẽ sẵn từng loại viên đá ra ảnh — bắn nhiều viên vẫn không tốn thêm gì. */
 export function buildOrbSprites() {
   if (cache.length) return cache;
-  for (const o of ORB) {
+  for (let oi = 0; oi < ORB.length; oi++) {
+    const o = ORB[oi];
     const c = makeCanvas(SPRITE, SPRITE);
     const x = c.getContext('2d');
     const R = SPRITE * .44, cx = SPRITE / 2, cy = SPRITE / 2;
     x.translate(cx, cy);
 
+    // quầng màu nằm ngay trong sprite cache: bóng nổi bật trên nền hang tối mà
+    // không tốn shadowBlur ở từng viên trong mỗi khung hình.
+    x.save();
+    x.globalCompositeOperation = 'lighter';
+    x.shadowColor = rgba(o.accent, .72); x.shadowBlur = R * .24;
+    x.strokeStyle = rgba(o.accent, .38); x.lineWidth = R * .13;
+    x.beginPath(); x.arc(0, 0, R * .93, 0, TAU); x.stroke();
+    x.restore();
+
     // thân viên — sáng ở trên-trái, tối dần xuống dưới-phải
     x.beginPath(); x.arc(0, 0, R, 0, TAU);
     const g = x.createRadialGradient(-R * .36, -R * .42, R * .06, 0, 0, R * 1.06);
-    g.addColorStop(0, shade(o.lite, .30)); g.addColorStop(.42, o.base); g.addColorStop(1, o.dark);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(.12, shade(o.lite, .24));
+    g.addColorStop(.46, o.base); g.addColorStop(.78, shade(o.base, -.16)); g.addColorStop(1, o.dark);
     x.fillStyle = g; x.fill();
 
     // ánh phản chiếu hắt lên từ dưới — mẹo làm quả cầu ra "thuỷ tinh"
@@ -47,6 +58,17 @@ export function buildOrbSprites() {
     bounce.addColorStop(0, rgba(o.lite, .45)); bounce.addColorStop(1, rgba(o.lite, 0));
     x.fillStyle = bounce;
     x.beginPath(); x.arc(R * .18, R * .52, R * .70, 0, TAU); x.fill();
+    x.restore();
+
+    // ánh cầu vồng ôm mép dưới-phải. Mỗi họ đá có một màu phụ riêng nên cả
+    // cụm nhìn vui mắt hơn nhưng ký hiệu khắc vẫn là dấu hiệu nhận dạng chính.
+    x.save();
+    x.beginPath(); x.arc(0, 0, R * .96, 0, TAU); x.clip();
+    x.globalCompositeOperation = 'screen';
+    x.strokeStyle = rgba(o.accent, .72); x.lineWidth = R * .15; x.lineCap = 'round';
+    x.beginPath(); x.arc(R * .05, R * .04, R * .73, -.02, Math.PI * .72); x.stroke();
+    x.strokeStyle = 'rgba(255,255,255,.27)'; x.lineWidth = R * .055;
+    x.beginPath(); x.arc(-R * .02, -R * .02, R * .78, Math.PI * .18, Math.PI * .73); x.stroke();
     x.restore();
 
     // vân khắc — mỗi màu một ký hiệu, phân biệt được cả khi mù màu.
@@ -98,6 +120,18 @@ export function buildOrbSprites() {
     x.restore();
     x.fillStyle = 'rgba(255,255,255,.95)';
     x.beginPath(); x.ellipse(-R * .40, -R * .46, R * .13, R * .075, -.7, 0, TAU); x.fill();
+
+    // bụi kim tuyến cố định theo màu — không nhấp nháy ngẫu nhiên nên ảnh
+    // sạch, không rung hạt khi quay video hay chơi trên màn hình 120 Hz.
+    x.save(); x.globalCompositeOperation = 'lighter';
+    for (let k = 0; k < 7; k++) {
+      const a = oi * 1.37 + k * 2.21, rr = R * (.25 + ((k * 37 + oi * 11) % 53) / 100);
+      const px = Math.cos(a) * rr, py = Math.sin(a) * rr;
+      if (px < -R * .18 && py < -R * .18) continue;
+      x.fillStyle = k % 2 ? rgba(o.accent, .72) : 'rgba(255,255,255,.64)';
+      x.beginPath(); x.arc(px, py, R * (k % 3 ? .018 : .027), 0, TAU); x.fill();
+    }
+    x.restore();
 
     cache.push(c);
   }

@@ -18,7 +18,7 @@ globalThis.performance={now:()=>Number(process.hrtime.bigint()/1000n)/1000};
 globalThis.requestAnimationFrame=()=>0;
 await import(new URL('../js/main.js', import.meta.url).href);
 await new Promise(r=>setTimeout(r,150));
-const G=globalThis.window.SDRAKON;
+const G=globalThis.window.CRICKO;
 
 const COUNT = {};
 const WATCH = ['createLinearGradient','createRadialGradient','beginPath','fill','stroke',

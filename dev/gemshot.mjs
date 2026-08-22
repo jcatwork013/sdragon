@@ -24,7 +24,7 @@ const btn = (cx,cy,fn)=>{ x.save(); x.beginPath(); x.arc(cx,cy,34,0,Math.PI*2);
   x.save(); x.beginPath(); x.arc(cx,cy,34,0,Math.PI*2); x.clip();
   x.fillStyle='rgba(255,255,255,.5)'; x.beginPath(); x.ellipse(cx-7,cy-18,18,7,0,0,Math.PI*2); x.fill(); x.restore();
   x.translate(cx,cy); fn(x,66); x.restore(); };
-btn(120, 400, W.icon.flame); btn(230, 400, W.icon.hammer); btn(340, 400, W.icon.restart);
+btn(120, 400, W.icon.chirp); btn(230, 400, W.icon.hammer); btn(340, 400, W.icon.restart);
 btn(450, 400, W.icon.clock); btn(560, 400, W.icon.star);   btn(670, 400, W.icon.crown);
 btn(780, 400, W.icon.heart); btn(890, 400, W.icon.pouch);
 fs.writeFileSync(new URL('shots/gems.png', import.meta.url).pathname, c.toBuffer('image/png'));

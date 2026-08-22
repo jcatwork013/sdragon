@@ -41,7 +41,7 @@ export default {
       new Hit('go', G.W / 2 - 140, G.H - 116, 280, 64,
         { act: () => { G.sfx('button'); this.after(); } }),
     ];
-    G.world.setTheme({ sky: this.ep.sky, hill: this.ep.hill, mount: this.ep.mount });
+    G.world.setTheme({ sky: this.ep.sky, hill: this.ep.hill, mount: this.ep.mount, biome: this.ep.biome });
     G.sfx('levelup');
     G.music('trail');
   },

@@ -48,8 +48,8 @@ export class FX {
     }
   }
 
-  /** Lửa rồng phun — cột hạt nóng bay theo hướng. */
-  fire(x, y, dx, dy, n = 22) {
+  /** Luồng sóng gáy — cột hạt sáng bay theo hướng. */
+  chirp(x, y, dx, dy, n = 22) {
     n = Math.max(3, Math.round(n * perf.particleScale));
     for (let i = 0; i < n; i++) {
       const spread = rand(.42, -.42);
@@ -57,7 +57,7 @@ export class FX {
       const vx = (dx * ca - dy * sa), vy = (dx * sa + dy * ca);
       const sp = rand(620, 240);
       this.parts.push({
-        k: 'fire', x: x + rand(10, -10), y: y + rand(10, -10),
+        k: 'chirp', x: x + rand(10, -10), y: y + rand(10, -10),
         vx: vx * sp, vy: vy * sp, r: rand(19, 8), life: 0, max: rand(.75, .35),
         g: -220, c: '#fff',
       });
@@ -164,14 +164,14 @@ export class FX {
             : ctx.moveTo(Math.cos(ang) * rr, Math.sin(ang) * rr);
         }
         ctx.closePath(); ctx.fill();
-      } else if (p.k === 'fire') {
+      } else if (p.k === 'chirp') {
+        // hạt sóng âm: sáng vàng nhạt rồi tan, không ngả đỏ như lửa
         ctx.globalCompositeOperation = 'lighter';
-        const r = p.r * (1 + k * 1.5);
-        const hue = lerp(52, 6, k);
+        const r = p.r * (1 + k * 1.7);
         const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, r);
-        g.addColorStop(0, `hsla(${hue},100%,${lerp(96, 58, k)}%,${a})`);
-        g.addColorStop(.55, `hsla(${hue - 14},100%,52%,${a * .6})`);
-        g.addColorStop(1, `hsla(${hue - 30},100%,40%,0)`);
+        g.addColorStop(0, `rgba(255,255,244,${a})`);
+        g.addColorStop(.45, `rgba(255,214,110,${a * .6})`);
+        g.addColorStop(1, 'rgba(255,190,80,0)');
         ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, TAU); ctx.fill();
       } else if (p.k === 'smoke') {
         const r = p.r * (1 + k * 2.2);

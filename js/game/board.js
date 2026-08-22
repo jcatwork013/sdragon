@@ -39,7 +39,7 @@ export class Board {
     this.rows = o.rows ?? 8;
     this.size = o.size ?? 64;
     this.colours = clamp(o.colours ?? 6, 3, GEMS.length);
-    this.fortune = 0;               // chỉ số May mắn của rồng → tỉ lệ ra gem đặc biệt
+    this.fortune = 0;               // chỉ số May mắn của dế → tỉ lệ ra gem đặc biệt
     this.might = 0;                 // chỉ số Sức mạnh  → bán kính nổ
     this.tokenRate = 0.030;         // tỉ lệ mỗi viên mới mang vật phẩm
     this.on = {};                   // { match, special, blast, land, settle, noMoves, shuffled }
@@ -190,7 +190,7 @@ export class Board {
    *
    * LUẬT VÙNG NỔ (cố ý giữ CHẶT để nước đi còn đọc được):
    *   · Thương Lửa ngang → ĐÚNG MỘT HÀNG.  Dọc → ĐÚNG MỘT CỘT.
-   *   · Thập Long        → một hàng + một cột.
+   *   · Thập Càng        → một hàng + một cột.
    *   · Trứng Lăng Kính  → mọi viên cùng màu.
    * Chỉ số "Sức mạnh" KHÔNG nới vùng nổ (nới ra là bàn cờ tan nát, người chơi
    * mất khả năng tính trước) — nó cộng vào SÁT THƯƠNG lên thiên địch thay thế.
@@ -339,6 +339,19 @@ export class Board {
     // gem đặc biệt nằm trong bộ trùng thì phát nổ theo
     const seen = new Set();
     for (const i of [...out]) if (this.grid[i]?.sp) this.detonate(i, out, seen);
+
+    // ── TƠ NHỆN LÀ TẤM CHẮN ────────────────────────────────────────────────
+    // Ô đang phủ tơ thì cú ghép này chỉ RÁCH TƠ, viên ngọc bên dưới còn nguyên;
+    // muốn ăn nó phải ghép thêm một lần nữa. Trước đây tơ vỡ chung với ngọc nên
+    // giăng tơ chẳng cản được gì, chỉ tổ rối mắt.
+    for (const i of [...out]) {
+      const c = this.grid[i];
+      if (c && c.web > 0) { c.web--; this.on.unweb?.(c); out.delete(i); }
+    }
+    // gem đặc biệt định đặt lên ô vừa được tơ che thì bỏ, kẻo đặt vào ô không vỡ
+    for (let k = specials.length - 1; k >= 0; k--)
+      if (!out.has(specials[k].index)) specials.splice(k, 1);
+    if (!out.size) { this.phase = 'idle'; return true; }   // chỉ rách tơ: nước đi vẫn tính
 
     // gỡ tơ: mỗi ô vỡ làm rách tơ ở 4 ô kề
     for (const i of out) {

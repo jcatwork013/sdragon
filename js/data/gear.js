@@ -6,6 +6,9 @@
 // ║  Chỉ số cộng thẳng vào heroPower() nên tác dụng thấy ngay, không mơ hồ.   ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
+import { mulberry32 } from '../core/util.js';
+import { STAGES } from './characters.js';
+
 /** Nguyên liệu nhặt được. `w` = trọng số rơi (càng lớn càng hay gặp). */
 export const MATS = {
   vo:   { id: 'vo',   name: 'Vỏ Hạt',    name_en: 'Seed Husk',   col: '#d8a860', w: 30 },
@@ -68,55 +71,113 @@ export const RECIPES = [
  * `event` = đồ theo mùa, chỉ bày bán đúng dịp (xem eventNow()).
  * Toàn bộ TỰ VẼ bằng code, không mượn hình của ai — bản quyền thuộc 9bricks.
  */
-export const SHOP = [
-  // ── MŨ ────────────────────────────────────────────────────────────────
-  { id: 'sh_helm1', slot: 'helm', tier: 1, price: 180,  col: '#cbb98a', art: 'nonla',
-    name: 'Nón Lá Con',       name_en: 'Little Palm Hat',   add: { hp: 10 } },
-  { id: 'sh_helm2', slot: 'helm', tier: 2, price: 640,  col: '#d8a35c', art: 'shell',
-    name: 'Mũ Vỏ Ốc',         name_en: 'Snail-Shell Cap',   add: { hp: 24, atk: 2 } },
-  { id: 'sh_helm3', slot: 'helm', tier: 3, price: 1900, col: '#9fb4d8', art: 'horned',
-    name: 'Mũ Giáp Sừng',     name_en: 'Horned Warhelm',    add: { hp: 44, atk: 4, crit: 3 } },
-  { id: 'sh_helm4', slot: 'helm', tier: 4, price: 4400, col: '#bfe6ff', art: 'crown', aura: '#8fd8ff',
-    name: 'Vương Miện Sương', name_en: 'Dewlight Crown',    add: { hp: 70, atk: 6, crit: 5 } },
+/**
+ * ── CỬA HÀNG TỰ SINH ĐỒ ────────────────────────────────────────────────────
+ *
+ * Trước đây cửa hàng là 16 món cố định: mua hết một lượt là hết chuyện, mà giá
+ * lại rẻ so với tiền kiếm được nên chẳng phải cân nhắc gì. Nay mỗi NGÀY sinh
+ * một lô hàng mới từ bảng chất liệu + ngân sách chỉ số theo bậc.
+ *
+ * Id mã hoá đủ dữ liệu để dựng lại đúng món đó ("g-<seed36>-<ô>-<bậc>"), nên đồ
+ * đã mua vẫn còn nguyên trong tủ khi cửa hàng đã đổi hàng khác.
+ */
+const G_MAT = [
+  { vi: 'Vỏ Ốc',     en: 'Snail-Shell', col: '#d8a35c' },
+  { vi: 'Tơ Chàm',   en: 'Indigo Silk', col: '#3f6fb0' },
+  { vi: 'Gấm Vàng',  en: 'Gold Brocade', col: '#e0b23c' },
+  { vi: 'Đá Suối',   en: 'Riverstone',  col: '#9fb4d8' },
+  { vi: 'Hổ Phách',  en: 'Amber',       col: '#ffb648' },
+  { vi: 'Cánh Sương', en: 'Dewwing',    col: '#bfe6ff' },
+  { vi: 'Vỏ Trấu',   en: 'Chaff',       col: '#c2a06a' },
+  { vi: 'Rễ Cỏ',     en: 'Grassroot',   col: '#7fb861' },
+  { vi: 'Mảnh Sừng', en: 'Hornshard',   col: '#f2e2a8' },
+  { vi: 'Ngọc Rêu',  en: 'Mossjade',    col: '#5fbfa8' },
+  { vi: 'Lá Khô',    en: 'Dryleaf',     col: '#b98a4e' },
+  { vi: 'Trăng Non', en: 'New-Moon',    col: '#eaf4ff' },
+];
+const G_EPI = [
+  { vi: 'Đêm Mưa',   en: 'of Rainy Night' },
+  { vi: 'Gió Đồng',  en: 'of Field Wind' },
+  { vi: 'Cỏ Cháy',   en: 'of Burnt Grass' },
+  { vi: 'Sương Sớm', en: 'of Dawn Mist' },
+  { vi: 'Bờ Ruộng',  en: 'of the Paddy Bank' },
+  { vi: 'Tiếng Gáy', en: 'of the Chirp' },
+];
+const G_NOUN = {
+  helm:   [null, { vi: 'Nón',  en: 'Cap' },   { vi: 'Mũ',   en: 'Helm' },  { vi: 'Mũ Giáp',  en: 'Warhelm' },     { vi: 'Vương Miện', en: 'Crown' }],
+  scarf:  [null, { vi: 'Khăn', en: 'Wrap' },  { vi: 'Khăn', en: 'Scarf' }, { vi: 'Khăn Gấm', en: 'Brocade Sash' }, { vi: 'Khăn Mây',   en: 'Cloudsash' }],
+  armor:  [null, { vi: 'Áo',   en: 'Jerkin' },{ vi: 'Giáp', en: 'Plate' }, { vi: 'Giáp Vỏ',  en: 'Shell Plate' },  { vi: 'Giáp Ngọc',  en: 'Jade Aegis' }],
+  weapon: [null, { vi: 'Gậy',  en: 'Stick' }, { vi: 'Kiếm', en: 'Blade' }, { vi: 'Búa',      en: 'Maul' },         { vi: 'Đao',        en: 'Glaive' }],
+};
+// Ngân sách chỉ số: mỗi ô một kiểu người, không phải cùng một cục điểm chia đều.
+const G_BUILD = {
+  helm:   [null, { hp: [10, 20] },  { hp: [24, 40], atk: [1, 3] },  { hp: [44, 80], atk: [3, 6], crit: [2, 4] },   { hp: [80, 140], atk: [5, 9], crit: [3, 6] }],
+  scarf:  [null, { hp: [8, 16] },   { hp: [18, 34], crit: [1, 3] }, { hp: [32, 58], atk: [2, 4], crit: [3, 6] },   { hp: [52, 96], atk: [3, 6], charge: [.15, .30] }],
+  armor:  [null, { hp: [14, 26] },  { hp: [34, 56], crit: [1, 3] }, { hp: [66, 110], atk: [2, 5] },                { hp: [110, 180], atk: [4, 8], crit: [2, 5] }],
+  weapon: [null, { atk: [3, 6] },   { atk: [8, 13], crit: [2, 5] }, { atk: [15, 22], charge: [.15, .30] },         { atk: [24, 34], crit: [6, 11], charge: [.20, .40] }],
+};
+// Giá theo bậc — cố ý dốc: bậc 4 là mục tiêu của cả chương, không phải món mua
+// cho vui sau vài màn.
+const G_PRICE = [null, [280, 380], [1200, 1600], [3800, 5200], [11000, 16000]];
+const G_ART = {
+  helm:  [null, 'nonla', 'shell', 'horned', 'crown'],
+  other: [null, 'plain', 'stripe', 'broc', 'cloud'],
+};
 
-  // ── KHĂN ──────────────────────────────────────────────────────────────
-  { id: 'sh_scf1', slot: 'scarf', tier: 1, price: 150,  col: '#c9a86e', art: 'plain',
-    name: 'Khăn Rơm',         name_en: 'Straw Wrap',         add: { hp: 8 } },
-  { id: 'sh_scf2', slot: 'scarf', tier: 2, price: 590,  col: '#3f6fb0', art: 'stripe',
-    name: 'Khăn Lụa Chàm',    name_en: 'Indigo Silk Scarf',  add: { hp: 20, crit: 2 } },
-  { id: 'sh_scf3', slot: 'scarf', tier: 3, price: 1750, col: '#e0b23c', art: 'broc',
-    name: 'Khăn Gấm Vàng',    name_en: 'Gold Brocade Scarf', add: { hp: 36, atk: 3, crit: 4 } },
-  { id: 'sh_scf4', slot: 'scarf', tier: 4, price: 4100, col: '#e8d8ff', art: 'cloud', aura: '#c9a8ff',
-    name: 'Khăn Mây Bay',     name_en: 'Driftcloud Scarf',   add: { hp: 58, atk: 4, charge: .2 } },
+const _pick = (R, arr) => arr[Math.floor(R() * arr.length) % arr.length];
 
-  // ── GIÁP ──────────────────────────────────────────────────────────────
-  { id: 'sh_arm1', slot: 'armor', tier: 1, price: 200,  col: '#c2a06a', art: 'plain',
-    name: 'Áo Vỏ Trấu',       name_en: 'Chaff Jerkin',       add: { hp: 16 } },
-  { id: 'sh_arm2', slot: 'armor', tier: 2, price: 700,  col: '#d3703a', art: 'stripe',
-    name: 'Giáp Cánh Cam',    name_en: 'Amber Wing Plate',   add: { hp: 40, crit: 2 } },
-  { id: 'sh_arm3', slot: 'armor', tier: 3, price: 2050, col: '#5fbfa8', art: 'broc',
-    name: 'Giáp Vảy Ngọc',    name_en: 'Jade Scale Plate',   add: { hp: 76, atk: 3 } },
-  { id: 'sh_arm4', slot: 'armor', tier: 4, price: 4700, col: '#ffb648', art: 'cloud', aura: '#ffb44a',
-    name: 'Giáp Hổ Phách',    name_en: 'Amberheart Plate',   add: { hp: 120, atk: 5, crit: 3 } },
+/** Dựng lại chính xác một món từ id "g-<seed36>-<ô>-<bậc>". */
+export function genGear(id) {
+  const m = /^g-([0-9a-z]+)-(helm|scarf|armor|weapon)-([1-4])$/.exec(id);
+  if (!m) return null;
+  const seed = parseInt(m[1], 36), slot = m[2], tier = Number(m[3]);
+  const R = mulberry32(seed >>> 0);
+  const mat = _pick(R, G_MAT), noun = G_NOUN[slot][tier];
+  const epi = tier >= 3 && R() < .62 ? _pick(R, G_EPI) : null;
+  const build = G_BUILD[slot][tier];
+  const add = {};
+  let sum = 0, n = 0;
+  for (const [k, range] of Object.entries(build)) {
+    const raw = range[0] + R() * (range[1] - range[0]);
+    add[k] = k === 'charge' ? Math.round(raw * 20) / 20 : Math.round(raw);
+    sum += (raw - range[0]) / Math.max(1e-6, range[1] - range[0]); n++;
+  }
+  const quality = n ? sum / n : .5;                     // 0 = đáy khung, 1 = kịch khung
+  const [p0, p1] = G_PRICE[tier];
+  const price = Math.round((p0 + (p1 - p0) * quality) / 10) * 10;
+  const art = (slot === 'helm' ? G_ART.helm : G_ART.other)[tier];
+  return {
+    id, slot, tier, price, add, col: mat.col, art,
+    aura: tier >= 4 ? mat.col : undefined,
+    name:    `${noun.vi} ${mat.vi}${epi ? ' ' + epi.vi : ''}`,
+    name_en: `${mat.en} ${noun.en}${epi ? ' ' + epi.en : ''}`,
+  };
+}
 
-  // ── VŨ KHÍ ────────────────────────────────────────────────────────────
-  { id: 'sh_wep1', slot: 'weapon', tier: 1, price: 190,  col: '#a8c46a', art: 'plain',
-    name: 'Gậy Trúc',         name_en: 'Bamboo Stick',       add: { atk: 4 } },
-  { id: 'sh_wep2', slot: 'weapon', tier: 2, price: 720,  col: '#8ed86a', art: 'stripe',
-    name: 'Kiếm Lá Sắc',      name_en: 'Keen Leaf Blade',    add: { atk: 9, crit: 4 } },
-  { id: 'sh_wep3', slot: 'weapon', tier: 3, price: 2150, col: '#b98a4e', art: 'broc',
-    name: 'Búa Hạt Dẻ',       name_en: 'Chestnut Maul',      add: { atk: 17, charge: .25 } },
-  { id: 'sh_wep4', slot: 'weapon', tier: 4, price: 4900, col: '#eaf4ff', art: 'cloud', aura: '#eaf4ff',
-    name: 'Đao Ánh Trăng',    name_en: 'Moonedge Glaive',    add: { atk: 26, crit: 8, charge: .3 } },
+/** Ngày thứ mấy kể từ mốc Unix — lô hàng đổi theo ngày. */
+export const shopDay = (now = Date.now()) => Math.floor(now / 86400000);
 
-  // ── ĐỒ THEO MÙA ───────────────────────────────────────────────────────
-  { id: 'ev_lan', slot: 'helm',  tier: 4, price: 3200, col: '#e83a3a', art: 'lion',
+/** Lô hàng của một ngày: mỗi ô 4 bậc. */
+export function rollStock(day = shopDay()) {
+  const out = [];
+  ['helm', 'scarf', 'armor', 'weapon'].forEach((slot, si) => {
+    for (let tier = 1; tier <= 4; tier++) {
+      const seed = ((day * 9176 + si * 733 + tier * 97) >>> 0) % 2176782336;   // 36^6
+      out.push(genGear(`g-${seed.toString(36)}-${slot}-${tier}`));
+    }
+  });
+  return out.filter(Boolean);
+}
+
+/** Đồ theo mùa — vẫn làm tay vì mỗi món có hình riêng. */
+export const EVENT_GEAR = [
+  { id: 'ev_lan', slot: 'helm',  tier: 4, price: 9800, col: '#e83a3a', art: 'lion',
     aura: '#ff5a3a', event: 'tet',
     name: 'Mũ Lân Tết',       name_en: 'New-Year Lion Cap',  add: { hp: 60, atk: 6, crit: 4 } },
-  { id: 'ev_sao', slot: 'scarf', tier: 4, price: 3200, col: '#ffd23f', art: 'star',
+  { id: 'ev_sao', slot: 'scarf', tier: 4, price: 9800, col: '#ffd23f', art: 'star',
     aura: '#ffd23f', event: 'trungthu',
     name: 'Khăn Đèn Sao',     name_en: 'Star-Lantern Sash',  add: { hp: 48, atk: 5, charge: .25 } },
-  { id: 'ev_ma',  slot: 'scarf', tier: 4, price: 3200, col: '#8ef08a', art: 'ghost',
+  { id: 'ev_ma',  slot: 'scarf', tier: 4, price: 9800, col: '#8ef08a', art: 'ghost',
     aura: '#8ef08a', event: 'halloween',
     name: 'Khăn Lân Tinh',    name_en: 'Wisplight Sash',     add: { hp: 48, crit: 8 } },
 ];
@@ -131,11 +192,29 @@ export function eventNow(now = new Date()) {
 }
 
 /** Món đang bày bán: hàng thường + đúng một dòng đồ mùa. */
-export const shopStock = (ev = eventNow()) => SHOP.filter(g => !g.event || g.event === ev);
+/** Món đang bày bán: lô sinh trong ngày + đúng một dòng đồ mùa (nếu đang dịp). */
+export const shopStock = (ev = eventNow(), day = shopDay()) =>
+  [...rollStock(day), ...EVENT_GEAR.filter(g => g.event === ev)];
 
-/** Mọi món đồ, dù chế ra hay mua về — cùng dùng chung ô trang bị. */
-export const ALL_GEAR = [...RECIPES, ...SHOP];
-export const recipeById = (id) => ALL_GEAR.find(r => r.id === id) || null;
+/** Mọi món LÀM TAY (chế tạo + đồ mùa). Đồ cửa hàng nay sinh theo id. */
+export const ALL_GEAR = [...RECIPES, ...EVENT_GEAR];
+export const recipeById = (id) =>
+  (typeof id === 'string' && id.startsWith('g-') ? genGear(id) : null)
+  || ALL_GEAR.find(r => r.id === id) || null;
+
+/**
+ * ĐIỀU KIỆN MẶC: đồ bậc cao đòi con dế phải lớn tới đâu.
+ * Mua được mà mặc luôn thì bậc 4 chỉ còn là chuyện tiền; buộc theo giai đoạn
+ * tiến hoá khiến người chơi phải nuôi thật rồi mới khoác đồ xịn lên người.
+ */
+export const REQ_STAGE = [0, 0, 1, 2, 3];       // theo tier 0..4
+export const reqStageOf = (g) => REQ_STAGE[g?.tier || 1] || 0;
+/** Được mặc chưa? → { ok, need } · need = id giai đoạn còn thiếu. */
+export function canEquip(save, g) {
+  const need = reqStageOf(g);
+  const st = STAGES.reduce((a, s) => ((save?.xp || 0) >= s.xp ? s : a), STAGES[0]);
+  return { ok: st.id >= need, need, stage: st.id };
+}
 
 /**
  * Giá bán lại — 40% giá mua. Cố ý lỗ nặng: mua nhầm thì phải xót, nếu không

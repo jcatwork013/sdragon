@@ -38,12 +38,74 @@ export const ENEMIES = {
     hp: 460, dmg: 14, every: 13.0, atk: ATK.BITE,
     body: '#4f9c4a', dark: '#1e4a1c', lite: '#9fe08a', eye: '#ffe066',
   },
+  // Chim cốc — thiên địch thật của dế ngoài đồng: mỏ móc, cổ dài, mổ một phát
+  // là xong. Tên "Cốc Mỏ Sắt" tự đặt; "cốc" ở đây là TÊN LOÀI chim, không phải
+  // nhân vật của tác phẩm nào.
+  bird: {
+    id: 'bird', name: 'Cốc Mỏ Sắt', name_en: 'Ironbeak Cormorant',
+    hp: 1050, dmg: 17, every: 9.0, atk: ATK.BITE, boss: true,
+    body: '#2f3742', dark: '#0e1319', lite: '#7d8894', eye: '#ffcf5a', beak: '#f5b027',
+  },
   toad: {
     id: 'toad', name: 'Cóc Già', name_en: 'Old Toad',
     hp: 880, dmg: 13, every: 10.0, atk: ATK.DRAIN, boss: true,
     body: '#6f7a3a', dark: '#2f3516', lite: '#b7c47a', eye: '#ffcf5a',
   },
 };
+
+/**
+ * Cú lao quấy phá nối thiên địch với nhân vật. Logic sát thương vẫn nằm ở
+ * scene; hàm này chỉ làm đòn đánh có đường đi và có điểm va chạm rõ ràng.
+ */
+export function drawEnemyRaid(ctx, fx, sx, sy, tx, ty) {
+  if (!fx?.enemy) return;
+  const p = clamp(fx.t / fx.dur, 0, 1);
+  const go = p < .54 ? ease.outCubic(p / .54) : ease.inCubic((1 - p) / .46);
+  const x = lerp(sx, tx, go), y = lerp(sy, ty, go) - Math.sin(go * Math.PI) * 76;
+  const hit = clamp(1 - Math.abs(p - .54) / .18, 0, 1);
+
+  ctx.save();
+  // vệt truy đuổi cong, đứt nét ở đầu để không che giao diện quá lâu
+  ctx.globalAlpha = .18 + go * .52;
+  ctx.strokeStyle = fx.kind === ATK.DRAIN ? '#b98cff' : fx.kind === ATK.WEB ? '#e6f3ff' : '#ff6b76';
+  ctx.lineWidth = 3 + go * 3; ctx.lineCap = 'round'; ctx.setLineDash([10, 9]); ctx.lineDashOffset = -p * 70;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo((sx + tx) / 2, Math.min(sy, ty) - 110, x, y); ctx.stroke();
+  ctx.setLineDash([]);
+
+  if (fx.kind === ATK.WEB) {
+    ctx.globalAlpha = .2 + hit * .65; ctx.strokeStyle = '#eef8ff'; ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * TAU + p; ctx.beginPath(); ctx.moveTo(x, y);
+      ctx.lineTo(tx + Math.cos(a) * (24 + i * 7), ty + Math.sin(a) * (18 + i * 5)); ctx.stroke();
+    }
+  } else if (fx.kind === ATK.DRAIN) {
+    ctx.globalAlpha = hit * .72; ctx.strokeStyle = '#d9b8ff'; ctx.lineWidth = 3;
+    for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.arc(tx, ty, 18 + i * 13 + p * 8, 0, TAU); ctx.stroke(); }
+  } else if (fx.kind === ATK.ROB) {
+    ctx.globalAlpha = hit * .9; ctx.fillStyle = '#ffd24f'; ctx.strokeStyle = '#7a4510'; ctx.lineWidth = 2;
+    for (let i = 0; i < 4; i++) { const a = i / 4 * TAU + p * 3; ctx.beginPath(); ctx.arc(tx + Math.cos(a) * 28, ty + Math.sin(a) * 20, 6, 0, TAU); ctx.fill(); ctx.stroke(); }
+  }
+
+  // bản sao lao tới; nguồn thật vẫn đứng trên mép bàn nên người chơi không mất
+  // dấu đồng hồ ra đòn và thanh máu trong lúc hiệu ứng chạy.
+  ctx.globalAlpha = .52 + go * .48;
+  if (fx.kind === ATK.SWARM) {
+    for (const [dx, dy, al] of [[-18, 8, .20], [16, -9, .28]]) {
+      ctx.save(); ctx.globalAlpha = al * go; fx.enemy.draw(ctx, x + dx, y + dy, 48); ctx.restore();
+    }
+  }
+  fx.enemy.draw(ctx, x, y, 54 + hit * 18);
+
+  if (hit > 0) {
+    ctx.globalAlpha = hit; ctx.strokeStyle = '#fff4b0'; ctx.lineWidth = 4;
+    for (let i = 0; i < 6; i++) {
+      const a = i / 6 * TAU + .2, r0 = 24 + (1 - hit) * 18, r1 = r0 + 18;
+      ctx.beginPath(); ctx.moveTo(tx + Math.cos(a) * r0, ty + Math.sin(a) * r0);
+      ctx.lineTo(tx + Math.cos(a) * r1, ty + Math.sin(a) * r1); ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
 
 // ── bộ dụng cụ vẽ chung cho mọi thiên địch ─────────────────────────────────
 // Ba thứ quyết định "dễ thương": MẮT TO có tròng và chấm sáng, KHỐI TRÒN có
@@ -138,6 +200,7 @@ export class Enemy {
     this.cd = this.every * (0.55 + Math.random() * 0.35);   // lệch nhịp cho khỏi đánh cùng lúc
     this.t = Math.random() * 6;
     this.hurt = 0; this.wind = 0; this.dead = false; this.deadT = 0;
+    this.bump = 0;                                        // bị gõ búa → nổi u trên đầu
     this.shake = 0;
   }
   get alive() { return this.hp > 0; }
@@ -153,8 +216,12 @@ export class Enemy {
   }
 
   /** @returns 'windup' | 'strike' | null */
+  /** Ăn một búa vào đầu: sưng u, choáng váng một lúc. */
+  bonk() { this.bump = 1.6; this.hurt = 1; this.shake = 1; }
+
   update(dt) {
     this.t += dt;
+    this.bump = Math.max(0, this.bump - dt);
     this.hurt = Math.max(0, this.hurt - dt * 3);
     this.shake = Math.max(0, this.shake - dt * 4);
     if (this.dead) { this.deadT += dt; return null; }
@@ -324,6 +391,57 @@ export class Enemy {
       ctx.beginPath(); ctx.moveTo(-s * .04, s * .07); ctx.quadraticCurveTo(0, s * .11 + wind * s * .03, s * .04, s * .07); ctx.stroke();
       ctx.restore();
 
+    } else if (d.id === 'bird') {
+      // ── CỐC MỎ SẮT (trùm): chim nước, cổ chữ S, mỏ móc, chân màng ──────
+      for (const sx of [-1, 1]) {
+        limb(ctx, [sx * s * .09, bob + s * .28], [sx * s * .13, bob + s * .40],
+             [sx * s * .15, bob + s * .50], s * .040, ink, shade(d.lite, -.10));
+        ctx.beginPath();
+        ctx.moveTo(sx * s * .15, bob + s * .50);
+        ctx.lineTo(sx * s * .30, bob + s * .55);
+        ctx.lineTo(sx * s * .02, bob + s * .55);
+        ctx.closePath();
+        ctx.fillStyle = d.beak || d.lite; ctx.fill();
+        ctx.strokeStyle = ink; ctx.lineWidth = s * .028; ctx.lineJoin = 'round'; ctx.stroke();
+      }
+      const bd = () => { ctx.beginPath(); ctx.ellipse(-s * .06, bob + s * .14, s * .34, s * .27, -.16, 0, TAU); };
+      shell(ctx, bd, s, body, ink, { lw: .05, gx: -s * .18, gy: bob, gw: s * .16, gh: s * .07 });
+      ctx.save(); bd(); ctx.clip();
+      // cánh xếp sát thân + mấy nét lông
+      ctx.fillStyle = rgba(d.dark, .55);
+      ctx.beginPath(); ctx.ellipse(-s * .02, bob + s * .19, s * .27, s * .15, -.28, 0, TAU); ctx.fill();
+      ctx.strokeStyle = rgba(d.lite, .35); ctx.lineWidth = s * .018;
+      for (let i = 0; i < 3; i++) {
+        ctx.beginPath();
+        ctx.moveTo(-s * .22, bob + s * (.10 + i * .07));
+        ctx.quadraticCurveTo(-s * .02, bob + s * (.16 + i * .07), s * .16, bob + s * (.12 + i * .07));
+        ctx.stroke();
+      }
+      ctx.restore();
+      // cổ chữ S — viền dày rồi phủ màu thân lên giữa
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = ink; ctx.lineWidth = s * .17;
+      ctx.beginPath();
+      ctx.moveTo(s * .02, bob + s * .02);
+      ctx.quadraticCurveTo(s * .30, bob - s * .10, s * .19, bob - s * (.34 + wind * .04));
+      ctx.stroke();
+      ctx.strokeStyle = body; ctx.lineWidth = s * .12; ctx.stroke();
+      // đầu + mỏ móc
+      const hd = () => { ctx.beginPath(); ctx.ellipse(s * .19, bob - s * (.42 + wind * .04), s * .15, s * .13, -.12, 0, TAU); };
+      shell(ctx, hd, s, body, ink, { gloss: false });
+      const by = bob - s * (.44 + wind * .04);
+      ctx.fillStyle = d.beak || '#f5b027'; ctx.strokeStyle = ink; ctx.lineWidth = s * .03; ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(s * .30, by - s * .04);
+      ctx.lineTo(s * .62, by + s * .01);
+      ctx.quadraticCurveTo(s * .55, by + s * .11, s * .47, by + s * .09);
+      ctx.lineTo(s * .30, by + s * .07);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = rgba(ink, .5); ctx.lineWidth = s * .02;
+      ctx.beginPath(); ctx.moveTo(s * .32, by + s * .02); ctx.lineTo(s * .58, by + s * .04); ctx.stroke();
+      eye(ctx, s * .21, by - s * .02, E * .82, { iris: d.eye, irisDark: '#5c1500', ink, open, look });
+      brow(ctx, s * .21, by - s * .02, E * .82, 1, ink, wind);
+
     } else if (d.id === 'toad') {
       // ── CÓC GIÀ (trùm): thân bè, mắt lồi trên đỉnh, miệng rộng ──────────
       for (const sx of [-1, 1]) {
@@ -396,6 +514,36 @@ export class Enemy {
         ctx.quadraticCurveTo(s * .52, bob + dd * s * (.08 + wind * .08) + s * .05, s * .45, bob + dd * s * (.16 + wind * .05) + s * .05);
         ctx.stroke();
       }
+    }
+
+    // ── CỤC U + SAO BAY: dấu hiệu vừa ăn một búa vào đầu ────────────────
+    if (this.bump > 0 && !this.dead) {
+      const k = Math.min(1, this.bump / 1.6);
+      const uy = bob - s * .40;
+      ctx.save();
+      // cục u đỏ, phồng lên rồi xẹp dần
+      const ur = s * (.15 + .07 * k);          // to hẳn lên: trong màn con địch chỉ ~46px
+      ctx.beginPath(); ctx.ellipse(s * .06, uy, ur, ur * .82, -.2, 0, TAU);
+      ctx.fillStyle = '#e8384f'; ctx.fill();
+      ctx.strokeStyle = '#5c0010'; ctx.lineWidth = s * .022; ctx.stroke();
+      ctx.beginPath(); ctx.ellipse(s * .03, uy - ur * .32, ur * .34, ur * .22, -.4, 0, TAU);
+      ctx.fillStyle = 'rgba(255,255,255,.55)'; ctx.fill();
+      // sao bay vòng quanh
+      for (let i = 0; i < 3; i++) {
+        const a = this.t * 5 + i * (TAU / 3);
+        const px = Math.cos(a) * s * .34, py = uy - s * .16 + Math.sin(a) * s * .10;
+        ctx.save(); ctx.translate(px, py); ctx.rotate(a * .7); ctx.globalAlpha = k;
+        ctx.beginPath();
+        for (let q = 0; q < 10; q++) {
+          const aa = -Math.PI / 2 + q * Math.PI / 5, rr = q % 2 ? s * .032 : s * .075;
+          q ? ctx.lineTo(Math.cos(aa) * rr, Math.sin(aa) * rr) : ctx.moveTo(Math.cos(aa) * rr, Math.sin(aa) * rr);
+        }
+        ctx.closePath();
+        ctx.fillStyle = '#ffd23f'; ctx.fill();
+        ctx.strokeStyle = '#8a5c00'; ctx.lineWidth = s * .012; ctx.lineJoin = 'round'; ctx.stroke();
+        ctx.restore();
+      }
+      ctx.restore();
     }
 
     // loé trắng khi ăn đòn

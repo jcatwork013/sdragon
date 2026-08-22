@@ -4,6 +4,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rand, rgba, shade, strokeText, mulberry32 } from '../core/util.js';
 import { t, tx, getLang } from '../core/i18n.js';
+import { fill, cast } from '../core/lore.js';
 import { Hit, textBtn, glassPanel, FONT, C } from '../ui/widgets.js';
 import { Cricket, drawEgg } from '../game/cricket.js';
 import { BREEDS } from '../data/characters.js';
@@ -33,7 +34,7 @@ export default {
       new Hit('opt' + i, G.W / 2 - 330 + i * 340, G.H - 96, 320, 66,
               { hidden: true, act: () => this.choose(G, o.id) })));
     if (this.act) {
-      G.world.setTheme({ sky: this.act.sky, hill: this.act.hill, mount: this.act.mount });
+      G.world.setTheme({ sky: this.act.sky, hill: this.act.hill, mount: this.act.mount, biome: this.act.biome });
       G.audio.play(G.songs[this.act.music] || G.songs.nest);
     }
   },
@@ -50,7 +51,8 @@ export default {
         if (made && map[made]) { src = map[made]; break; }
       }
     }
-    return getLang() === 'en' ? (src.lines_en || src.lines) : src.lines;
+    // thay {hero}/{singer}/… bằng tên thật của dàn vai đang chơi
+    return (getLang() === 'en' ? (src.lines_en || src.lines) : src.lines).map(fill);
   },
   /** Đang đứng ở câu cuối và hồi này có lựa chọn chưa quyết? */
   get awaitingChoice() {
@@ -157,7 +159,7 @@ export default {
     // ── khung chữ ───────────────────────────────────────────────────────────
     const bx = 120, by = H - 236, bw = W - 240, bh = 150;
     glassPanel(ctx, bx, by, bw, bh, 20, { top: 'rgba(18,10,34,.90)', bot: 'rgba(8,4,20,.95)' });
-    strokeText(ctx, tx(A, 'title'), bx + 26, by + 34,
+    strokeText(ctx, fill(tx(A, 'title')), bx + 26, by + 34,
       { font: FONT.disp(24), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
 
     const full = this.lines[this.line] || '';
@@ -181,15 +183,16 @@ export default {
       const ch = A.choice;
       ctx.save();
       ctx.font = FONT.disp(25);
-      const qw = ctx.measureText(tx(ch, 'ask')).width + 56;
+      const ask = fill(tx(ch, 'ask'));
+      const qw = ctx.measureText(ask).width + 56;
       glassPanel(ctx, W / 2 - qw / 2, H - 306, qw, 52, 16,
         { top: 'rgba(58,30,10,.94)', bot: 'rgba(28,14,4,.96)', rim: 'rgba(255,214,110,.6)' });
       ctx.restore();
-      strokeText(ctx, tx(ch, 'ask'), W / 2, H - 280,
+      strokeText(ctx, ask, W / 2, H - 280,
         { font: FONT.disp(25), fill: '#ffe066', stroke: '#3a1d6e', lw: 6, baseline: 'middle' });
       ch.opts.forEach((o, i) => {
         const h = this.hits.find(x => x.id === 'opt' + i);
-        textBtn(ctx, h.x, h.y, h.w, h.h, tx(o, 'vi'), {
+        textBtn(ctx, h.x, h.y, h.w, h.h, fill(tx(o, 'vi')), {
           press: h.press, hover: h.hover, font: FONT.disp(21),
           colour: i === 0 ? '#3fbf4a' : '#e8384f',
           dark:   i === 0 ? '#1d6b24' : '#8c0f22',
@@ -263,7 +266,7 @@ const PAINT = {
     ctx.beginPath(); ctx.ellipse(W * .74, H * .48, 78, 34, 0, Math.PI, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(30,18,8,.9)'; ctx.lineWidth = 5;
     ctx.beginPath(); ctx.arc(W * .74, H * .48, 78, Math.PI, TAU); ctx.stroke();
-    // Rơm đứng lặng
+    // nhân vật chính đứng lặng
     ctx.save(); ctx.globalAlpha = .95;
     this.wob(ctx, W * .26, H * .58, 122, 1); ctx.restore();
   },
@@ -278,7 +281,11 @@ const PAINT = {
     ctx.beginPath(); ctx.moveTo(W * .05, H * .64);
     ctx.quadraticCurveTo(W * .45, H * .54, W * .92, H * .44); ctx.stroke();
     ctx.setLineDash([]);
-    const cols = ['#8a5a2c', '#3d6f8e', '#33693c', '#402a63'];
+    // Đoàn đi đường: nhân vật chính đi ĐẦU, ba vai phụ nối đuôi phía sau. Trước
+    // đây bốn màu đóng cứng nên trứng tím vẫn thấy con tím dẫn đoàn dù người
+    // chơi nuôi giống khác — nhìn là biết truyện với hình không cùng một mạch.
+    const C4 = cast();
+    const cols = [C4.outsider, C4.bruiser, C4.singer, C4.hero].map(wingOf);
     for (let i = 0; i < 4; i++) {
       const p = (T * .06 + i * .07) % 1;
       const x = lerp(W * .10, W * .86, p), y = lerp(H * .62, H * .44, p);
@@ -388,10 +395,13 @@ const PAINT = {
       ctx.quadraticCurveTo(x + sw * .5, H * .62, x + sw, H * .56); ctx.stroke();
     }
     this.wob(ctx, W * .30, H * .62, 128, 1);
-    bug(ctx, W * .46, H * .64, 13, '#3d6f8e');
-    bug(ctx, W * .56, H * .66, 13, '#33693c');
+    bug(ctx, W * .46, H * .64, 13, wingOf(cast().singer));
+    bug(ctx, W * .56, H * .66, 13, wingOf(cast().bruiser));
   },
 };
+
+/** Màu cánh của một giống — dùng cho bóng dế nhỏ trong hoạt cảnh. */
+const wingOf = (breedId) => (BREEDS.find(b => b.id === breedId) || BREEDS[0]).wing;
 
 /**
  * NHÂN VẬT THỜI TIẾT.

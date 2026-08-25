@@ -23,6 +23,17 @@ const CONFETTI = Array.from({ length: 54 }, () => ({
   c: ['#ffd23f', '#8ef08a', '#a8dcff', '#ff9ec4', '#c9a8ff'][(R0() * 5) | 0],
 }));
 
+function wrapLines(ctx, text, maxW, max = 2) {
+  const lines = [], words = String(text).split(' '); let line = '';
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(test).width > maxW && lines.length < max - 1) { lines.push(line); line = word; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  return lines;
+}
+
 export default {
   name: 'chapter',
 
@@ -74,7 +85,7 @@ export default {
 
     // ── DẢI BĂNG-RÔN ────────────────────────────────────────────────────
     const k = ease.outBack(clamp(T / .55, 0, 1));
-    const bw = Math.min(W - 120, 720), bh = 190;
+    const bw = Math.min(W - (G.portrait ? 80 : 120), 720), bh = G.portrait ? 216 : 190;
     const bx = W / 2 - bw / 2, by = H * .20;
     ctx.save();
     ctx.translate(W / 2, by + bh / 2);
@@ -105,10 +116,11 @@ export default {
     ctx.fillStyle = tg; ctx.fillText(nm, W / 2, ty);
     ctx.restore();
 
-    strokeText(ctx, tx(E, 'tag'), W / 2, by + 128,
+    strokeText(ctx, tx(E, 'tag'), W / 2, by + 132,
       { font: FONT.ui(16, 700), fill: '#ffe9a8', stroke: '#3a2000', lw: 3, baseline: 'middle' });
-    strokeText(ctx, tx(E, 'hook'), W / 2, by + 160,
-      { font: FONT.ui(15, 600), fill: '#efe8ff', stroke: 'rgba(0,0,0,.5)', lw: 3, baseline: 'middle' });
+    ctx.font = FONT.ui(14, 600);
+    wrapLines(ctx, tx(E, 'hook'), bw - 52).forEach((line, i) => strokeText(ctx, line, W / 2, by + 168 + i * 24,
+      { font: FONT.ui(14, 600), fill: '#efe8ff', stroke: 'rgba(0,0,0,.5)', lw: 3, baseline: 'middle' }));
     ctx.restore();
 
     // ── DÀN NHÂN VẬT reo hò ─────────────────────────────────────────────

@@ -32,7 +32,28 @@ const BOARD_TOP = 78, BOARD_BOT = 684;
 // bàn cờ luôn ở giữa, thẻ nhân vật bám mép trái, bảng HUD bám mép phải.
 let BX = 398, BY = 136, FX_ = 384, FY_ = 122;
 let CARDX = 24, STRIPX = 292, HUDX = 950, HUDW = 306, COMPACT = false;
-function relayout(W, dpr = 1.5, hasFoes = false) {
+let PORTRAIT = false, SKILLY = 176, HUDY = 78;
+function relayout(W, H, dpr = 1.5, hasFoes = false) {
+  PORTRAIT = H > W;
+  if (PORTRAIT) {
+    // Một cột duy nhất theo nhịp đọc của ngón cái: nhân vật/địch → bàn cờ →
+    // kỹ năng → điểm. Bàn gần kín ngang nhưng vẫn có lề 16px để không sát mép.
+    const byW = Math.floor((W - 32 - 28) / COLS);
+    const top = H < 1400 ? (hasFoes ? 154 : 128) : (hasFoes ? 238 : 188);
+    const reserve = H < 1400 ? 350 : 680;
+    const byH = Math.floor((H - top - reserve - 28) / ROWS);
+    CELL = clamp(Math.min(byW, byH), 46, 82);
+    ensureGemSprites(CELL * 1.02 * dpr);
+    FW = COLS * CELL + 28; FH = ROWS * CELL + 28;
+    FX_ = Math.round((W - FW) / 2); FY_ = top;
+    BX = FX_ + 14; BY = FY_ + 14;
+    ENEMY_Y = FY_ - 50;
+    CARDX = -9999; COMPACT = true;
+    SKILLY = FY_ + FH + 16;
+    STRIPX = Math.round((W - 250) / 2);
+    HUDX = 16; HUDW = W - 32; HUDY = SKILLY + 88;
+    return;
+  }
   // Cỡ ô = min(vừa chiều cao, vừa bề ngang). Trước đây đóng đinh 62 nên trên
   // điện thoại 19,5:9 bàn cờ chỉ chiếm 73% chiều cao và 34% bề ngang — chính
   // là cảm giác "phần chơi bé quá".
@@ -58,6 +79,7 @@ function relayout(W, dpr = 1.5, hasFoes = false) {
   // thì thanh máu chui xuống dưới mép khung bàn cờ.
   ENEMY_Y = Math.max(44, FY_ - 48);
   CARDX = L.cardX; STRIPX = L.stripX; HUDX = L.hudX; HUDW = L.hudW; COMPACT = L.compact;
+  SKILLY = 176; HUDY = 78;
 }
 
 export default {
@@ -65,7 +87,7 @@ export default {
 
   enter(G) {
     const L = G.level;
-    relayout(G.W, G.dpr, (L.enemies || []).length > 0);
+    relayout(G.W, G.H, G.dpr, (L.enemies || []).length > 0);
     this.t = 0;
     this.score = 0; this.gold = 0; this.movesLeft = L.moves;
     this.over = null; this.overT = 0; this.paused = false;
@@ -155,16 +177,19 @@ export default {
     this.hits = [
       new Hit('pause',   G.W - 78, 12, 52, 52, { circle: true, act: () => this.togglePause(G) }),
       new Hit('exit',    G.W - 142, 12, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('map'); } }),
-      new Hit('restart', HUDX + HUDW * .25 - 28, 469, 56, 56, { circle: true, act: () => G.startLevel(G.levelIndex) }),
-      new Hit('resume',  HUDX + HUDW * .68 - 28, 469, 56, 56, { circle: true, act: () => this.togglePause(G) }),
-      new Hit('sk0', STRIPX + 8, 190, 62, 62, { act: () => this.useBreath(G) }),
-      new Hit('sk1', STRIPX + 8, 268, 62, 62, { act: () => this.useHammer(G) }),
-      new Hit('sk2', STRIPX + 8, 346, 62, 62, { act: () => this.useShuffle(G) }),
+      new Hit('restart', HUDX + HUDW * .25 - 28, HUDY + 391, 56, 56, { circle: true, act: () => G.startLevel(G.levelIndex) }),
+      new Hit('resume',  HUDX + HUDW * .68 - 28, HUDY + 391, 56, 56, { circle: true, act: () => this.togglePause(G) }),
+      new Hit('sk0', PORTRAIT ? STRIPX + 8 : STRIPX + 8, PORTRAIT ? SKILLY + 8 : 190, 62, 62, { act: () => this.useBreath(G) }),
+      new Hit('sk1', PORTRAIT ? STRIPX + 94 : STRIPX + 8, PORTRAIT ? SKILLY + 8 : 268, 62, 62, { act: () => this.useHammer(G) }),
+      new Hit('sk2', PORTRAIT ? STRIPX + 180 : STRIPX + 8, PORTRAIT ? SKILLY + 8 : 346, 62, 62, { act: () => this.useShuffle(G) }),
       new Hit('quit', G.W / 2 - 110, G.H / 2 + 6, 220, 54,
         { act: () => { G.sfx('button'); G.go('map'); }, hidden: true }),
       new Hit('howto', G.W / 2 - 110, G.H / 2 + 78, 220, 54,
         { act: () => { G.sfx('button'); G.go('help', 'map'); }, hidden: true }),
     ];
+    if (PORTRAIT && G.H < 1250) {
+      for (const id of ['restart', 'resume']) this.hits.find(h => h.id === id).hidden = true;
+    }
     this.music = G.levelTrack();
     G.music(this.music);
     this.say(G, 'start');
@@ -350,7 +375,7 @@ export default {
    *  được đúng trạng thái này mà không phải chơi thật cho đủ điểm. */
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 12, 572, HUDW - 24, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 12, HUDY + (PORTRAIT && G.H < 1250 ? 322 : 494), HUDW - 24, 52,
       { act: () => this.startBravo(G, t('outOfMoves')) }));
   },
 
@@ -627,7 +652,7 @@ export default {
       this.say(G, 'lose');
     }
     this.hits = this.hits.filter(h => h.id === 'pause');
-    const y = 470;
+    const y = G.portrait ? G.H / 2 + 210 : 470;
     if (win) {
       // Ba nút: qua màn kế · chơi lại màn này · về bản đồ. Thắng rồi mà muốn
       // cày thêm sao thì trước đây phải quay ra bản đồ rồi bấm lại vào.
@@ -1007,6 +1032,7 @@ export default {
 
   /** Máy hẹp vẫn giữ chú dế trên sân, đặt dưới dải kỹ năng thay vì xoá hẳn. */
   compactHeroBox(G) {
+    if (PORTRAIT) return FY_ < 200 ? { x: 18, y: 72, w: 112, h: 76 } : { x: 18, y: 72, w: 126, h: 124 };
     const w = clamp(FX_ - 40, 86, 132), h = 184;
     return { x: Math.max(14, (FX_ - w) / 2), y: FY_ + FH - h - 8, w, h };
   },
@@ -1034,7 +1060,7 @@ export default {
       { id: 'sk1', ready: this.hammer > 0, fill: this.hammer > 0 ? 1 : 0, ic: (c, s) => icon.hammer(c, s), n: this.hammer },
       { id: 'sk2', ready: this.shuffleUse > 0, fill: this.shuffleUse > 0 ? 1 : 0, ic: (c, s) => icon.restart(c, s), n: this.shuffleUse },
     ];
-    glassPanel(ctx, STRIPX, 176, 78, 246, 20);
+    glassPanel(ctx, STRIPX, SKILLY, PORTRAIT ? 250 : 78, PORTRAIT ? 78 : 246, 20);
     for (const sp of specs) {
       const h = this.hits.find(x => x.id === sp.id); if (!h) continue;
       const cx = h.x + h.w / 2, cy = h.y + h.h / 2;
@@ -1076,7 +1102,8 @@ export default {
 
   // ── BẢNG SCORE (bám sát artboard HUD) ────────────────────────────────────
   drawCompactHUD(G, ctx) {
-    const L = G.level, x = HUDX, y = 78, w = HUDW, h = 476;
+    const L = G.level, x = HUDX, y = HUDY, w = HUDW;
+    const short = PORTRAIT && G.H < 1250, h = short ? 376 : 476;
     card(ctx, x, y, w, h, 24);
 
     // Điểm vẫn là thông tin chính, nhưng thu gọn phần tiêu đề để nhường chỗ
@@ -1177,7 +1204,7 @@ export default {
     roundRect(ctx, rx, ry, rw, rh, rh / 2); ctx.stroke();
 
     for (const id of ['restart', 'resume']) {
-      const h2 = this.hits.find(k => k.id === id); if (!h2) continue;
+      const h2 = this.hits.find(k => k.id === id); if (!h2 || h2.hidden) continue;
       roundBtn(ctx, h2.x + 28, h2.y + 28, 27,
         (c, s) => id === 'restart' ? icon.restart(c, s) : (this.paused ? icon.play(c, s) : icon.pause(c, s)),
         { press: h2.press, hover: h2.hover });
@@ -1637,33 +1664,34 @@ export default {
     const s = ease.outBack(k);
     ctx.save();
     ctx.translate(W / 2, H / 2 - 40); ctx.scale(s, s); ctx.translate(-W / 2, -(H / 2 - 40));
-    glassPanel(ctx, W / 2 - 300, 140, 600, 300, 28,
+    const top = G.portrait ? H / 2 - 250 : 140;
+    glassPanel(ctx, W / 2 - 300, top, 600, 300, 28,
       // Nền phải TỐI và trung tính thì tia sáng vàng mới ra vàng. Nền xanh lá
       // cũ cộng tia vàng ra màu ô liu, nhìn như sọc bẩn chứ không phải hào quang.
       this.over.win ? { top: 'rgba(28,32,62,.96)', bot: 'rgba(11,13,30,.97)', rim: 'rgba(120,240,150,.55)' }
                     : { top: 'rgba(52,20,28,.96)', bot: 'rgba(20,7,13,.97)', rim: 'rgba(255,120,80,.55)' });
 
     resultBanner(ctx, {
-      cx: W / 2, top: 140, w: 600, h: 300,
+      cx: W / 2, top, w: 600, h: 300,
       win: this.over.win, t: this.t,
       title: this.over.win ? t('cleared') : t('failed'),
       sub: `${t('level')} ${G.level?.index ?? ''}`.trim(),
       stars: this.starsEarned, anim: this.overT,
     });
-    strokeText(ctx, `${t('finalScore')}: ${this.score.toLocaleString()}`, W / 2, 368,
+    strokeText(ctx, `${t('finalScore')}: ${this.score.toLocaleString()}`, W / 2, top + 228,
       { font: FONT.disp(28), fill: '#fff', stroke: '#12060f', lw: 6, baseline: 'middle' });
     if (this.over.win)
     {
       const line = `+${this.gold} ${t('gold')}     +${this.xpGain} EXP`;
-      strokeText(ctx, line, W / 2, 406,
+      strokeText(ctx, line, W / 2, top + 266,
         { font: FONT.disp(24), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
     }
     else
     {
-      strokeText(ctx, this.over.why, W / 2, 398,
+      strokeText(ctx, this.over.why, W / 2, top + 258,
         { font: FONT.ui(19, 600), fill: '#ffc0cf', stroke: null, lw: 0, baseline: 'middle', shadow: null });
       if (this.penaltyGold || this.penaltyXp)
-        strokeText(ctx, t('penalty', { g: this.penaltyGold || 0, x: this.penaltyXp || 0 }), W / 2, 428,
+        strokeText(ctx, t('penalty', { g: this.penaltyGold || 0, x: this.penaltyXp || 0 }), W / 2, top + 288,
           { font: FONT.disp(22), fill: '#ff7a90', stroke: '#3a0008', lw: 5, baseline: 'middle' });
     }
     ctx.restore();

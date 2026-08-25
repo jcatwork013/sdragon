@@ -30,10 +30,23 @@ export const C = {
   ink:'#22143a', panel:'#ffffff',
 };
 
+// Mobile dọc cần mật độ kiểu game puzzle hiện đại: chữ đọc được trong một
+// cái liếc, nút có khối lớn và vùng chạm tối thiểu gần 44pt. Giữ trạng thái ở
+// module UI để mọi scene được hưởng cùng một chuẩn mà không phải nhân tay.
+let portraitUi = false;
+export function setUiDensity(portrait) { portraitUi = !!portrait; }
+const fontSize = n => {
+  if (!portraitUi) return n;
+  if (n <= 18) return Math.round(n * 1.35);
+  if (n <= 24) return Math.round(n * 1.22);
+  if (n <= 32) return Math.round(n * 1.12);
+  return Math.round(n * 1.05);
+};
+
 export const FONT = {
-  disp: (n, w = 800) => `${w} ${n}px "Baloo 2","Be Vietnam Pro",sans-serif`,
-  ui:   (n, w = 600) => `${w} ${n}px "Be Vietnam Pro","Baloo 2",sans-serif`,
-  arc:  (n)          => `${n}px "Bungee","Baloo 2",sans-serif`,
+  disp: (n, w = 800) => `${w} ${fontSize(n)}px "Baloo 2","Be Vietnam Pro",sans-serif`,
+  ui:   (n, w = 600) => `${w} ${fontSize(n)}px "Be Vietnam Pro","Baloo 2",sans-serif`,
+  arc:  (n)          => `${fontSize(n)}px "Bungee","Baloo 2",sans-serif`,
 };
 
 /** Thẻ nền trắng bo góc — khung của bảng SCORE. */
@@ -128,7 +141,10 @@ export function statBar(ctx, x, y, w, h, value, iconFn, o = {}) {
 /** Nút tròn bóng (cam = chơi lại, xanh = tiếp tục). */
 export function roundBtn(ctx, cx, cy, r, iconFn, o = {}) {
   const press = o.press ?? 0, hov = o.hover ?? 0;
-  const R = r * (1 - press * .07 + hov * .04);
+  // Nút tròn nhỏ là kiểu điều khiển xuất hiện nhiều nhất trên mobile. Nở phần
+  // mặt nút vừa đủ để nổi bật, nhưng vẫn giữ tâm/toạ độ cũ nên không xô layout.
+  const mobileGrow = portraitUi ? (r <= 28 ? 1.15 : 1.08) : 1;
+  const R = r * mobileGrow * (1 - press * .07 + hov * .04);
   ctx.save();
   ctx.fillStyle = 'rgba(15,8,35,.35)';           // bóng vẽ tay, rẻ hơn shadowBlur nhiều
   ctx.beginPath(); ctx.ellipse(cx, cy + (5 - press * 4), R * .96, R * .9, 0, 0, TAU); ctx.fill();
@@ -148,6 +164,13 @@ export function roundBtn(ctx, cx, cy, r, iconFn, o = {}) {
 /** Nút chữ nhật có chữ — dùng trong menu. */
 export function textBtn(ctx, x, y, w, h, label, o = {}) {
   const press = o.press ?? 0, hov = o.hover ?? 0;
+  // Các nút hành động có chiều cao từ 50 trở lên được làm "juicy" hơn ở dọc.
+  // Tab nhỏ giữ nguyên để không chồng lên nhau.
+  if (portraitUi && h >= 50 && h < 72 && w >= 100) {
+    const grown = Math.round(h * 1.14);
+    y -= (grown - h) / 2;
+    h = grown;
+  }
   const dy = press * 4;
   const base = o.colour || C.green, dark = o.dark || C.greenDark, lite = o.lite || C.greenLite;
   ctx.save();
@@ -968,8 +991,13 @@ export function matIcon(ctx, id, s, col) {
 export class Hit {
   constructor(id, x, y, w, h, o = {}) { Object.assign(this, { id, x, y, w, h, ...o }); this.press = 0; this.hover = 0; }
   contains(px, py) {
-    if (this.circle) return Math.hypot(px - (this.x + this.w / 2), py - (this.y + this.h / 2)) <= this.w / 2;
-    return px >= this.x && px <= this.x + this.w && py >= this.y && py <= this.y + this.h;
+    // 68 logic ≈ 41–44 CSS px trên đa số iPhone: đủ dễ bấm bằng ngón cái dù
+    // icon vẽ nhỏ hơn một chút. Chỉ mở rộng vùng chạm, không đổi bố cục.
+    const w = portraitUi ? Math.max(this.w, 68) : this.w;
+    const h = portraitUi ? Math.max(this.h, 68) : this.h;
+    const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+    if (this.circle) return Math.hypot(px - cx, py - cy) <= Math.max(w, h) / 2;
+    return px >= cx - w / 2 && px <= cx + w / 2 && py >= cy - h / 2 && py <= cy + h / 2;
   }
   tick(dt, hovering, pressing) {
     this.hover = lerp(this.hover, hovering ? 1 : 0, 1 - Math.pow(.001, dt));

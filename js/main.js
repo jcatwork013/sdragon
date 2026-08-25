@@ -10,7 +10,7 @@ import { getLang, setLang, toggleLang, onLangChange, t, tx } from './core/i18n.j
 import { Chiptune } from './audio/chiptune.js';
 import { SONGS, trackForLevel } from './audio/songs.js';
 import { FX } from './game/fx.js';
-import { Hit, glassPanel, textBtn, flagVN, flagEN, FONT } from './ui/widgets.js';
+import { Hit, glassPanel, textBtn, flagVN, flagEN, FONT, setUiDensity } from './ui/widgets.js';
 import { strokeText, roundRect } from './core/util.js';
 import { World } from './render/background.js';
 import { buildGemSprites } from './game/gems.js';
@@ -38,10 +38,11 @@ import chapterScene from './scenes/chapter.js';
 import regionScene  from './scenes/region.js';
 
 // Khung logic tính từ tỉ lệ màn hình thật (xem js/core/layout.js).
-//   W,H      = DẢI GIAO DIỆN, mọi scene dựng bố cục trên đây (cao luôn 720)
+//   W,H      = vùng giao diện an toàn; dọc rộng 720, ngang cao 720
 //   CW,CH    = KHUNG VẼ, đúng tỉ lệ máy → canvas phủ kín màn hình, hết viền đen
 //   OX,OY    = vị trí dải trong khung vẽ
-let { W, H, CW, CH, ox: OX, oy: OY } = computeLogical(window.innerWidth, window.innerHeight);
+let { W, H, CW, CH, ox: OX, oy: OY, portrait: PORTRAIT } = computeLogical(window.innerWidth, window.innerHeight);
+setUiDensity(PORTRAIT);
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d', { alpha: false });
 
@@ -68,7 +69,7 @@ function readSafeArea() {
 }
 
 const G = {
-  W, H, CW, CH, OX, OY, canvas, ctx,
+  W, H, CW, CH, OX, OY, portrait: PORTRAIT, canvas, ctx,
   // Sổ theo dõi phiên chơi — chỉ sống trong bộ nhớ, không lưu xuống máy.
   // Dùng để câu nói bám đúng hoàn cảnh chứ không bắn ngẫu nhiên.
   sess: { start: performance.now(), wins: 0, losses: 0, retries: 0, streak: 0, combo: 0, gearAt: -1e9 },
@@ -354,9 +355,10 @@ function resize() {
   const probeScale = Math.min(winW / probe.CW, winH / probe.CH);
   const next = computeLogical(winW, winH, safePad, probeScale);
 
-  const changed = Math.abs(next.W - W) > 12 || Math.abs(next.CW - CW) > 12 || Math.abs(next.CH - CH) > 12;
-  W = next.W; H = next.H; CW = next.CW; CH = next.CH; OX = next.ox; OY = next.oy;
-  G.W = W; G.H = H; G.CW = CW; G.CH = CH; G.OX = OX; G.OY = OY;
+  const changed = next.portrait !== PORTRAIT || Math.abs(next.W - W) > 12 || Math.abs(next.H - H) > 12 || Math.abs(next.CW - CW) > 12 || Math.abs(next.CH - CH) > 12;
+  W = next.W; H = next.H; CW = next.CW; CH = next.CH; OX = next.ox; OY = next.oy; PORTRAIT = next.portrait;
+  setUiDensity(PORTRAIT);
+  G.W = W; G.H = H; G.CW = CW; G.CH = CH; G.OX = OX; G.OY = OY; G.portrait = PORTRAIT;
 
   // ── SỐ ĐIỂM ẢNH PHẢI TÔ — nút thắt lớn nhất trên máy yếu ────────────────
   // Mỗi khung hình có vài lượt tô kín màn hình (tranh nền, lớp phủ, vignette).

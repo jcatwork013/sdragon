@@ -1,11 +1,10 @@
 // ╔══════════════════════════════════════════════════════════════════════════╗
 // ║  KHUNG LOGIC CO GIÃN — lấp đầy MỌI tỉ lệ màn hình, không viền đen.       ║
 // ║                                                                          ║
-// ║  Hai khung lồng nhau:                                                    ║
+// ║  Hai chế độ thật, không xoay hoặc letterbox giả:                         ║
 // ║                                                                          ║
-// ║    KHUNG VẼ  (CW × CH)  đúng bằng tỉ lệ máy → canvas phủ kín màn hình.   ║
-// ║    DẢI GIAO DIỆN (W × 720) nằm giữa khung vẽ → mọi scene vẫn dựng bố cục ║
-// ║    trên nền cao 720 như cũ, không phải sửa toạ độ ở đâu hết.             ║
+// ║    DỌC   → rộng logic 640, chiều cao theo đúng tỉ lệ máy.                 ║
+// ║    NGANG → cao logic 720, chiều rộng co giãn như bản desktop cũ.          ║
 // ║                                                                          ║
 // ║  Phần khung vẽ thừa ra hai bên (hoặc trên–dưới) được NỀN PARALLAX phủ    ║
 // ║  kín, nên người chơi thấy tranh nền tràn viền chứ không thấy dải đen.    ║
@@ -15,10 +14,13 @@
 // ║    Điện thoại 16:9 → dải 1280×720 · khung 1280×720   (vừa khít)          ║
 // ║    Samsung 20:9    → dải 1600×720 · khung 1600×720   (vừa khít)          ║
 // ║    Fold màn ngoài  → dải 1700×720 · khung 1844×720   (nền phủ hai bên)   ║
-// ║    Dọc 9:20        → dải 1000×720 · khung 1000×2222  (nền phủ trên–dưới) ║
+// ║    Dọc 9:19,5      → giao diện 640×1387, điều khiển lớn vừa tay.            ║
 // ╚══════════════════════════════════════════════════════════════════════════╝
 
 export const BASE_H = 720;
+// 640 thay vì 720: cùng một điểm/chữ/nút sẽ lớn hơn 12,5% trên màn thật.
+// Các panel và bàn chơi vẫn tính theo W nên tiếp tục phủ gần trọn bề ngang.
+export const PORTRAIT_W = 640;
 export const MIN_W = 1000;     // hẹp hơn nữa thì bàn cờ + bảng HUD không đủ chỗ
 export const MAX_W = 1700;     // rộng hơn nữa thì hai mép xa nhau quá, khó liếc
 
@@ -30,13 +32,30 @@ export const MAX_W = 1700;     // rộng hơn nữa thì hai mép xa nhau quá, 
  */
 export function computeLogical(winW, winH, safe = null, cssPerUnit = 0) {
   const aspect = Math.min(6, Math.max(0.25, (winW || 1280) / (winH || 720)));
-  const H = BASE_H;
 
   // Lề an toàn quy về đơn vị logic. Không quy đổi được thì bỏ qua — thà tràn
   // viền còn hơn thụt vào một khoảng bịa ra.
   const k = cssPerUnit > 0.01 ? 1 / cssPerUnit : 0;
   const sL = safe ? safe.l * k : 0, sR = safe ? safe.r * k : 0;
   const sT = safe ? safe.t * k : 0, sB = safe ? safe.b * k : 0;
+
+  // Điện thoại dựng dọc dùng toàn bộ chiều cao làm không gian chơi. Safe area
+  // trở thành phần đệm thật bên trong khung nên nút không nằm dưới Dynamic
+  // Island hay thanh Home. Khung vẽ vẫn giữ nguyên đúng tỉ lệ vật lý.
+  if (aspect < 1) {
+    const CW = PORTRAIT_W;
+    const CH = Math.round(CW / aspect);
+    const W = Math.max(560, Math.round(CW - sL - sR));
+    const H = Math.max(900, Math.round(CH - sT - sB));
+    return {
+      W, H, CW, CH,
+      ox: Math.round(sL),
+      oy: Math.round(sT),
+      portrait: true,
+    };
+  }
+
+  const H = BASE_H;
 
   // Dải giao diện: co theo tỉ lệ máy, trừ đi lề an toàn ngang.
   const W = Math.round(Math.min(MAX_W, Math.max(MIN_W, H * aspect - sL - sR)));
@@ -51,7 +70,7 @@ export function computeLogical(winW, winH, safe = null, cssPerUnit = 0) {
   const ox = Math.round(sL + Math.max(0, (CW - W - sL - sR) / 2));
   const oy = Math.round(sT + Math.max(0, (CH - H - sT - sB) / 2));
 
-  return { W, H, CW, CH, ox, oy };
+  return { W, H, CW, CH, ox, oy, portrait: false };
 }
 
 /**

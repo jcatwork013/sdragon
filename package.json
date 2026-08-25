@@ -1,12 +1,14 @@
 {
   "name": "cricko",
-  "version": "1.19.0",
+  "version": "1.20.0",
   "description": "CRICKO — Miền Cỏ Cháy · match-3 nuôi dế, Canvas 2D + Web Audio, không phụ thuộc thư viện ngoài",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "python3 -m http.server 8080",
     "shots": "node dev/screenshot.mjs",
+    "shots:portrait": "node dev/screenshot.mjs --portrait",
+    "shots:portrait-short": "node dev/screenshot.mjs --portrait --short",
     "songs": "node dev/song-check.mjs",
     "balance": "node dev/balance.mjs 30 2.0 4",
     "desktop": "electron .",

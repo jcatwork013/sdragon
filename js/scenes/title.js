@@ -58,12 +58,17 @@ export default {
     this.shootAt = 3 + Math.random() * 5;      // sao băng
     this.shoot = null;
     const cx = G.W / 2, hasSave = !!G.save.breed;
+    const portrait = G.portrait;
+    const playW = portrait ? Math.min(500, G.W - 64) : 300;
+    const playH = portrait ? 82 : 66;
+    const playY = portrait ? 420 : 470;
+    const newH = portrait ? 68 : 52;
     this.hits = [
-      new Hit('play',  cx - 150, 470, 300, 66, { act: () => hasSave ? G.go('map') : G.go('egg') }),
-      new Hit('new',   cx - 150, 552, 300, 52, { act: () => G.confirmNew(), hidden: !hasSave }),
-      new Hit('help',  G.W - 218, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'title'); } }),
-      new Hit('lang',  G.W - 152, 26, 52, 52, { circle: true, act: () => G.askLang() }),
-      new Hit('music', G.W -  86, 26, 52, 52, { circle: true, act: () => { G.toggleMute(); } }),
+      new Hit('play',  cx - playW / 2, playY, playW, playH, { act: () => hasSave ? G.go('map') : G.go('egg') }),
+      new Hit('new',   cx - playW / 2, playY + playH + 22, playW, newH, { act: () => G.confirmNew(), hidden: !hasSave }),
+      new Hit('help',  G.W - (portrait ? 262 : 218), 26, portrait ? 68 : 52, portrait ? 68 : 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'title'); } }),
+      new Hit('lang',  G.W - (portrait ? 178 : 152), 26, portrait ? 68 : 52, portrait ? 68 : 52, { circle: true, act: () => G.askLang() }),
+      new Hit('music', G.W - (portrait ?  94 :  86), 26, portrait ? 68 : 52, portrait ? 68 : 52, { circle: true, act: () => { G.toggleMute(); } }),
     ];
     G.audio.play(G.songs.title);
   },
@@ -444,9 +449,10 @@ export default {
     // ── TIÊU ĐỀ ─────────────────────────────────────────────────────────
     // ── TIÊU ĐỀ ─────────────────────────────────────────────────────────
     const bob = Math.sin(T * 1.4) * 4;
-    const LG = logoMark(ctx, W / 2, 186 + bob, T, W);
+    const logoY = G.portrait ? 196 : 186;
+    const LG = logoMark(ctx, W / 2, logoY + bob, T, G.portrait ? W * 1.45 : W);
     ctx.save();
-    ctx.translate(W / 2, 186 + bob);
+    ctx.translate(W / 2, logoY + bob);
     strokeText(ctx, t('tagline'), 0, LG.size * .82,
       { font: FONT.disp(Math.min(40, W * .031)), fill: '#ff5f7a', stroke: '#5c0b22', lw: 8, baseline: 'middle' });
     for (const d of [-1, 1])
@@ -469,17 +475,17 @@ export default {
             lite:   G.confirmPending > 0 ? '#ff9aa8' : '#c0a0ff',
             font: FONT.disp(G.confirmPending > 0 ? 17 : 22) });
       else if (h.id === 'help')
-        roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.help(c, s), { press: h.press, hover: h.hover });
+        roundBtn(ctx, h.x + h.w / 2, h.y + h.h / 2, h.w / 2, (c, s) => icon.help(c, s), { press: h.press, hover: h.hover });
       else if (h.id === 'lang')
-        roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.globe(c, s), { press: h.press, hover: h.hover });
+        roundBtn(ctx, h.x + h.w / 2, h.y + h.h / 2, h.w / 2, (c, s) => icon.globe(c, s), { press: h.press, hover: h.hover });
       else
-        roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.note(c, s, !G.audio.muted), { press: h.press, hover: h.hover });
+        roundBtn(ctx, h.x + h.w / 2, h.y + h.h / 2, h.w / 2, (c, s) => icon.note(c, s, !G.audio.muted), { press: h.press, hover: h.hover });
     }
-    strokeText(ctx, getLang().toUpperCase(), G.W - 126, 92,
-      { font: FONT.ui(14, 800), fill: '#fff', stroke: '#2b1740', lw: 3, baseline: 'middle' });
+    strokeText(ctx, getLang().toUpperCase(), G.W - (G.portrait ? 144 : 126), G.portrait ? 112 : 92,
+      { font: FONT.ui(G.portrait ? 18 : 14, 800), fill: '#fff', stroke: '#2b1740', lw: 3, baseline: 'middle' });
 
     strokeText(ctx, 'v' + VERSION + ' · ' + t('tapStart'), W / 2, H - 26,
-      { font: FONT.ui(15, 600), fill: 'rgba(255,255,255,.62)', stroke: 'rgba(0,0,0,.4)', lw: 3, baseline: 'middle' });
+      { font: FONT.ui(G.portrait ? 19 : 15, 600), fill: 'rgba(255,255,255,.62)', stroke: 'rgba(0,0,0,.4)', lw: 3, baseline: 'middle' });
   },
 };
 

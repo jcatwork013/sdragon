@@ -12,6 +12,16 @@ if (arg) {
   if (!/^\d+\.\d+\.\d+$/.test(arg)) { console.error('Phiên bản phải dạng X.Y.Z, ví dụ 1.1.0'); process.exit(1); }
   pkg.version = arg;
   fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n');
+
+  // package-lock cũng chứa phiên bản ở hai nút đầu. Đồng bộ tại đây để mọi
+  // pipeline (npm, Electron Builder và kiểm tra release) đọc cùng một số bản.
+  const lockPath = path.join(root, 'package-lock.json');
+  if (fs.existsSync(lockPath)) {
+    const lock = JSON.parse(fs.readFileSync(lockPath, 'utf8'));
+    lock.version = arg;
+    if (lock.packages?.['']) lock.packages[''].version = arg;
+    fs.writeFileSync(lockPath, JSON.stringify(lock, null, 2) + '\n');
+  }
 }
 const V = pkg.version;
 
@@ -68,6 +78,19 @@ if (fs.existsSync(gradle)) {
        .replace(/versionName "[^"]*"/, `versionName "${V}"`);
   fs.writeFileSync(gradle, g);
   console.log(`  · android/app/build.gradle → versionName ${V}, versionCode ${code}`);
+}
+
+// ── Đồng bộ phiên bản sang dự án iOS ────────────────────────────────────
+// Xcode lấy CFBundleShortVersionString / CFBundleVersion từ hai setting này.
+const xcodeProject = path.join(root, 'ios/App/App.xcodeproj/project.pbxproj');
+if (fs.existsSync(xcodeProject)) {
+  const [maj, min, pat] = V.split('.').map(Number);
+  const code = maj * 10000 + min * 100 + pat;
+  let project = fs.readFileSync(xcodeProject, 'utf8');
+  project = project.replace(/CURRENT_PROJECT_VERSION = \d+;/g, `CURRENT_PROJECT_VERSION = ${code};`)
+                   .replace(/MARKETING_VERSION = [^;]+;/g, `MARKETING_VERSION = ${V};`);
+  fs.writeFileSync(xcodeProject, project);
+  console.log(`  · ios/App/App.xcodeproj → MARKETING_VERSION ${V}, build ${code}`);
 }
 
 console.log(`✓ phiên bản ${V}`);

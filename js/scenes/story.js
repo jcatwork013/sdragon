@@ -25,13 +25,16 @@ export default {
     this.R = mulberry32(1234);
     this.motes = Array.from({ length: 26 }, () => ({ x: this.R(), y: this.R(), r: .6 + this.R() * 2.2, ph: this.R() * TAU, v: .02 + this.R() * .06 }));
     this.hero = new Cricket(BREEDS.find(b => b.id === (G.save.breed || 'ember')) || BREEDS[0], Math.max(600, G.save.xp));
+    const portrait = G.H > G.W;
     this.hits = [
-      new Hit('skip', G.W - 172, G.H - 78, 148, 52, { act: () => this.finish(G) }),
-      new Hit('next', G.W / 2 - 110, G.H - 82, 220, 58, { act: () => this.advance(G) }),
+      new Hit('skip', G.W - 172, G.H - (portrait ? 86 : 78), 148, portrait ? 60 : 52, { act: () => this.finish(G) }),
+      new Hit('next', G.W / 2 - (portrait ? 140 : 110), G.H - 88, portrait ? 280 : 220, portrait ? 66 : 58, { act: () => this.advance(G) }),
     ];
     const ch = this.act?.choice;
     if (ch) ch.opts.forEach((o, i) => this.hits.push(
-      new Hit('opt' + i, G.W / 2 - 330 + i * 340, G.H - 96, 320, 66,
+      new Hit('opt' + i, portrait ? 40 : G.W / 2 - 330 + i * 340,
+              portrait ? G.H - 208 + i * 78 : G.H - 96,
+              portrait ? G.W - 80 : 320, portrait ? 68 : 66,
               { hidden: true, act: () => this.choose(G, o.id) })));
     if (this.act) {
       G.world.setTheme({ sky: this.act.sky, hill: this.act.hill, mount: this.act.mount, biome: this.act.biome });
@@ -157,7 +160,10 @@ export default {
     ctx.restore();
 
     // ── khung chữ ───────────────────────────────────────────────────────────
-    const bx = 120, by = H - 236, bw = W - 240, bh = 150;
+    const portrait = H > W, wait = this.awaitingChoice;
+    const bx = portrait ? 40 : 120;
+    const by = portrait ? H - (wait ? 448 : 256) : H - 236;
+    const bw = portrait ? W - 80 : W - 240, bh = portrait ? 160 : 150;
     glassPanel(ctx, bx, by, bw, bh, 20, { top: 'rgba(18,10,34,.90)', bot: 'rgba(8,4,20,.95)' });
     strokeText(ctx, fill(tx(A, 'title')), bx + 26, by + 34,
       { font: FONT.disp(24), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
@@ -177,18 +183,18 @@ export default {
     }
 
     // ── nút lựa chọn ───────────────────────────────────────────────────────
-    const wait = this.awaitingChoice;
     for (const h of this.hits) if (h.id.startsWith('opt')) h.hidden = !wait;
+    this.hits.find(h => h.id === 'next').hidden = wait;
     if (wait) {
       const ch = A.choice;
       ctx.save();
       ctx.font = FONT.disp(25);
       const ask = fill(tx(ch, 'ask'));
       const qw = ctx.measureText(ask).width + 56;
-      glassPanel(ctx, W / 2 - qw / 2, H - 306, qw, 52, 16,
+      glassPanel(ctx, W / 2 - Math.min(qw, W - 64) / 2, H - 278, Math.min(qw, W - 64), 52, 16,
         { top: 'rgba(58,30,10,.94)', bot: 'rgba(28,14,4,.96)', rim: 'rgba(255,214,110,.6)' });
       ctx.restore();
-      strokeText(ctx, ask, W / 2, H - 280,
+      strokeText(ctx, ask, W / 2, H - 252,
         { font: FONT.disp(25), fill: '#ffe066', stroke: '#3a1d6e', lw: 6, baseline: 'middle' });
       ch.opts.forEach((o, i) => {
         const h = this.hits.find(x => x.id === 'opt' + i);
@@ -201,12 +207,14 @@ export default {
       });
     } else {
       const nx = this.hits.find(h => h.id === 'next');
+      nx.hidden = false;
       const last = this.line === this.lines.length - 1 && this.chars >= full.length;
       textBtn(ctx, nx.x, nx.y, nx.w, nx.h, last ? t('storyGo') : t('storyNext'),
         { press: nx.press, hover: nx.hover, font: FONT.disp(24) });
     }
     const sk = this.hits.find(h => h.id === 'skip');
-    textBtn(ctx, sk.x, sk.y, sk.w, sk.h, t('storySkip'),
+    sk.hidden = wait;
+    if (!wait) textBtn(ctx, sk.x, sk.y, sk.w, sk.h, t('storySkip'),
       { press: sk.press, hover: sk.hover, colour: '#5b5f74', dark: '#33374a', lite: '#9aa0b6', font: FONT.disp(19) });
   },
 };

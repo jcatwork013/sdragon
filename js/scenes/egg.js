@@ -16,15 +16,20 @@ export default {
     this.sel = 0;
     this.phase = 'choose';        // choose → hatch → reveal
     this.hatchT = 0;
+    this.hatchY = G.portrait ? G.H * .42 : 330;
     this.baby = null;
     this.hits = [];
-    const n = BREEDS.length, gap = 210, x0 = G.W / 2 - (n - 1) * gap / 2;
+    const n = BREEDS.length;
+    const gap = G.portrait ? (G.W - 148) / Math.max(1, n - 1) : 210;
+    const x0 = G.portrait ? 74 : G.W / 2 - (n - 1) * gap / 2;
+    const eggY = G.portrait ? 268 : 176;
     BREEDS.forEach((b, i) => {
-      this.hits.push(new Hit('egg' + i, x0 + i * gap - 66, 176, 132, 190, {
+      this.hits.push(new Hit('egg' + i, x0 + i * gap - 66, eggY, 132, 190, {
         act: () => { if (this.sel !== i) { this.sel = i; G.sfx('select'); } },
       }));
     });
-    this.hits.push(new Hit('go', G.W / 2 - 130, 606, 260, 62, { act: () => this.startHatch(G) }));
+    const goW = G.portrait ? Math.min(430, G.W - 72) : 300;
+    this.hits.push(new Hit('go', G.W / 2 - goW / 2, G.portrait ? 828 : 606, goW, G.portrait ? 76 : 64, { act: () => this.startHatch(G) }));
     G.audio.play(G.songs.nest);
     G.world.setTheme({ sky: ['#ffe0bd', '#d9c4f0', '#9d8fd4'], hill: '#7fb861', mount: '#9a94c8' });
   },
@@ -47,9 +52,9 @@ export default {
       if (prev < 1.1 && this.hatchT >= 1.1) G.sfx('crack');
       if (prev < 1.75 && this.hatchT >= 1.75) {
         G.sfx('chirp');
-        G.fx.burst(G.W / 2, 330, { lite: b.shellA, base: b.shellB, dark: shade(b.shellB, -.3), spark: b.spot }, 30, 1.5);
-        G.fx.ring(G.W / 2, 330, b.eye, 20, 300, .7, 12);
-        G.fx.sparkle(G.W / 2, 330, b.eye, 30);
+        G.fx.burst(G.W / 2, this.hatchY, { lite: b.shellA, base: b.shellB, dark: shade(b.shellB, -.3), spark: b.spot }, 30, 1.5);
+        G.fx.ring(G.W / 2, this.hatchY, b.eye, 20, 300, .7, 12);
+        G.fx.sparkle(G.W / 2, this.hatchY, b.eye, 30);
         G.fx.shake(16);
         this.baby = new Cricket(b, 600);
         this.baby.react('happy', 2);
@@ -77,8 +82,11 @@ export default {
     ctx.fillStyle = 'rgba(20,12,42,.42)'; ctx.fillRect(...bleed(G));
 
     if (this.phase === 'choose') {
-      strokeText(ctx, t('eggTitle'), W / 2, 88, { font: FONT.disp(46), fill: '#fff', stroke: '#3a1d6e', lw: 9, baseline: 'middle' });
-      strokeText(ctx, t('eggHint'), W / 2, 132, { font: FONT.ui(17, 600), fill: '#ffe9b0', stroke: '#4a2a10', lw: 4, baseline: 'middle' });
+      const titleY = G.portrait ? 138 : 88;
+      strokeText(ctx, t('eggTitle'), W / 2, titleY, { font: FONT.disp(G.portrait ? 36 : 46), fill: '#fff', stroke: '#3a1d6e', lw: 9, baseline: 'middle' });
+      const hint = t('eggHint'), hintParts = G.portrait ? hint.split(/\s+[—–-]\s+/, 2) : [hint];
+      hintParts.forEach((line, i) => strokeText(ctx, line, W / 2, titleY + 46 + i * 27,
+        { font: FONT.ui(G.portrait ? 14 : 17, 600), fill: '#ffe9b0', stroke: '#4a2a10', lw: 4, baseline: 'middle' }));
 
       // bệ + trứng
       this.hits.filter(h => h.id.startsWith('egg')).forEach((h, i) => {
@@ -101,7 +109,7 @@ export default {
 
       // bảng thông tin giống dế
       const b = BREEDS[this.sel];
-      const px = W / 2 - 300, py = 418, pw = 600, ph = 168;
+      const px = W / 2 - 300, py = G.portrait ? 564 : 418, pw = 600, ph = G.portrait ? 224 : 168;
       card(ctx, px, py, pw, ph, 20, { top: '#fffdf7', bot: '#e3eefb' });
       strokeText(ctx, tx(b, 'kind'), px + pw - 26, py + 36, {
         font: FONT.ui(15, 800), fill: '#6a5a86', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
@@ -130,24 +138,24 @@ export default {
       const b = BREEDS[this.sel], k = this.hatchT;
       ctx.save();
       ctx.globalCompositeOperation = 'lighter';
-      const g = ctx.createRadialGradient(W / 2, 330, 20, W / 2, 330, 420);
+      const g = ctx.createRadialGradient(W / 2, this.hatchY, 20, W / 2, this.hatchY, 420);
       g.addColorStop(0, rgba(b.eye, clamp(k * .3, 0, .5))); g.addColorStop(1, rgba(b.eye, 0));
       ctx.fillStyle = g; ctx.fillRect(...bleed(G));
       ctx.restore();
 
       if (this.phase === 'hatch') {
-        drawEgg(ctx, b, W / 2, 330, 100, { t: T, wobble: clamp(k * 1.6, 0, 1), crack: clamp((k - .35) / 1.3, 0, 1), glow: clamp(k, 0, 1) });
-        strokeText(ctx, '. . .', W / 2, 500, { font: FONT.disp(40), fill: '#fff', stroke: '#3a1d6e', lw: 8, baseline: 'middle' });
+        drawEgg(ctx, b, W / 2, this.hatchY, 100, { t: T, wobble: clamp(k * 1.6, 0, 1), crack: clamp((k - .35) / 1.3, 0, 1), glow: clamp(k, 0, 1) });
+        strokeText(ctx, '. . .', W / 2, this.hatchY + 170, { font: FONT.disp(40), fill: '#fff', stroke: '#3a1d6e', lw: 8, baseline: 'middle' });
       } else {
         const s = ease.outBack(clamp((this.hatchT - 1.75) / .6, 0, 1));
-        ctx.save(); ctx.translate(W / 2, 360); ctx.scale(s, s);
+        ctx.save(); ctx.translate(W / 2, this.hatchY + 30); ctx.scale(s, s);
         this.baby.draw(ctx, 0, 0, 210, 1);
         ctx.restore();
-        strokeText(ctx, tx(b, 'name'), W / 2, 520, { font: FONT.disp(48), fill: '#ffe066', stroke: '#5c3a00', lw: 9, baseline: 'middle' });
+        strokeText(ctx, tx(b, 'name'), W / 2, this.hatchY + 190, { font: FONT.disp(48), fill: '#ffe066', stroke: '#5c3a00', lw: 9, baseline: 'middle' });
         ctx.save();
         ctx.globalAlpha = clamp((this.hatchT - 2.3) / .5, 0, 1);
         ctx.font = FONT.ui(18, 600); ctx.fillStyle = '#fff'; ctx.textAlign = 'center';
-        ctx.fillText(tx(G.episodeOf(0), 'story'), W / 2, 576);
+        ctx.fillText(tx(G.episodeOf(0), 'story'), W / 2, this.hatchY + 246);
         ctx.restore();
       }
     }

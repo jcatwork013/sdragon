@@ -19,7 +19,21 @@ let R = 24, FW = 524, FH = 524, DEATH_Y = 418;
 // Mốc bố cục tính lại theo bề ngang thiết bị — xem core/layout.js.
 let FX_ = 384, FY_ = 122, BX = 406, BY = 136, CARDX = 24, HUDX = 950, HUDW = 306, COMPACT = false;
 let LAUNCH = { x: 646, y: 608 };
-function relayout(W) {
+let PORTRAIT = false, HUDY = 78;
+function relayout(W, H, hasFoes = false) {
+  PORTRAIT = H > W;
+  if (PORTRAIT) {
+    R = clamp(Math.floor((W - 76) / (COLS * 2)), 17, 30);
+    FW = COLS * R * 2 + 44; FH = FW; DEATH_Y = FH - 106;
+    FX_ = Math.round((W - FW) / 2);
+    FY_ = H < 1400 ? (hasFoes ? 150 : 112) : (hasFoes ? 238 : 188);
+    ENEMY_Y = FY_ - 48;
+    BX = FX_ + 22; BY = FY_ + 14;
+    CARDX = -9999; HUDX = 16; HUDW = W - 32; COMPACT = true;
+    HUDY = FY_ + FH + 18;
+    LAUNCH = { x: BX + COLS * R, y: BY + DEATH_Y + 54 };
+    return;
+  }
   // Bán kính bóng tính theo chỗ trống thật (giống bàn Ghép Đá), không đóng đinh
   // 22/24 nữa — trên điện thoại ngang, khung bắn cũ chỉ ăn 2/3 chiều cao.
   const compact = W < 1240;
@@ -35,6 +49,7 @@ function relayout(W) {
   ENEMY_Y = Math.max(42, FY_ - 48);
   BX = FX_ + 14 + 8; BY = FY_ + 14;
   CARDX = L.cardX; HUDX = L.hudX; HUDW = L.hudW; COMPACT = L.compact;
+  HUDY = 78;
   LAUNCH = { x: BX + COLS * R, y: BY + DEATH_Y + 54 };
 }
 
@@ -43,8 +58,8 @@ export default {
   name: 'shoot',
 
   enter(G) {
-    relayout(G.W);
     const L = G.level;
+    relayout(G.W, G.H, (L.enemies || []).length > 0);
     buildOrbSprites();
     this.t = 0;
     this.score = 0; this.gold = 0;
@@ -91,14 +106,17 @@ export default {
     this.hits = [
       new Hit('pause', G.W - 78, 12, 52, 52, { circle: true, act: () => this.togglePause(G) }),
       new Hit('exit',  G.W - 142, 12, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('map'); } }),
-      new Hit('restart', HUDX + HUDW * .25 - 28, 444, 56, 56, { circle: true, act: () => G.startLevel(G.levelIndex) }),
-      new Hit('resume', HUDX + HUDW * .68 - 28, 444, 56, 56, { circle: true, act: () => this.togglePause(G) }),
+      new Hit('restart', HUDX + HUDW * .25 - 28, HUDY + 366, 56, 56, { circle: true, act: () => G.startLevel(G.levelIndex) }),
+      new Hit('resume', HUDX + HUDW * .68 - 28, HUDY + 366, 56, 56, { circle: true, act: () => this.togglePause(G) }),
       new Hit('swap', LAUNCH.x + 74, LAUNCH.y - 26, 52, 52, { circle: true, act: () => { this.board.swapNext(); G.sfx('select'); } }),
       new Hit('quit', G.W / 2 - 110, G.H / 2 + 6, 220, 54,
         { act: () => { G.sfx('button'); G.go('map'); }, hidden: true }),
       new Hit('quit', G.W / 2 - 110, G.H / 2 + 6, 220, 54, { act: () => { G.sfx('button'); G.go('map'); }, hidden: true }),
       new Hit('howto', G.W / 2 - 110, G.H / 2 + 78, 220, 54, { act: () => { G.sfx('button'); G.go('help', 'map'); }, hidden: true }),
     ];
+    if (PORTRAIT && G.H < 1250) {
+      for (const id of ['restart', 'resume']) this.hits.find(h => h.id === id).hidden = true;
+    }
     this.music = G.levelTrack();
     G.music(this.music);
     this.say(G, 'start');
@@ -171,7 +189,7 @@ export default {
   /** Bày nút QUA MÀN NGAY khi đã đủ điểm. */
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 16, 596, HUDW - 32, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT && G.H < 1250 ? 241 : 518), HUDW - 32, 52,
       { act: () => this.startBravo(G, t('outOfShots')) }));
   },
 
@@ -279,7 +297,7 @@ export default {
     }
 
     this.hits = this.hits.filter(h => h.id === 'pause');
-    const y = 470;
+    const y = G.portrait ? G.H / 2 + 210 : 470;
     if (win) {
       this.hits.push(new Hit('next',  G.W / 2 - 256, y, 160, 62, { act: () => G.goNextLevel(G.levelIndex) }));
       this.hits.push(new Hit('again', G.W / 2 -  80, y, 160, 62, { act: () => G.startLevel(G.levelIndex, true) }));
@@ -716,6 +734,7 @@ export default {
 
   /** Thẻ dế co giãn lấp khoảng trống bên trái ở bố cục hẹp. */
   compactHeroBox(G) {
+    if (PORTRAIT) return FY_ < 200 ? { x: 18, y: 72, w: 112, h: 76 } : { x: 18, y: 72, w: 126, h: 124 };
     const w = clamp(FX_ - 48, 88, 200), h = clamp(w * 1.62, 176, 324);
     return { x: Math.max(14, (FX_ - w) / 2), y: FY_ + (FH - h) / 2, w, h };
   },
@@ -744,7 +763,8 @@ export default {
   },
 
   drawCompactHUD(G, ctx) {
-    const L = G.level, x = HUDX, y = 78, w = HUDW, h = 438;
+    const L = G.level, x = HUDX, y = HUDY, w = HUDW;
+    const short = PORTRAIT && G.H < 1250, h = short ? 300 : 438;
     card(ctx, x, y, w, h, 24);
     strokeText(ctx, t('score'), x + w / 2, y + 27,
       { font: FONT.disp(27), fill: '#ffa63d', stroke: '#8c3d00', lw: 6, baseline: 'middle' });
@@ -792,26 +812,30 @@ export default {
       for (let i = -1; i <= 1; i++) { c.beginPath(); c.arc(i * s * .22, 0, s * .105, 0, TAU); c.fill(); }
     }, this.shotsLeft / (L.shots || 1), ['#8e72d9', '#6341ad'], this.shotsLeft <= 5);
 
-    const gy = y + 261, gh = 58;
-    roundRect(ctx, x + 18, gy, w - 36, gh, 15); ctx.fillStyle = 'rgba(238,245,255,.9)'; ctx.fill();
-    ctx.strokeStyle = 'rgba(113,135,174,.30)'; ctx.lineWidth = 1.5; ctx.stroke();
-    const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
-    strokeText(ctx, `${t('goal')}: ${L.target.toLocaleString()}${noun ? ' ' + tx(noun, 'vi') : ''}`, x + w / 2, gy + 19,
-      { font: FONT.ui(13, 800), fill: '#594b78', stroke: null, lw: 0, baseline: 'middle', shadow: null });
-    const status = this.foesLeft ? t('foesShort', { n: this.foesLeft })
-      : starsNow >= 3 ? t('starMax')
-      : t('starNext', { n: starsNow + 1, d: Math.ceil([L.target, L.target * L.star[1], L.target * L.star[2]][starsNow] - this.score).toLocaleString() });
-    strokeText(ctx, status, x + w / 2, gy + 42,
-      { font: FONT.ui(11, 700), fill: this.foesLeft ? '#c0405a' : (starsNow >= 3 ? '#2f9f45' : '#81729c'),
-        stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    const fin = this.hits.find(h2 => h2.id === 'finishNow');
+    if (!(short && fin)) {
+      const gy = y + (short ? 251 : 261), gh = short ? 42 : 58;
+      roundRect(ctx, x + 18, gy, w - 36, gh, 15); ctx.fillStyle = 'rgba(238,245,255,.9)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(113,135,174,.30)'; ctx.lineWidth = 1.5; ctx.stroke();
+      const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
+      strokeText(ctx, `${t('goal')}: ${L.target.toLocaleString()}${noun ? ' ' + tx(noun, 'vi') : ''}`, x + w / 2, gy + (short ? 21 : 19),
+        { font: FONT.ui(13, 800), fill: '#594b78', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+      if (!short) {
+        const status = this.foesLeft ? t('foesShort', { n: this.foesLeft })
+          : starsNow >= 3 ? t('starMax')
+          : t('starNext', { n: starsNow + 1, d: Math.ceil([L.target, L.target * L.star[1], L.target * L.star[2]][starsNow] - this.score).toLocaleString() });
+        strokeText(ctx, status, x + w / 2, gy + 42,
+          { font: FONT.ui(11, 700), fill: this.foesLeft ? '#c0405a' : (starsNow >= 3 ? '#2f9f45' : '#81729c'),
+            stroke: null, lw: 0, baseline: 'middle', shadow: null });
+      }
+    }
 
     for (const id of ['restart', 'resume']) {
-      const h2 = this.hits.find(k => k.id === id); if (!h2) continue;
+      const h2 = this.hits.find(k => k.id === id); if (!h2 || h2.hidden) continue;
       roundBtn(ctx, h2.x + 28, h2.y + 28, 27,
         (c, s) => id === 'restart' ? icon.restart(c, s) : (this.paused ? icon.play(c, s) : icon.pause(c, s)),
         { press: h2.press, hover: h2.hover });
     }
-    const fin = this.hits.find(h2 => h2.id === 'finishNow');
     if (fin) {
       const puls = .5 + .5 * Math.sin(this.t * 4);
       ctx.save(); ctx.globalAlpha = .28 + .30 * puls;
@@ -902,28 +926,29 @@ export default {
     const s = ease.outBack(k);
     ctx.save();
     ctx.translate(W / 2, H / 2 - 40); ctx.scale(s, s); ctx.translate(-W / 2, -(H / 2 - 40));
-    glassPanel(ctx, W / 2 - 300, 140, 600, 300, 28,
+    const top = G.portrait ? H / 2 - 250 : 140;
+    glassPanel(ctx, W / 2 - 300, top, 600, 300, 28,
       // Nền phải TỐI và trung tính thì tia sáng vàng mới ra vàng. Nền xanh lá
       // cũ cộng tia vàng ra màu ô liu, nhìn như sọc bẩn chứ không phải hào quang.
       this.over.win ? { top: 'rgba(28,32,62,.96)', bot: 'rgba(11,13,30,.97)', rim: 'rgba(120,240,150,.55)' }
                     : { top: 'rgba(52,20,28,.96)', bot: 'rgba(20,7,13,.97)', rim: 'rgba(255,120,80,.55)' });
     resultBanner(ctx, {
-      cx: W / 2, top: 140, w: 600, h: 300,
+      cx: W / 2, top, w: 600, h: 300,
       win: this.over.win, t: this.t,
       title: this.over.win ? t('cleared') : t('failed'),
       sub: `${t('level')} ${G.level?.index ?? ''}`.trim(),
       stars: this.starsEarned, anim: this.overT,
     });
-    strokeText(ctx, `${t('finalScore')}: ${this.score.toLocaleString()}`, W / 2, 368,
+    strokeText(ctx, `${t('finalScore')}: ${this.score.toLocaleString()}`, W / 2, top + 228,
       { font: FONT.disp(28), fill: '#fff', stroke: '#12060f', lw: 6, baseline: 'middle' });
     if (this.over.win)
     {
-      strokeText(ctx, `+${this.gold} ${t('gold')}     +${this.xpGain} EXP`, W / 2, 402,
+      strokeText(ctx, `+${this.gold} ${t('gold')}     +${this.xpGain} EXP`, W / 2, top + 262,
         { font: FONT.disp(24), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
-      if (this.matsGot) drawMatsRow(ctx, W / 2, 424, this.matsGot);
+      if (this.matsGot) drawMatsRow(ctx, W / 2, top + 284, this.matsGot);
     }
     else
-      strokeText(ctx, this.over.why, W / 2, 400,
+      strokeText(ctx, this.over.why, W / 2, top + 260,
         { font: FONT.ui(19, 600), fill: '#ffc0cf', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     ctx.restore();
 

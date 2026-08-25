@@ -20,6 +20,7 @@ import { playLayout, bleed } from '../core/layout.js';
 import { perf, Q } from '../core/perf.js';
 
 let FX_ = 384, FY_ = 122, FW = 540, FH = 470, CARDX = 24, HUDX = 950, HUDW = 306, COMPACT = false;
+let PORTRAIT = false, HUDY = 122;
 
 /** 12 mặt thẻ: 6 họ đá quý + 6 nguyên liệu. Đều là hình có sẵn của game. */
 const FACES = [
@@ -85,6 +86,25 @@ export default {
     // Không dùng playLayout: nó chừa 78px cho DẢI KỸ NĂNG mà màn này không có,
     // nên bảng HUD bị đẩy lọt ra ngoài mép phải.
     const W = G.W;
+    PORTRAIT = G.H > W;
+    if (PORTRAIT) {
+      COMPACT = true; CARDX = -9999;
+      FX_ = 16; FW = W - 32; FY_ = G.H < 1120 ? 104 : 138;
+      const byW = (FW - 30) / (this.cols + 1);
+      const byH = (Math.min(590, G.H * .42) - 30) / (this.rows + 1);
+      this.cell = Math.min(byW, byH);
+      FH = Math.round(this.cell * (this.rows + 1) + 30);
+      HUDX = 16; HUDW = W - 32; HUDY = FY_ + FH + 18;
+      ensureGemSprites(this.cell * .70 * (G.dpr || 1.5));
+      this.ox = FX_ + (FW - this.cell * this.cols) / 2;
+      this.oy = FY_ + (FH - this.cell * this.rows) / 2;
+      this.hits = [
+        new Hit('pause', G.W - 78, 12, 52, 52, { circle: true, act: () => { this.paused = !this.paused; G.sfx('button'); } }),
+        new Hit('quit', G.W - 140, 12, 52, 52, { circle: true, act: () => G.go('map') }),
+        new Hit('hint', HUDX + 18, HUDY + 358, HUDW - 36, 50, { act: () => this.showHint(G) }),
+      ];
+      return;
+    }
     COMPACT = W < 1180;
     const CW2 = 250, HW2 = COMPACT ? 286 : 306, G1 = 18, G3 = 18;
     const room = W - (COMPACT ? 0 : CW2 + G1) - HW2 - G3 - 32;
@@ -96,6 +116,7 @@ export default {
     CARDX = COMPACT ? -9999 : margin;
     FX_ = margin + (COMPACT ? 0 : CW2 + G1);
     HUDX = FX_ + bw + G3; HUDW = HW2;
+    HUDY = 122;
     FW = bw; FH = bh; FY_ = Math.round(78 + (684 - 78 - bh) / 2);
     // Chừa nửa ô ở cả bốn cạnh cho đường nối được vòng RA NGOÀI bàn — luật
     // quen thuộc của game nối cặp và cũng giúp các đường biên dễ đọc hơn.
@@ -107,7 +128,7 @@ export default {
     this.hits = [
       new Hit('pause', G.W - 78, 12, 52, 52, { circle: true, act: () => { this.paused = !this.paused; G.sfx('button'); } }),
       new Hit('quit',  G.W - 140, 12, 52, 52, { circle: true, act: () => G.go('map') }),
-      new Hit('hint', HUDX + 18, 480, HUDW - 36, 50, { act: () => this.showHint(G) }),
+      new Hit('hint', HUDX + 18, HUDY + 358, HUDW - 36, 50, { act: () => this.showHint(G) }),
     ];
   },
 
@@ -263,7 +284,7 @@ export default {
 
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 16, 596, HUDW - 32, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT && G.H < 1200 ? 358 : 474), HUDW - 32, 52,
       { act: () => this.startBravo(G, t('pairOutOfTries')) }));
   },
 
@@ -339,7 +360,7 @@ export default {
       G.sess.losses++; G.sess.streak = 0;
       G.sfx('lose'); G.hero.react('hurt', 2);
     }
-    const y = 470;
+    const y = G.portrait ? G.H / 2 + 210 : 470;
     this.hits = [];
     if (win) {
       this.hits.push(new Hit('next',  G.W / 2 - 256, y, 160, 62, { act: () => G.goNextLevel(G.levelIndex) }));
@@ -555,10 +576,11 @@ export default {
   },
 
   drawHUD(G, ctx) {
-    const { H } = G, L = G.level, x = HUDX, w = HUDW, y = 122;
+    const { H } = G, L = G.level, x = HUDX, w = HUDW, y = HUDY;
     ctx.save();
-    roundRect(ctx, x, y, w, 470, 26);
-    const g = ctx.createLinearGradient(0, y, 0, y + 470);
+    const panelH = PORTRAIT && G.H < 1200 ? Math.min(440, G.H - y - 62) : 470;
+    roundRect(ctx, x, y, w, panelH, 26);
+    const g = ctx.createLinearGradient(0, y, 0, y + panelH);
     g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#e6f2fb');
     ctx.fillStyle = g; ctx.fill();
     ctx.strokeStyle = 'rgba(120,160,200,.55)'; ctx.lineWidth = 2; ctx.stroke();
@@ -630,23 +652,24 @@ export default {
     const s = ease.outBack(k);
     ctx.save();
     ctx.translate(W / 2, H / 2 - 40); ctx.scale(s, s); ctx.translate(-W / 2, -(H / 2 - 40));
-    glassPanel(ctx, W / 2 - 300, 140, 600, 300, 28,
+    const top = G.portrait ? H / 2 - 250 : 140;
+    glassPanel(ctx, W / 2 - 300, top, 600, 300, 28,
       this.over.win ? { top: 'rgba(28,32,62,.96)', bot: 'rgba(11,13,30,.97)', rim: 'rgba(120,240,150,.55)' }
                     : { top: 'rgba(52,20,28,.96)', bot: 'rgba(20,7,13,.97)', rim: 'rgba(255,120,80,.55)' });
     resultBanner(ctx, {
-      cx: W / 2, top: 140, w: 600, h: 300,
+      cx: W / 2, top, w: 600, h: 300,
       win: this.over.win, t: this.t,
       title: this.over.win ? t('cleared') : t('failed'),
       sub: `${t('level')} ${G.level?.index ?? ''}`.trim(),
       stars: this.starsEarned, anim: this.overT,
     });
-    strokeText(ctx, `${t('finalScore')}: ${this.score.toLocaleString()}`, W / 2, 368,
+    strokeText(ctx, `${t('finalScore')}: ${this.score.toLocaleString()}`, W / 2, top + 228,
       { font: FONT.disp(28), fill: '#fff', stroke: '#12060f', lw: 6, baseline: 'middle' });
     if (this.over.win)
-      strokeText(ctx, `+${this.gold} ${t('gold')}     +${this.xpGain} EXP`, W / 2, 406,
+      strokeText(ctx, `+${this.gold} ${t('gold')}     +${this.xpGain} EXP`, W / 2, top + 266,
         { font: FONT.disp(24), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
     else
-      strokeText(ctx, this.over.why, W / 2, 400,
+      strokeText(ctx, this.over.why, W / 2, top + 260,
         { font: FONT.ui(19, 600), fill: '#ffc0cf', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     ctx.restore();
     if (k >= 1) for (const h of this.hits) {

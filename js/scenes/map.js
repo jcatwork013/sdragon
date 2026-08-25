@@ -41,6 +41,7 @@ export default {
   name: 'map',
   enter(G) {
     this.t = 0;
+    this.mapY = G.portrait ? 360 : 0;
     this.scroll = 0; this.scrollV = 0; this.drag = null; this.moved = 0;
     this.maxScroll = Math.max(0, nodeX(ALL_LEVELS.length - 1) + 220 - G.W);
     this.bubble = null; this.toast = null; this.toastT = 0;
@@ -81,19 +82,24 @@ export default {
       }
     }
     if (seen !== epNow.id) { G.save.mapEp = epNow.id; G.persist(); }
+    const navGap = G.portrait ? 12 : 14;
+    const navW = G.portrait ? Math.floor((G.W - 32 - navGap * 2) / 3) : 190;
+    const navX = i => G.portrait ? 16 + i * (navW + navGap) : [24, 228, 414][i];
+    const toolsY = G.portrait ? 170 : 26;
+    const toolsX = i => G.portrait ? G.W / 2 - 125 + i * 66 : G.W - 284 + i * 66;
     this.hits = [
-      new Hit('nest', 24, G.H - 92, 190, 60, { act: () => G.go('nest') }),
+      new Hit('nest', navX(0), G.H - (G.portrait ? 106 : 92), navW, G.portrait ? 72 : 60, { act: () => G.go('nest') }),
       // Đấu trường cũng là đi đánh nhau → cũng tốn sức, chặn ngay ở cửa.
-      new Hit('arena', 228, G.H - 92, 172, 60, { act: () => {
+      new Hit('arena', navX(1), G.H - (G.portrait ? 106 : 92), navW, G.portrait ? 72 : 60, { act: () => {
         if (!G.fedEnough(G.FED_COST_ARENA)) return;
         G.sfx('button'); G.spendFed(G.FED_COST_ARENA);
         G.go('duel', { after: () => G.go('map') });
       } }),
-      new Hit('shop', 414, G.H - 92, 150, 60, { act: () => { G.sfx('button'); G.go('shop', { after: () => G.go('map') }); } }),
-      new Hit('world', G.W - 284, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('world', { after: () => G.go('map') }); } }),
-      new Hit('help', G.W - 218, 26, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'map'); } }),
-      new Hit('lang', G.W - 152, 26, 52, 52, { circle: true, act: () => G.askLang() }),
-      new Hit('music', G.W - 86, 26, 52, 52, { circle: true, act: () => G.toggleMute() }),
+      new Hit('shop', navX(2), G.H - (G.portrait ? 106 : 92), navW, G.portrait ? 72 : 60, { act: () => { G.sfx('button'); G.go('shop', { after: () => G.go('map') }); } }),
+      new Hit('world', toolsX(0), toolsY, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('world', { after: () => G.go('map') }); } }),
+      new Hit('help', toolsX(1), toolsY, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'map'); } }),
+      new Hit('lang', toolsX(2), toolsY, 52, 52, { circle: true, act: () => G.askLang() }),
+      new Hit('music', toolsX(3), toolsY, 52, 52, { circle: true, act: () => G.toggleMute() }),
     ];
     const ep0 = EPISODES[0];
     G.world.setTheme({ sky: ep0.sky, hill: ep0.hill, mount: ep0.mount, biome: ep0.biome });
@@ -138,7 +144,7 @@ export default {
       if (!p.fired && k > .62) {
         p.fired = true; p.banner = 3.0;
         G.sfx('levelup');
-        const nx = nodeX(G.save.unlocked - 1) - this.scroll, ny = nodeY(G.save.unlocked - 1);
+        const nx = nodeX(G.save.unlocked - 1) - this.scroll, ny = nodeY(G.save.unlocked - 1) + this.mapY;
         for (let i = 0; i < 8; i++) {
           const px = nx + (Math.random() - .5) * 260, py = ny - 60 - Math.random() * 120;
           G.fx.sparkle(px, py, ['#ffd76b', '#8ef08a', '#a8dcff', '#ff9ec4'][i % 4], 14);
@@ -180,7 +186,7 @@ export default {
 
     // ── chạm vào con dế → nó la làng ──────────────────────────────────
     const cur = G.save.unlocked - 1;
-    const hx = nodeX(cur) - 88 + this.wander.x - this.scroll, hy = nodeY(cur) + 58;
+    const hx = nodeX(cur) - 88 + this.wander.x - this.scroll, hy = nodeY(cur) + 58 + this.mapY;
     if (Math.hypot(x - hx, y - hy - 20) < 74) {
       const p = G.hero.poke();
       this.bubble = { p, t: 0, x: hx, y: hy - 96 };
@@ -191,7 +197,7 @@ export default {
     // bấm vào một nút màn
     const wx = x + this.scroll;
     for (let i = 0; i < ALL_LEVELS.length; i++) {
-      if (Math.hypot(wx - nodeX(i), y - nodeY(i)) <= NODE_R + 8) {
+      if (Math.hypot(wx - nodeX(i), y - this.mapY - nodeY(i)) <= NODE_R + 8) {
         if (i < G.save.unlocked) { G.sfx('button'); G.startLevel(i); }
         else G.sfx('invalid');
         return;
@@ -206,7 +212,7 @@ export default {
     ctx.fillStyle = 'rgba(18,10,38,.28)'; ctx.fillRect(...bleed(G));
 
     ctx.save();
-    ctx.translate(-this.scroll, 0);
+    ctx.translate(-this.scroll, this.mapY);
 
     // ── cảnh vật hai bên đường ────────────────────────────────────────
     for (const d of this.deco) {
@@ -364,6 +370,8 @@ export default {
 
       // quầng sáng đập nhịp quanh màn đang mở
       if (cur) {
+        strokeText(ctx, t('youAreHere'), 0, -NODE_R - 78,
+          { font: FONT.ui(12, 800), fill: '#fff4bd', stroke: '#3a1d00', lw: 4, baseline: 'middle' });
         ctx.save();
         ctx.globalCompositeOperation = 'lighter';
         const hk = .55 + .45 * Math.sin(this.t * 3);
@@ -506,24 +514,27 @@ export default {
     ctx.restore();
 
     // thanh trên: tài nguyên
+    const resY = G.portrait ? 98 : 22;
+    const resW = G.portrait ? (W - 60) / 2 : 148;
     const res = (x, ic, val) => {
-      ctx.save(); glassPanel(ctx, x, 22, 148, 56, 16); ctx.restore();
-      ctx.save(); ctx.translate(x + 32, 50); ic(ctx, 36); ctx.restore();
-      strokeText(ctx, String(val), x + 132, 51, { font: FONT.disp(24), fill: '#fff', stroke: '#1a0f30', lw: 5, align: 'right', baseline: 'middle' });
+      ctx.save(); glassPanel(ctx, x, resY, resW, 56, 16); ctx.restore();
+      ctx.save(); ctx.translate(x + 32, resY + 28); ic(ctx, 36); ctx.restore();
+      strokeText(ctx, String(val), x + resW - 16, resY + 29, { font: FONT.disp(24), fill: '#fff', stroke: '#1a0f30', lw: 5, align: 'right', baseline: 'middle' });
     };
     res(24, icon.pouch, G.save.gold);
-    res(186, icon.leaf, G.save.food);
+    res(G.portrait ? 36 + resW : 186, icon.leaf, G.save.food);
 
     // ── ĐỘ NO ───────────────────────────────────────────────────────────
     // Đặt ngay cạnh túi tiền để người chơi thấy trước khi bấm vào màn, chứ
     // không phải bấm rồi mới bị đuổi về.
     {
       // Xuống hàng dưới hai túi tiền — để cùng hàng thì nó chen vào tiêu đề.
-      const fx2 = 24, fy2 = 86, fw2 = 324, fh2 = 44;
+      const fx2 = 24, fy2 = G.portrait ? 236 : 86, fw2 = G.portrait ? W - 48 : 324, fh2 = 44;
       const v = clamp((G.save.fed ?? 100) / 100, 0, 1);
       const low = v <= .25;
       ctx.save(); glassPanel(ctx, fx2, fy2, fw2, fh2, 16); ctx.restore();
-      const bx2 = fx2 + 78, by2 = fy2 + 13, bw2 = fw2 - 92, bh2 = 18;
+      const bx2 = fx2 + (G.portrait ? 128 : 78), by2 = fy2 + 13;
+      const bw2 = fw2 - (G.portrait ? 142 : 92), bh2 = 18;
       roundRect(ctx, bx2, by2, bw2, bh2, bh2 / 2);
       ctx.fillStyle = 'rgba(10,6,20,.7)'; ctx.fill();
       ctx.save(); roundRect(ctx, bx2 + 2, by2 + 2, bw2 - 4, bh2 - 4, (bh2 - 4) / 2); ctx.clip();
@@ -549,7 +560,7 @@ export default {
             stroke: short ? '#3a0010' : '#241640', lw: 3, align: 'left', baseline: 'middle' });
       }
     }
-    strokeText(ctx, t('mapTitle'), W / 2, 50, { font: FONT.disp(34), fill: '#fff', stroke: '#3a1d6e', lw: 7, baseline: 'middle' });
+    strokeText(ctx, t('mapTitle'), W / 2, 50, { font: FONT.disp(G.portrait ? 38 : 34), fill: '#fff', stroke: '#3a1d6e', lw: 7, baseline: 'middle' });
 
     // ── BIỂN "VÙNG ĐẤT MỚI" khi vừa mở khoá ──────────────────────────────
     if (this.pan && this.pan.banner > 0) {
@@ -557,7 +568,7 @@ export default {
       const fade = clamp(b.banner / .6, 0, 1);
       ctx.save();
       ctx.globalAlpha = fade;
-      const yy = 150 + (1 - ease.outCubic(k)) * -40;
+      const yy = (G.portrait ? 350 : 150) + (1 - ease.outCubic(k)) * -40;
       const nm = tx(b.ep, 'name');
       ctx.font = FONT.disp(46);
       const wgt = Math.max(ctx.measureText(nm).width, 320) + 90;

@@ -90,11 +90,11 @@
   });
   addEventListener('appinstalled', () => { btn.hidden = true; deferred = null; });
 
-  // ── Trên di động: chạm lần đầu thì vào toàn màn hình + khoá xoay ngang
+  // ── Trên di động: chạm lần đầu thì vào toàn màn hình + khoá xoay dọc
   const goFullscreen = async () => {
     if (!matchMedia('(pointer:coarse)').matches) return;
     try { if (!document.fullscreenElement) await document.documentElement.requestFullscreen(); } catch {}
-    try { await screen.orientation.lock('landscape'); } catch {}
+    try { await screen.orientation.lock('portrait'); } catch {}
   };
   addEventListener('pointerdown', goFullscreen, { once: true });
 

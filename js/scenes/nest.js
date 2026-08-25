@@ -17,7 +17,16 @@ const TABS = [
 ];
 // Bảng phải bám mép phải và co theo bề ngang thật của thiết bị.
 let PX = 640, PW = 616, LX = 24, HEROX = 330;
-function relayout(W) {
+let PORTRAIT = false, PANEL_Y = 80, HEROY = 446;
+function relayout(G) {
+  const W = G.W;
+  PORTRAIT = G.H > W;
+  if (PORTRAIT) {
+    LX = 18; PX = 18; PW = W - 36; HEROX = W / 2;
+    PANEL_Y = G.H < 1120 ? 430 : 540;
+    HEROY = PANEL_Y - 112;
+    return;
+  }
   const M = W < 1240 ? 18 : 26;
   PW = Math.max(420, Math.min(640, W - 700));
   PX = W - M - PW;
@@ -29,7 +38,7 @@ export default {
   name: 'nest',
 
   enter(G) {
-    relayout(G.W);
+    relayout(G);
     this.t = 0; this.toast = null; this.toastT = 0; this.evolveT = 0;
     this.tab = 'train'; this.scroll = 0; this.bubble = null;
     this.build(G);
@@ -37,28 +46,30 @@ export default {
   },
 
   build(G) {
+    const tabsY = PORTRAIT ? PANEL_Y + 12 : 92;
+    const contentY = PORTRAIT ? PANEL_Y + 80 : 160;
     this.hits = [
       new Hit('back', LX, 24, 120, 52, { act: () => { G.sfx('button'); G.go('map'); } }),
-      ...TABS.map((tb, i) => new Hit('tab_' + tb.id, PX + i * (PW / 3), 92, PW / 3 - 10, 46,
+      ...TABS.map((tb, i) => new Hit('tab_' + tb.id, PX + i * (PW / 3), tabsY, PW / 3 - 10, 46,
         { act: () => { this.tab = tb.id; this.build(G); G.sfx('select'); } })),
     ];
     if (this.tab === 'train') {
       this.hits.push(new Hit('feed', LX, G.H - 96, 190, 60, { act: () => this.feed(G) }));
       TRAININGS.forEach((tr, i) =>
-        this.hits.push(new Hit('tr' + i, PX + 12, 160 + i * 84, PW - 24, 70, { act: () => this.train(G, tr) })));
+        this.hits.push(new Hit('tr' + i, PX + 12, contentY + i * 84, PW - 24, 70, { act: () => this.train(G, tr) })));
     } else if (this.tab === 'craft') {
       RECIPES.forEach((r, i) => {
         const col = i % 2, row = (i / 2) | 0;
-        this.hits.push(new Hit('cr_' + r.id, PX + 8 + col * (PW / 2), 158 + row * 96, PW / 2 - 16, 84,
+        this.hits.push(new Hit('cr_' + r.id, PX + 8 + col * (PW / 2), contentY - 2 + row * 96, PW / 2 - 16, 84,
           { act: () => this.craft(G, r) }));
       });
     } else {
       // Bốn ô (thêm Khăn) mà vẫn dùng bước nhảy 120 của thời ba ô thì ô cuối
       // chui xuống dưới bảng Tổng cộng. Thu thẻ lại và dời bảng tổng xuống.
       SLOTS.forEach((sl, i) =>
-        this.hits.push(new Hit('sl_' + sl.id, PX + 12, 158 + i * 96, PW - 24, 86,
+        this.hits.push(new Hit('sl_' + sl.id, PX + 12, contentY - 2 + i * 96, PW - 24, 86,
           { act: () => this.cycle(G, sl.id) })));
-      this.hits.push(new Hit('strip', PX + 12, 550, PW - 24, 48, { act: () => this.unequipAll(G) }));
+      this.hits.push(new Hit('strip', PX + 12, PORTRAIT ? PANEL_Y + 468 : 550, PW - 24, 48, { act: () => this.unequipAll(G) }));
     }
   },
 
@@ -71,7 +82,7 @@ export default {
     G.save.fed = Math.min(G.FED_MAX, (G.save.fed ?? 0) + G.FED_FEED);   // hồi một phần, không no căng
     G.save.food--; this.gainXp(G, 420);
     G.hero.react('eat', .8); G.sfx('gulp');
-    G.fx.sparkle(HEROX, G.H * .52, '#b6ffd8', 14);
+    G.fx.sparkle(HEROX, HEROY - 28, '#b6ffd8', 14);
     G.persist();
   },
   train(G, tr) {
@@ -80,7 +91,7 @@ export default {
     G.save.gold -= cost; G.save.stats[tr.id] = lvl + 1;
     this.gainXp(G, 260);
     G.hero.react('happy', 1.1); G.sfx('levelup');
-    G.fx.ring(HEROX, G.H * .52, '#ffd23f', 20, 220, .6, 10);
+    G.fx.ring(HEROX, HEROY - 28, '#ffd23f', 20, 220, .6, 10);
     this.say(t('trained'));
     G.persist();
   },
@@ -92,8 +103,8 @@ export default {
     G.save.crafted[r.id] = true;
     this.equip(G, r);                       // chế xong mặc luôn cho tiện
     G.sfx('levelup'); G.hero.react('proud', 1.4);
-    G.fx.ring(HEROX, G.H * .5, r.col, 16, 240, .7, 12);
-    G.fx.sparkle(HEROX, G.H * .5, r.col, 22);
+    G.fx.ring(HEROX, HEROY - 28, r.col, 16, 240, .7, 12);
+    G.fx.sparkle(HEROX, HEROY - 28, r.col, 22);
     this.say(t('crafted', { n: tx(r, 'name') }));
     G.persist();
   },
@@ -135,17 +146,17 @@ export default {
     if (stageFor(G.save.xp).id > before) {
       this.evolveT = 2.2;
       G.hero.chirpBurst(1.2); G.sfx('chirp'); G.fx.shake(18);
-      G.fx.ring(HEROX, G.H * .5, '#fff', 30, 420, .9, 16);
+      G.fx.ring(HEROX, HEROY - 28, '#fff', 30, 420, .9, 16);
     }
   },
 
   up(G, x, y) {
     // chạm vào con dế giữa màn → nó giãy nảy lên
-    if (Math.hypot(x - HEROX, y - (G.H * .62 - 60)) < 130) {
+    if (Math.hypot(x - HEROX, y - (HEROY - 60)) < 130) {
       const p = G.hero.poke();
       this.bubble = { p, t: 0 };
       G.sfx(p.mood === 'chirp' ? 'chirp' : 'select');
-      G.fx.sparkle(HEROX, G.H * .62 - 80, '#ffe9a8', 12);
+      G.fx.sparkle(HEROX, HEROY - 80, '#ffe9a8', 12);
     }
   },
 
@@ -169,7 +180,7 @@ export default {
     this.drawHero(G, ctx);
     this.drawLeft(G, ctx);
 
-    glassPanel(ctx, PX - 12, 80, PW + 24, H - 160, 22);
+    glassPanel(ctx, PX - (PORTRAIT ? 0 : 12), PANEL_Y, PW + (PORTRAIT ? 0 : 24), H - PANEL_Y - (PORTRAIT ? 112 : 80), 22);
     TABS.forEach((tb, i) => {
       const h = this.hits.find(x => x.id === 'tab_' + tb.id); if (!h) return;
       const on = this.tab === tb.id;
@@ -193,7 +204,7 @@ export default {
       const e = ease.outBack(clamp(b.t / .22, 0, 1));
       ctx.font = FONT.disp(21);
       const bw = ctx.measureText(txt).width + 46;
-      const bx = HEROX, by = H * .62 - 250;
+      const bx = HEROX, by = PORTRAIT ? HEROY - 145 : H * .62 - 250;
       ctx.translate(bx, by); ctx.scale(e, e); ctx.translate(-bx, -by);
       glassPanel(ctx, bx - bw / 2, by - 27, bw, 52, 16,
         { top: 'rgba(60,40,16,.95)', bot: 'rgba(30,18,6,.96)', rim: 'rgba(255,214,110,.7)' });
@@ -203,8 +214,8 @@ export default {
       strokeText(ctx, txt, bx, by - 1,
         { font: FONT.disp(21), fill: '#ffe066', stroke: '#3a2000', lw: 5, baseline: 'middle' });
       ctx.restore();
-    } else {
-      strokeText(ctx, t('pokeHint'), HEROX, H * .62 - 250,
+    } else if (!PORTRAIT) {
+      strokeText(ctx, t('pokeHint'), HEROX, PORTRAIT ? HEROY + 64 : H * .62 - 250,
         { font: FONT.ui(13, 600), fill: 'rgba(255,255,255,.35)', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     }
     if (this.toastT > 0) {
@@ -220,7 +231,7 @@ export default {
   },
 
   drawHero(G, ctx) {
-    const dx = HEROX, dy = G.H * .62;
+    const dx = HEROX, dy = PORTRAIT ? HEROY : G.H * .62;
     ctx.save();
     ctx.fillStyle = 'rgba(20,12,40,.4)';
     ctx.beginPath(); ctx.ellipse(dx, dy + 20, 190, 46, 0, 0, TAU); ctx.fill();
@@ -257,7 +268,7 @@ export default {
     G.hero.gear = { ...(G.save.equip || {}) };
     // Bề ngang nhân vật ≈ 1.87×S. Cỡ cố định 200 làm nó thò sang cả bảng
     // trang bị bên phải, nên tính theo đúng khoảng trống còn lại.
-    G.hero.draw(ctx, dx, dy - 26, clamp(((PX - 12) - (LX + 274)) / 2.35, 92, 200), 1);
+    G.hero.draw(ctx, dx, dy - 26, PORTRAIT ? 132 : clamp(((PX - 12) - (LX + 274)) / 2.35, 92, 200), 1);
     ring(true);
     if (this.evolveT > 1.2)
       strokeText(ctx, t('newStage'), dx, dy - 250,
@@ -268,6 +279,30 @@ export default {
     const S = G.save;
     const breed = BREEDS.find(b => b.id === S.breed) || BREEDS[0];
     const st = stageFor(S.xp), nx = nextStage(S.xp);
+    if (PORTRAIT) {
+      card(ctx, LX, 92, G.W - 36, 112, 20, { top: '#fffdf7', bot: '#e3eefb' });
+      strokeText(ctx, tx(breed, 'name'), LX + 18, 121,
+        { font: FONT.disp(27), fill: C.orange, stroke: C.orangeDark, lw: 5, align: 'left', baseline: 'middle' });
+      const pw = heroPower(S);
+      strokeText(ctx, `${tx(st, 'name')} · ${t('duelPower')} ${pw.power}`, LX + 18, 149,
+        { font: FONT.ui(13, 700), fill: '#4a3a66', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      starBar(ctx, LX + 18, 166, G.W - 72, 26, nx ? (S.xp - st.xp) / (nx.xp - st.xp) : 1, { t: this.t });
+      ctx.save(); ctx.translate(G.W - 190, 122); icon.pouch(ctx, 32); ctx.restore();
+      strokeText(ctx, String(S.gold), G.W - 168, 122,
+        { font: FONT.disp(21), fill: '#2b1740', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      ctx.save(); ctx.translate(G.W - 86, 122); icon.leaf(ctx, 32); ctx.restore();
+      strokeText(ctx, String(S.food), G.W - 64, 122,
+        { font: FONT.disp(21), fill: '#2b1740', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+
+      glassPanel(ctx, LX, 216, G.W - 36, 68, 18);
+      MAT_LIST.forEach((m, i) => {
+        const x = LX + 38 + i * ((G.W - 112) / MAT_LIST.length), y = 250;
+        ctx.save(); ctx.translate(x, y); matIcon(ctx, m.id, 24, m.col); ctx.restore();
+        strokeText(ctx, String(S.mats?.[m.id] || 0), x + 18, y,
+          { font: FONT.ui(12, 800), fill: '#f3ebff', stroke: '#2a1748', lw: 3, align: 'left', baseline: 'middle' });
+      });
+      return;
+    }
     card(ctx, LX, 92, 274, 176, 20, { top: '#fffdf7', bot: '#e3eefb' });
     strokeText(ctx, tx(breed, 'name'), LX + 18, 124,
       { font: FONT.disp(27), fill: C.orange, stroke: C.orangeDark, lw: 5, align: 'left', baseline: 'middle' });
@@ -391,11 +426,12 @@ export default {
         { font: FONT.ui(11, 700), fill: '#b0a4d0', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
     });
     // tổng cộng
-    glassPanel(ctx, PX + 12, 548, PW - 24, 52, 14);
+    const sy = PORTRAIT ? PANEL_Y + 468 : 548;
+    glassPanel(ctx, PX + 12, sy, PW - 24, 52, 14);
     strokeText(ctx, `${t('gearTotal')}:  ${t('st_hp')}+${g.hp}   ${t('st_atk')}+${g.atk}   ${t('st_crit')}+${g.crit}%`,
-      PX + PW / 2, 574, { font: FONT.disp(19), fill: '#ffe066', stroke: '#3a1d6e', lw: 4, baseline: 'middle' });
+      PX + PW / 2, sy + 26, { font: FONT.disp(19), fill: '#ffe066', stroke: '#3a1d6e', lw: 4, baseline: 'middle' });
     const st = this.hits.find(h => h.id === 'strip');
-    if (st) { st.x = PX + 12; st.y = 548; st.w = PW - 24; st.h = 52; }
+    if (st) { st.x = PX + 12; st.y = sy; st.w = PW - 24; st.h = 52; }
   },
 };
 

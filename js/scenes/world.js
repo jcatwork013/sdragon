@@ -427,14 +427,20 @@ export default {
     // mảnh 1. Mũi ghim nảy nhẹ để nhìn thấy ngay cả trên vùng màu vàng.
     {
       const [fx, fy] = SPOTS[this.here] || SPOTS[0];
-      const x = fx * W, y = fy * H - 58 - Math.abs(Math.sin(T * 3.4)) * 5;
+      const label = t('youAreHere');
+      ctx.save();
+      ctx.font = FONT.ui(12, 800);
+      const labelW = clamp(ctx.measureText(label).width + 28, 122, W - M * 2 - 16);
+      ctx.restore();
+      const x = clamp(fx * W, M + labelW / 2 + 6, W - M - labelW / 2 - 6);
+      const y = fy * H - 58 - Math.abs(Math.sin(T * 3.4)) * 5;
       ctx.save(); ctx.translate(x, y);
       ctx.shadowColor = 'rgba(50,25,0,.38)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
-      roundRect(ctx, -61, -31, 122, 27, 13.5); ctx.fillStyle = '#fff7d0'; ctx.fill();
+      roundRect(ctx, -labelW / 2, -31, labelW, 27, 13.5); ctx.fillStyle = '#fff7d0'; ctx.fill();
       ctx.shadowColor = 'transparent'; ctx.strokeStyle = '#7a4d16'; ctx.lineWidth = 2; ctx.stroke();
       ctx.beginPath(); ctx.moveTo(-9, -4); ctx.lineTo(0, 11); ctx.lineTo(9, -4); ctx.closePath();
       ctx.fillStyle = '#fff7d0'; ctx.fill(); ctx.stroke();
-      strokeText(ctx, t('youAreHere'), 0, -17,
+      strokeText(ctx, label, 0, -17,
         { font: FONT.ui(12, 800), fill: '#7a3e12', stroke: null, lw: 0, baseline: 'middle', shadow: null });
       ctx.restore();
     }

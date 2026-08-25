@@ -13,7 +13,8 @@ import { BREEDS, stageFor } from '../data/characters.js';
 import { rollMats, addMats, MATS } from '../data/gear.js';
 import { bleed } from '../core/layout.js';
 
-const HX = 330, FX = 950, GY = 330;          // vị trí ta / địch / mặt đất
+let GY = 330;                                // mặt đất; dọc hạ xuống để dùng chiều cao
+let PORTRAIT = false;
 const INTRO_DUR = 2.0;                       // màn VS mở trận
 const REVEAL_DUR = 0.78;                     // khoe chiêu
 const CLASH_HIT = 0.26, CLASH_DUR = 0.72;    // lao vào · chạm · dội ra
@@ -22,6 +23,8 @@ export default {
   name: 'duel',
 
   enter(G, arg = {}) {
+    PORTRAIT = G.H > G.W;
+    GY = PORTRAIT ? Math.min(610, G.H * .40) : 330;
     this.after = arg.after || (() => G.go('map'));
     this.t = 0;
     this.me = heroPower(G.save);
@@ -63,7 +66,7 @@ export default {
     this.hits = [
       ...MOVES.map((m, i) => new Hit('mv' + i, G.W / 2 - 300 + i * 205, G.H - 132, 190, 78,
         { act: () => this.play(G, m.id) })),
-      new Hit('flee', 28, G.H - 84, 170, 56, { act: () => this.flee(G) }),
+      new Hit('flee', 28, PORTRAIT ? G.H - 310 : G.H - 84, 170, 56, { act: () => this.flee(G) }),
     ];
     G.world.setTheme({ sky: ['#4a3560', '#2e2044', '#151024'], hill: '#39424a', mount: '#3b3450' });
     G.music('climax');
@@ -71,7 +74,7 @@ export default {
   },
 
   /** Chỗ đứng hai bên — bám giữa màn hình để máy rộng không lệch về một phía. */
-  pos(G) { const m = G.W / 2; return { hx: m - 300, fx: m + 300 }; },
+  pos(G) { const m = G.W / 2, d = PORTRAIT ? Math.min(205, G.W * .285) : 300; return { hx: m - d, fx: m + d }; },
 
   /** Rời màn đấu thì bỏ tư thế kết trận, kẻo dế nằm ngửa ở cả bản đồ. */
   exit(G) { G.hero.setPose(null); },
@@ -349,16 +352,18 @@ export default {
       ctx.restore();
     }
 
-    G.hero.draw(ctx, meX, GY + DROP, 178, 1);
+    G.hero.draw(ctx, meX, GY + DROP, PORTRAIT ? 142 : 178, 1);
     ctx.save();
     ctx.translate(foeX, GY + DROP - 60);
     ctx.scale(-1, 1);                       // quay mặt về phía người chơi
-    this.foeArt.draw(ctx, 0, 0, 210);
+    this.foeArt.draw(ctx, 0, 0, PORTRAIT ? 176 : 210);
     ctx.restore();
 
-    this.bar(ctx, 90, 128, 420, 30, this.hp / this.maxHp, '#3fbf4a', `${Math.ceil(this.hp)} / ${this.maxHp}`,
+    const barX = PORTRAIT ? 56 : 90, barW = PORTRAIT ? W - 112 : 420;
+    const myBarY = PORTRAIT ? 120 : 128, foeBarY = PORTRAIT ? 174 : 128;
+    this.bar(ctx, barX, myBarY, barW, 30, this.hp / this.maxHp, '#3fbf4a', `${Math.ceil(this.hp)} / ${this.maxHp}`,
              tx(BREEDS.find(b => b.id === G.save.breed) || BREEDS[0], 'name'));
-    this.bar(ctx, W - 510, 128, 420, 30, this.foe.hp / this.foe.max, '#e8384f',
+    this.bar(ctx, PORTRAIT ? barX : W - 510, foeBarY, barW, 30, this.foe.hp / this.foe.max, '#e8384f',
              `${Math.ceil(this.foe.hp)} / ${this.foe.max}`, tx(this.foe.def, 'name'), true);
 
     // ── THANH NỘ ─────────────────────────────────────────────────────────
@@ -366,7 +371,7 @@ export default {
     // "đau thì điên", không cần đọc hướng dẫn.
     {
       // Rộng 420 thì mép phải chui xuống dưới huy hiệu đòn vừa ra — cắt còn 330.
-      const rx = 90, ry = 166, rw = 330, rh = 20, on = this.fury;
+      const rx = PORTRAIT ? 90 : 90, ry = PORTRAIT ? 216 : 166, rw = PORTRAIT ? W - 180 : 330, rh = 20, on = this.fury;
       roundRect(ctx, rx, ry, rw, rh, rh / 2);
       ctx.fillStyle = 'rgba(12,7,22,.85)'; ctx.fill();
       ctx.save(); roundRect(ctx, rx + 2, ry + 2, rw - 4, rh - 4, (rh - 4) / 2); ctx.clip();
@@ -391,15 +396,15 @@ export default {
     const r = this.foe.ratio;
     const lbl = r < .95 ? t('duelWeaker') : r > 1.05 ? t('duelStronger') : t('duelEven');
     const col = r < .95 ? '#8ef08a' : r > 1.05 ? '#ff9aa8' : '#ffe066';
-    strokeText(ctx, lbl, W / 2, 128,
+    strokeText(ctx, lbl, W / 2, PORTRAIT ? 258 : 128,
       { font: FONT.disp(19), fill: col, stroke: '#1a0f30', lw: 5, baseline: 'middle' });
-    strokeText(ctx, `${this.me.power} vs ${this.foe.power}`, W / 2, 156,
+    strokeText(ctx, `${this.me.power} vs ${this.foe.power}`, W / 2, PORTRAIT ? 284 : 156,
       { font: FONT.ui(13, 700), fill: '#b0a4d0', stroke: null, lw: 0, baseline: 'middle', shadow: null });
 
     // câu khích của địch
     if (this.round === 0 && !this.over) {
       ctx.save(); ctx.globalAlpha = .5 + .5 * Math.sin(this.t * 2);
-      strokeText(ctx, '“' + tx(this.foe.def, 'taunt') + '”', W / 2, 196,
+      strokeText(ctx, '“' + tx(this.foe.def, 'taunt') + '”', W / 2, PORTRAIT ? 316 : 196,
         { font: FONT.ui(16, 600), fill: '#ffd0d8', stroke: '#3a0010', lw: 3, baseline: 'middle' });
       ctx.restore();
     }
@@ -464,7 +469,7 @@ export default {
     // ── nhật ký ───────────────────────────────────────────────────────────
     this.log.forEach((l, i) => {
       ctx.save(); ctx.globalAlpha = clamp(1 - i * .28 - l.t * .12, 0, 1);
-      strokeText(ctx, l.msg, W / 2, 272 + i * 26,
+      strokeText(ctx, l.msg, W / 2, (PORTRAIT ? 354 : 272) + i * 26,
         { font: FONT.disp(i === 0 ? 24 : 18), fill: l.col, stroke: '#1a0f30', lw: 5, baseline: 'middle' });
       ctx.restore();
     });
@@ -603,8 +608,9 @@ export default {
         { lite: shade(RK.col, .4), base: RK.col, rim: 'rgba(60,20,0,.7)' });
       strokeText(ctx, lbl2, W * .74, H * .255 + 19,
         { font: FONT.disp(22), fill: '#2b1740', stroke: null, lw: 0, baseline: 'middle', shadow: null });
-      strokeText(ctx, t('duelRankHint'), W * .74, H * .32,
-        { font: FONT.ui(13, 700), fill: 'rgba(255,255,255,.8)', stroke: 'rgba(0,0,0,.5)', lw: 3, baseline: 'middle' });
+      const hintLines = t('duelRankHint').split(/\s+[—–-]\s+/, 2);
+      hintLines.forEach((line, i) => strokeText(ctx, line, W * .74, H * .305 + i * 26,
+        { font: FONT.ui(12, 700), fill: 'rgba(255,255,255,.8)', stroke: 'rgba(0,0,0,.5)', lw: 3, baseline: 'middle' }));
     }
     // đã từng thua nó → hiện luôn thói quen đã học được
     if (G.save.lore?.[this.foe.def.id]) {
@@ -843,4 +849,3 @@ export function moveIcon(ctx, id, s) {
   }
   ctx.restore();
 }
-

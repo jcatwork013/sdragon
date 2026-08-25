@@ -95,14 +95,15 @@ canvas#game.grabbing{cursor:grabbing}
   letter-spacing:.3px;min-height:18px;transition:opacity .35s ease;
 }
 
-/* ---- rotate hint (mobile portrait) ---- */
+/* Bản mobile là portrait-first; lớp này chỉ còn là fallback cũ và luôn ẩn. */
 #rotate{
   position:fixed;inset:0;display:none;place-items:center;text-align:center;padding:24px;
   background:#0b0716;color:#fff;font-size:22px;z-index:20;
 }
-@media (max-aspect-ratio:1/1) and (pointer:coarse) and (max-width:599px){
-  #rotate{display:grid}
-  #stage{display:none}
+@media (max-aspect-ratio:1/1){
+  .boot-title{font-size:52px}
+  .boot-sub{font-size:20px}
+  .boot-bar{width:min(300px,72vw);margin-top:24px}
 }
 
 /* ---- nút cài đặt PWA ---- */

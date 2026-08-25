@@ -10,7 +10,7 @@ import { bleed } from '../core/layout.js';
 
 const PAGES = 4;
 const DCELL = 58, DCOLS = 5, DROWS = 3;
-const DX = 96, DY = 214;
+let DX = 96, DY = 214;
 // Bố cục có chủ đích: kéo viên ở (cột 2, hàng 0) xuống → hàng 1 thành ba viên
 // Lam Ngọc thẳng hàng. Người xem thấy ngay "đổi chỗ để tạo bộ 3".
 const LAYOUT = [
@@ -25,6 +25,9 @@ export default {
   name: 'help',
   enter(G, from = 'title') {
     this.t = 0; this.page = 0; this.back = from;
+    this.portrait = G.H > G.W;
+    DX = this.portrait ? Math.round((G.W - DCOLS * DCELL) / 2) : 96;
+    DY = this.portrait ? 168 : 214;
     this.fx = new FX();
     buildOrbSprites();
     this.demo = new Board({ cols: DCOLS, rows: DROWS, size: DCELL, colours: 6 });
@@ -36,10 +39,11 @@ export default {
       this.fx.float(DX + DCOLS * DCELL / 2, DY + DCELL, '+120', { size: 26, fill: '#fff6c4', stroke: '#6b3a00' });
     };
     this.resetDemo();
+    const navY = this.portrait ? G.H - 118 : 640;
     this.hits = [
-      new Hit('prev', 40, 640, 56, 54, { act: () => { this.page = (this.page + PAGES - 1) % PAGES; G.sfx('button'); } }),
-      new Hit('next', G.W - 96, 640, 56, 54, { act: () => { this.page = (this.page + 1) % PAGES; G.sfx('button'); } }),
-      new Hit('ok', G.W / 2 - 110, 638, 220, 58, { act: () => { G.sfx('button'); G.go(this.back); } }),
+      new Hit('prev', 40, navY, 56, 54, { act: () => { this.page = (this.page + PAGES - 1) % PAGES; G.sfx('button'); } }),
+      new Hit('next', G.W - 96, navY, 56, 54, { act: () => { this.page = (this.page + 1) % PAGES; G.sfx('button'); } }),
+      new Hit('ok', G.W / 2 - 110, navY - 2, 220, 58, { act: () => { G.sfx('button'); G.go(this.back); } }),
     ];
   },
 
@@ -87,9 +91,10 @@ export default {
     else this.drawPage4(G, ctx);
 
     // chấm trang
+    const dotsY = this.portrait ? H - 178 : 604;
     for (let i = 0; i < PAGES; i++) {
       ctx.fillStyle = i === this.page ? '#ffe066' : 'rgba(255,255,255,.28)';
-      ctx.beginPath(); ctx.arc(W / 2 - (PAGES - 1) * 14 + i * 28, 604, 6, 0, TAU); ctx.fill();
+      ctx.beginPath(); ctx.arc(W / 2 - (PAGES - 1) * 14 + i * 28, dotsY, 6, 0, TAU); ctx.fill();
     }
     for (const h of this.hits) {
       if (h.id === 'ok') textBtn(ctx, h.x, h.y, h.w, h.h, t('gotIt'), { press: h.press, hover: h.hover, font: FONT.disp(26) });
@@ -133,23 +138,26 @@ export default {
     }
     this.fx.draw(ctx);
 
-    // hai luật
-    const px = 470, pw = G.W - px - 56;
-    rule(ctx, px, 150, pw, t('htSwapT'), t('htSwapD'));
-    rule(ctx, px, 300, pw, t('htMatchT'), t('htMatchD'));
+    // hai luật: dọc xếp thành luồng đọc từ demo xuống chữ; ngang giữ hai cột.
+    const px = this.portrait ? 40 : 470, pw = this.portrait ? G.W - 80 : G.W - px - 56;
+    rule(ctx, px, this.portrait ? 390 : 150, pw, t('htSwapT'), t('htSwapD'));
+    rule(ctx, px, this.portrait ? 554 : 300, pw, t('htMatchT'), t('htMatchD'));
 
     // minh hoạ bộ 3
     ctx.save();
-    for (let i = 0; i < 3; i++) drawGem(ctx, 4, px + 44 + i * 62, 470, 54, { t: this.t, seed: i });
+    const gemsY = this.portrait ? 772 : 470;
+    const gemsX = this.portrait ? G.W / 2 - 160 : px + 44;
+    for (let i = 0; i < 3; i++) drawGem(ctx, 4, gemsX + i * 62, gemsY, 54, { t: this.t, seed: i });
     ctx.restore();
-    strokeText(ctx, '→', px + 230, 470, { font: FONT.disp(38), fill: '#fff', stroke: '#3a1d6e', lw: 6, baseline: 'middle' });
+    strokeText(ctx, '→', gemsX + 186, gemsY, { font: FONT.disp(38), fill: '#fff', stroke: '#3a1d6e', lw: 6, baseline: 'middle' });
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
-    const g = ctx.createRadialGradient(px + 320, 470, 4, px + 320, 470, 56);
+    const rewardX = gemsX + 276;
+    const g = ctx.createRadialGradient(rewardX, gemsY, 4, rewardX, gemsY, 56);
     g.addColorStop(0, 'rgba(255,240,180,.9)'); g.addColorStop(1, 'rgba(255,220,120,0)');
-    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(px + 320, 470, 56, 0, TAU); ctx.fill();
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(rewardX, gemsY, 56, 0, TAU); ctx.fill();
     ctx.restore();
-    strokeText(ctx, '+120', px + 320, 470, { font: FONT.disp(30), fill: '#fff6c4', stroke: '#6b3a00', lw: 6, baseline: 'middle' });
+    strokeText(ctx, '+120', rewardX, gemsY, { font: FONT.disp(30), fill: '#fff6c4', stroke: '#6b3a00', lw: 6, baseline: 'middle' });
   },
 
   drawPage3(G, ctx) { HELP_EXTRA.drawPage3.call(this, G, ctx); },
@@ -164,12 +172,13 @@ export default {
   drawPage4(G, ctx) {
     const { W } = G;
     const M = Math.max(56, Math.round(W * .052));
-    strokeText(ctx, t('htPairT'), W / 2, 118,
+    const titleY = this.portrait ? 142 : 118;
+    strokeText(ctx, t('htPairT'), W / 2, titleY,
       { font: FONT.disp(28), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, baseline: 'middle' });
 
     // Ba ô mở: viên giữa chặn đường thẳng, cặp cùng hình phải vòng lên trên.
     const cw = 96, ch = 100, gap = 26;
-    const total = cw * 3 + gap * 2, sx = W / 2 - total / 2, sy = 168;
+    const total = cw * 3 + gap * 2, sx = W / 2 - total / 2, sy = this.portrait ? 206 : 168;
     const card = (i, face) => {
       const x = sx + i * (cw + gap);
       roundRect(ctx, x, sy + 7, cw, ch, 16);
@@ -195,7 +204,7 @@ export default {
 
     const rows = [t('htPair1'), t('htPair2'), t('htPair3')];
     rows.forEach((txt, i) => {
-      const y = 330 + i * 78;
+      const y = (this.portrait ? 390 : 330) + i * (this.portrait ? 96 : 78);
       glassPanel(ctx, M, y, W - M * 2, 64, 16);
       strokeText(ctx, String(i + 1), M + 34, y + 32,
         { font: FONT.disp(26), fill: '#ffd23f', stroke: '#3a2000', lw: 4, baseline: 'middle' });
@@ -205,6 +214,7 @@ export default {
 
   // ── Trang 2: đá đặc biệt · bảng chỉ số · kỹ năng ─────────────────────────
   drawPage2(G, ctx) {
+    if (this.portrait) { HELP_EXTRA.drawPage2Portrait.call(this, G, ctx); return; }
     // Cột đóng đinh 70/690/520 chỉ vừa đúng màn 1280. Máy rộng hơn thì cột
     // phải tràn qua mép, máy hẹp hơn thì chữ bị bóp. Tính theo bề ngang thật.
     const { W: WW } = G;
@@ -267,11 +277,13 @@ export default {
 Object.assign(HELP_EXTRA, {
   drawPage3(G, ctx) {
     const { W } = G;
-    strokeText(ctx, t('htShootT'), W / 2, 116,
+    const portrait = this.portrait;
+    strokeText(ctx, t('htShootT'), W / 2, portrait ? 132 : 116,
       { font: FONT.disp(30), fill: '#ffe066', stroke: '#3a1d6e', lw: 6, baseline: 'middle' });
 
     // minh hoạ: lưới lục giác nhỏ + đường ngắm + bệ phóng
-    const ox = 250, oy = 168, R2 = 22, D = R2 * 2;
+    const R2 = 22, D = R2 * 2;
+    const ox = portrait ? Math.round((W - R2 * 2 * 7) / 2) : 250, oy = portrait ? 182 : 168;
     glassPanel(ctx, ox - 30, oy - 26, R2 * 2 * 7 + 60, 300, 18,
       { top: 'rgba(12,7,26,.94)', bot: 'rgba(6,3,16,.96)' });
     const LAY = [
@@ -293,21 +305,70 @@ Object.assign(HELP_EXTRA, {
     ctx.strokeStyle = '#3f2a15'; ctx.lineWidth = 4; ctx.stroke();
     drawOrb(ctx, 2, lx, ly, D);
 
-    const M3 = Math.max(56, Math.round(W * .052));
-    const px = Math.round(W * .54), pw = W - px - M3;
-    glassPanel(ctx, px, 168, pw, 170, 18);
-    wrapText(ctx, t('htShootD'), px + 22, 202, pw - 44, 24, FONT.ui(16, 600), '#e6dcff');
+    const M3 = portrait ? 40 : Math.max(56, Math.round(W * .052));
+    if (portrait) {
+      glassPanel(ctx, M3, 520, W - M3 * 2, 144, 18);
+      wrapText(ctx, t('htShootD'), M3 + 24, 554, W - M3 * 2 - 48, 24, FONT.ui(16, 600), '#e6dcff');
+      glassPanel(ctx, M3, 684, W - M3 * 2, 118, 18);
+      wrapText(ctx, t('htTokenD'), M3 + 24, 718, W - M3 * 2 - 48, 22, FONT.ui(15, 600), '#e6dcff');
+      glassPanel(ctx, M3, 822, W - M3 * 2, 102, 18);
+      wrapText(ctx, t('htTimeD'), M3 + 24, 856, W - M3 * 2 - 48, 22, FONT.ui(15, 600), '#ffd9a0');
+    } else {
+      const px = Math.round(W * .54), pw = W - px - M3;
+      glassPanel(ctx, px, 168, pw, 170, 18);
+      wrapText(ctx, t('htShootD'), px + 22, 202, pw - 44, 24, FONT.ui(16, 600), '#e6dcff');
+      glassPanel(ctx, px, 360, pw, 92, 18);
+      wrapText(ctx, t('htTokenD'), px + 22, 392, pw - 44, 22, FONT.ui(15, 600), '#e6dcff');
+      glassPanel(ctx, M3, 470, W - M3 * 2, 92, 18);
+      wrapText(ctx, t('htTimeD'), M3 + 22, 502, W - M3 * 2 - 44, 22, FONT.ui(15, 600), '#ffd9a0');
+    }
+  },
 
-    glassPanel(ctx, px, 360, pw, 92, 18);
-    wrapText(ctx, t('htTokenD'), px + 22, 392, pw - 44, 22, FONT.ui(15, 600), '#e6dcff');
+  drawPage2Portrait(G, ctx) {
+    const W = G.W, M = 36, gap = 16, cw = (W - M * 2 - gap) / 2;
+    strokeText(ctx, t('htSpecialT'), M, 132,
+      { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
+    const specs = [[SP.LINE_H, 0, t('htSpec4')], [SP.CROSS, 2, t('htSpecL')],
+      [SP.BOMB, 4, t('htSpec5')], [null, 1, t('htSquare')]];
+    specs.forEach(([sp, gem, txt], i) => {
+      const x = M + (i % 2) * (cw + gap), y = 166 + ((i / 2) | 0) * 118;
+      glassPanel(ctx, x, y, cw, 104, 14);
+      if (sp == null) {
+        drawGem(ctx, 1, x + 32, y + 43, 38, { t: this.t, special: SP.LINE_V, glow: .5 });
+        drawGem(ctx, 3, x + 63, y + 43, 38, { t: this.t, special: SP.BOMB, glow: .5 });
+      } else drawGem(ctx, gem, x + 42, y + 43, 48, { t: this.t, seed: i, special: sp, glow: .6 });
+      wrapText(ctx, txt, x + 86, y + 26, cw - 100, 18, FONT.ui(12, 600), '#e6dcff');
+    });
 
-    glassPanel(ctx, M3, 470, W - M3 * 2, 92, 18);
-    wrapText(ctx, t('htTimeD'), M3 + 22, 502, W - M3 * 2 - 44, 22, FONT.ui(15, 600), '#ffd9a0');
+    strokeText(ctx, t('htHudT'), M, 416,
+      { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
+    const hud = [[icon.crown, t('htCrown')], [icon.heart, t('htHeart')], [icon.flame, t('htRage')], [null, t('htMovesD')]];
+    hud.forEach(([ic, txt], i) => {
+      const x = M + (i % 2) * (cw + gap), y = 450 + ((i / 2) | 0) * 108;
+      glassPanel(ctx, x, y, cw, 96, 14);
+      if (ic) { ctx.save(); ctx.translate(x + 38, y + 41); ic(ctx, 38); ctx.restore(); }
+      else strokeText(ctx, '24', x + 38, y + 41, { font: FONT.disp(24), fill: '#fff', stroke: '#1a0f30', lw: 4, baseline: 'middle' });
+      wrapText(ctx, txt, x + 72, y + 27, cw - 86, 18, FONT.ui(12, 600), '#e6dcff');
+    });
+
+    strokeText(ctx, t('htSkillT'), M, 672,
+      { font: FONT.disp(26), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
+    const skills = [[icon.chirp, t('htSkFire')], [null, t('htSkHammer')], [icon.restart, t('htSkShuffle')]];
+    skills.forEach(([ic, txt], i) => {
+      const y = 708 + i * 94;
+      glassPanel(ctx, M, y, W - M * 2, 80, 14);
+      ctx.save(); ctx.translate(M + 42, y + 40); ctx.beginPath(); ctx.arc(0, 0, 25, 0, TAU);
+      const g = ctx.createLinearGradient(0, -25, 0, 25); g.addColorStop(0, C.iceLite); g.addColorStop(1, C.iceMid);
+      ctx.fillStyle = g; ctx.fill(); ctx.strokeStyle = C.iceDark; ctx.lineWidth = 3; ctx.stroke();
+      if (ic) ic(ctx, 44); else { ctx.fillStyle = '#c0c8d8'; roundRect(ctx, -13, -8, 26, 10, 3); ctx.fill(); ctx.fillStyle = '#8a5a2c'; roundRect(ctx, -3, 0, 6, 14, 2); ctx.fill(); }
+      ctx.restore();
+      wrapText(ctx, txt, M + 82, y + 31, W - M * 2 - 104, 19, FONT.ui(13, 600), '#e6dcff');
+    });
   },
 });
 
 function rule(ctx, x, y, w, title, body) {
-  glassPanel(ctx, x, y, w, 122, 18);
+  glassPanel(ctx, x, y, w, 144, 18);
   strokeText(ctx, title, x + 22, y + 32,
     { font: FONT.disp(24), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
   wrapText(ctx, body, x + 22, y + 62, w - 44, 22, FONT.ui(15, 600), '#e6dcff');

@@ -6,8 +6,11 @@ import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
 import fs from 'node:fs';
 import path from 'node:path';
 
-// Ảnh luôn ghi vào dev/shots/ dù chạy từ thư mục nào
-const SHOTS = path.join(path.dirname(new URL(import.meta.url).pathname), 'shots');
+const PORTRAIT = process.argv.includes('--portrait');
+const SHORT = PORTRAIT && process.argv.includes('--short');
+// Tách ảnh dọc khỏi bộ chuẩn desktop để có thể so sánh cả hai sau mỗi lần sửa.
+const MODE = SHORT ? 'portrait-short' : PORTRAIT ? 'portrait' : 'landscape';
+const SHOTS = path.join(path.dirname(new URL(import.meta.url).pathname), 'shots', MODE);
 fs.mkdirSync(SHOTS, { recursive: true });
 const out = f => path.join(SHOTS, path.basename(f));
 
@@ -16,7 +19,10 @@ for (const [f, fam] of [['baloo2.ttf','Baloo 2'], ['bvp600.ttf','Be Vietnam Pro'
   try { GlobalFonts.registerFromPath(new URL('../fonts/' + f, import.meta.url).pathname, fam); } catch {}
 }
 
-const W = 1280, H = 720;
+const CSS_W = SHORT ? 375 : PORTRAIT ? 390 : 1400;
+const CSS_H = SHORT ? 667 : PORTRAIT ? 845 : 800;
+const W = PORTRAIT ? 640 : 1280;
+const H = PORTRAIT ? Math.round(W * CSS_H / CSS_W) : 720;
 const real = createCanvas(W, H);
 const rctx = real.getContext('2d');
 
@@ -41,7 +47,7 @@ globalThis.document = {
   addEventListener() {},
 };
 globalThis.window = {
-  addEventListener() {}, innerWidth: 1400, innerHeight: 800, devicePixelRatio: 1,
+  addEventListener() {}, innerWidth: CSS_W, innerHeight: CSS_H, devicePixelRatio: 1,
   AudioContext: undefined,
 };
 Object.defineProperty(globalThis, 'navigator', { value: { language: 'vi-VN' }, configurable: true });
@@ -84,7 +90,7 @@ function run(name, frames, file, setup) {
     if (G.quipBox) G.drawQuip();       // lớp toàn cục, vòng vẽ thật lo phần này
     if (G.modal) G.drawModal();
     fs.writeFileSync(out(file), real.toBuffer('image/png'));
-    console.log(`✓ ${name.padEnd(22)} → dev/shots/${path.basename(file)}`);
+    console.log(`✓ ${name.padEnd(22)} → dev/shots/${MODE}/${path.basename(file)}`);
   } catch (e) {
     errors.push(`${name}: ${e.stack.split('\n').slice(0, 3).join(' | ')}`);
     console.log(`✗ ${name.padEnd(22)} LỖI: ${e.message}`);

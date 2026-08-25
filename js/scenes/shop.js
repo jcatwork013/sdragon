@@ -38,23 +38,30 @@ export default {
 
   build(G) {
     const W = G.W, H = G.H;
-    this.PX = Math.max(300, W * .30);                 // mép trái bảng hàng
-    this.PW = Math.min(W - this.PX - 24, 640);
+    this.portrait = H > W;
+    this.PX = this.portrait ? 18 : Math.max(300, W * .30);
+    this.PW = this.portrait ? W - 36 : Math.min(W - this.PX - 24, 640);
+    const modeY = this.portrait ? 500 : 34;
+    const tabsY = this.portrait ? 558 : 92;
+    const itemY = this.portrait ? 622 : 156;
+    const tabGap = this.portrait ? 8 : 8;
+    const tabW = this.portrait ? (this.PW - tabGap * (SLOTS.length - 1)) / SLOTS.length : 108;
     this.hits = [
-      new Hit('back', 24, H - 82, 150, 56, { act: () => { G.sfx('button'); this.after(); } }),
-      new Hit('m_shop', this.PX, 34, 150, 44,
+      new Hit('back', 24, H - (this.portrait ? 88 : 82), this.portrait ? 180 : 150, this.portrait ? 64 : 56, { act: () => { G.sfx('button'); this.after(); } }),
+      new Hit('m_shop', this.PX, modeY, 150, 44,
         { act: () => { this.mode = 'shop'; G.sfx('select'); this.build(G); } }),
-      new Hit('m_bag', this.PX + 158, 34, 150, 44,
+      new Hit('m_bag', this.PX + 158, modeY, 150, 44,
         { act: () => { this.mode = 'bag'; G.sfx('select'); this.build(G); } }),
-      ...SLOTS.map((sl, i) => new Hit('tab_' + sl.id, this.PX + i * 116, 92, 108, 46,
+      ...SLOTS.map((sl, i) => new Hit('tab_' + sl.id, this.PX + i * (tabW + tabGap), tabsY, tabW, 46,
         { act: () => { this.slot = sl.id; G.sfx('select'); this.build(G); } })),
     ];
     const list = this.stock();
     list.forEach((g, i) => {
-      const col = i % 2, row = (i / 2) | 0;
-      const x = this.PX + col * (this.PW / 2), y = 156 + row * 104;
-      const w = this.PW / 2 - 12;
-      this.hits.push(new Hit('it_' + g.id, x, y, w, 94, { act: () => this.tap(G, g) }));
+      const col = this.portrait ? 0 : i % 2, row = this.portrait ? i : (i / 2) | 0;
+      const x = this.portrait ? this.PX + 8 : this.PX + col * (this.PW / 2);
+      const y = itemY + row * (this.portrait ? 106 : 104);
+      const w = this.portrait ? this.PW - 16 : this.PW / 2 - 12;
+      this.hits.push(new Hit('it_' + g.id, x, y, w, this.portrait ? 98 : 94, { act: () => this.tap(G, g) }));
       // Trong tủ đồ mỗi món có nút BÁN riêng — gộp bán vào cùng chỗ bấm để
       // mặc thì sớm muộn cũng có người lỡ tay bán mất món đang dùng.
       if (this.mode === 'bag' && g.price)
@@ -176,8 +183,10 @@ export default {
     // trên nền sáng nên đọc rất mệt. Nay có nền chuyển sắc + vệt sáng sau lưng,
     // và bảng chỉ số nền tối chữ sáng. Màu sân khấu ĐỔI THEO CHUỖI THẮNG đấu
     // trường: thắng càng nhiều, sân càng rực.
-    const cx = W * .16, cy = H * .56;
-    const px0 = 24, py0 = 96, pw0 = this.PX - 56, ph0 = H - 200;
+    const cx = this.portrait ? W / 2 : W * .16, cy = this.portrait ? 282 : H * .56;
+    const px0 = this.portrait ? 18 : 24, py0 = this.portrait ? 88 : 96;
+    const pw0 = this.portrait ? W - 36 : this.PX - 56, ph0 = this.portrait ? 392 : H - 200;
+    const heroCx = this.portrait ? cx : cx + 26, heroCy = this.portrait ? cy : cy + 20;
     const streak = S.duelStreak || 0;
     const sk = streak >= 6 ? 3 : streak >= 4 ? 2 : streak >= 2 ? 1 : 0;
     const SKY = [
@@ -190,7 +199,7 @@ export default {
     ctx.save();
     roundRect(ctx, px0, py0, pw0, ph0, 22); ctx.clip();
     // vệt sáng sau lưng
-    const gl = ctx.createRadialGradient(cx + 26, cy - 10, 8, cx + 26, cy - 10, pw0 * .78);
+    const gl = ctx.createRadialGradient(heroCx, heroCy - 30, 8, heroCx, heroCy - 30, pw0 * .78);
     gl.addColorStop(0, rgba(SKY.glow, .55)); gl.addColorStop(1, rgba(SKY.glow, 0));
     ctx.fillStyle = gl; ctx.fillRect(px0, py0, pw0, ph0);
     // tia sáng quay chậm — càng thắng nhiều tia càng dày
@@ -198,37 +207,42 @@ export default {
     ctx.globalAlpha = .05 + sk * .04;
     for (let i = 0; i < 8 + sk * 4; i++) {
       const a = this.t * .12 + i * (TAU / (8 + sk * 4));
-      ctx.save(); ctx.translate(cx + 26, cy - 10); ctx.rotate(a);
+      ctx.save(); ctx.translate(heroCx, heroCy - 30); ctx.rotate(a);
       ctx.fillStyle = SKY.glow;
       ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(pw0, -26); ctx.lineTo(pw0, 26); ctx.closePath(); ctx.fill();
       ctx.restore();
     }
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     // bệ đứng
-    ctx.beginPath(); ctx.ellipse(cx + 26, cy + 96, pw0 * .34, 18, 0, 0, TAU);
+    ctx.beginPath(); ctx.ellipse(heroCx, heroCy + 76, Math.min(150, pw0 * .34), 18, 0, 0, TAU);
     ctx.fillStyle = 'rgba(0,0,0,.32)'; ctx.fill();
     ctx.restore();
 
     G.hero.gear = { ...this.preview };
-    G.hero.draw(ctx, cx + 26, cy + 20, 120, 1);
+    G.hero.draw(ctx, heroCx, heroCy, this.portrait ? 138 : 120, 1);
 
     // chuỗi thắng đấu trường
     if (streak >= 2)
-      pillLabel(ctx, cx + 26, py0 + 26, t('duelStreak', { n: streak }), SKY.glow, '#1a0f30');
+      pillLabel(ctx, heroCx, py0 + 26, t('duelStreak', { n: streak }), SKY.glow, '#1a0f30');
 
     const bon = gearBonus(S);
-    const cardY = H - 236, cardH = 118;
-    roundRect(ctx, 40, cardY, this.PX - 88, cardH, 16);
+    const cardY = this.portrait ? 348 : H - 236, cardH = 118;
+    const cardX = this.portrait ? 40 : 40, cardW = this.portrait ? W - 80 : this.PX - 88;
+    roundRect(ctx, cardX, cardY, cardW, cardH, 16);
     ctx.fillStyle = 'rgba(10,6,20,.82)'; ctx.fill();
     ctx.strokeStyle = SKY.rim; ctx.lineWidth = 2; ctx.stroke();
-    strokeText(ctx, tx(BREEDS.find(b => b.id === S.breed) || BREEDS[0], 'name'), cx, cardY + 26,
+    strokeText(ctx, tx(BREEDS.find(b => b.id === S.breed) || BREEDS[0], 'name'), cardX + cardW / 2, cardY + 26,
       { font: FONT.disp(24), fill: SKY.name, stroke: '#12081f', lw: 6, baseline: 'middle' });
     const rows = [[t('st_hp'), bon.hp], [t('st_atk'), bon.atk], [t('st_crit'), bon.crit + '%']];
     rows.forEach(([k, v], i) => {
       const yy = cardY + 54 + i * 22;
-      strokeText(ctx, k, 60, yy, { font: FONT.ui(13, 700), fill: '#cfc0f0', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
-      strokeText(ctx, '+' + v, this.PX - 72, yy, { font: FONT.disp(16), fill: '#8ef08a', stroke: '#0d2a12', lw: 3, align: 'right', baseline: 'middle' });
+      strokeText(ctx, k, cardX + 20, yy, { font: FONT.ui(13, 700), fill: '#cfc0f0', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      strokeText(ctx, '+' + v, cardX + cardW - 20, yy, { font: FONT.disp(16), fill: '#8ef08a', stroke: '#0d2a12', lw: 3, align: 'right', baseline: 'middle' });
     });
+
+    if (this.portrait)
+      glassPanel(ctx, this.PX, 488, this.PW, H - 584, 22,
+        { top: 'rgba(25,15,48,.90)', bot: 'rgba(10,6,24,.95)', rim: 'rgba(190,160,255,.40)' });
 
     // ── thẻ chế độ: Cửa hàng / Tủ đồ ────────────────────────────────────
     for (const [id, lbl] of [['m_shop', t('shop')], ['m_bag', t('bag')]]) {
@@ -349,7 +363,7 @@ export default {
     }
 
     if (!this.stock().length)
-      strokeText(ctx, t('shopEmpty'), this.PX + this.PW / 2, 260,
+      strokeText(ctx, t('shopEmpty'), this.PX + this.PW / 2, this.portrait ? 720 : 260,
         { font: FONT.ui(16, 600), fill: '#b0a4d0', stroke: null, lw: 0, baseline: 'middle', shadow: null });
 
     const b = this.hits.find(h => h.id === 'back');

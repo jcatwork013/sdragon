@@ -23,8 +23,10 @@ function relayout(G) {
   PORTRAIT = G.H > W;
   if (PORTRAIT) {
     LX = 18; PX = 18; PW = W - 36; HEROX = W / 2;
-    PANEL_Y = G.H < 1120 ? 430 : 540;
-    HEROY = PANEL_Y - 112;
+    PANEL_Y = G.H < 1120 ? 450 : Math.min(620, G.H * .45);
+    // Đặt toàn thân dưới kho nguyên liệu và trên mép bảng. Nhân vật vẫn lớn
+    // nhưng mặt/khăn không còn bị thanh nguyên liệu cắt ngang.
+    HEROY = PANEL_Y - 108;
     return;
   }
   const M = W < 1240 ? 18 : 26;
@@ -41,6 +43,7 @@ export default {
     relayout(G);
     this.t = 0; this.toast = null; this.toastT = 0; this.evolveT = 0;
     this.tab = 'train'; this.scroll = 0; this.bubble = null;
+    this.craftSlot = 'helm';
     this.build(G);
     G.audio.play(G.songs.nest);
   },
@@ -58,9 +61,12 @@ export default {
       TRAININGS.forEach((tr, i) =>
         this.hits.push(new Hit('tr' + i, PX + 12, contentY + i * 84, PW - 24, 70, { act: () => this.train(G, tr) })));
     } else if (this.tab === 'craft') {
-      RECIPES.forEach((r, i) => {
-        const col = i % 2, row = (i / 2) | 0;
-        this.hits.push(new Hit('cr_' + r.id, PX + 8 + col * (PW / 2), contentY - 2 + row * 96, PW / 2 - 16, 84,
+      const gap = 8, filterW = (PW - 24 - gap * (SLOTS.length - 1)) / SLOTS.length;
+      SLOTS.forEach((sl, i) => this.hits.push(
+        new Hit('cf_' + sl.id, PX + 12 + i * (filterW + gap), contentY - 2, filterW, 42,
+          { act: () => { this.craftSlot = sl.id; this.build(G); G.sfx('select'); } })));
+      RECIPES.filter(r => r.slot === this.craftSlot).forEach((r, i) => {
+        this.hits.push(new Hit('cr_' + r.id, PX + 12, contentY + 52 + i * 96, PW - 24, 84,
           { act: () => this.craft(G, r) }));
       });
     } else {
@@ -135,7 +141,7 @@ export default {
     G.sfx('select'); G.persist();
   },
   unequipAll(G) {
-    G.save.equip = { helm: null, armor: null, weapon: null };
+    G.save.equip = { helm: null, scarf: null, armor: null, weapon: null };
     G.hero.gear = { ...G.save.equip };
     G.sfx('button'); this.say(t('unequipped'));
     G.persist();
@@ -232,13 +238,14 @@ export default {
 
   drawHero(G, ctx) {
     const dx = HEROX, dy = PORTRAIT ? HEROY : G.H * .62;
+    const nestScale = PORTRAIT ? 1.16 : 1;
     ctx.save();
     ctx.fillStyle = 'rgba(20,12,40,.4)';
-    ctx.beginPath(); ctx.ellipse(dx, dy + 20, 190, 46, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(dx, dy + 20, 190 * nestScale, 46 * nestScale, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = '#8a6329';
-    ctx.beginPath(); ctx.ellipse(dx, dy + 14, 168, 40, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(dx, dy + 14, 168 * nestScale, 40 * nestScale, 0, 0, TAU); ctx.fill();
     ctx.fillStyle = '#5d4218';
-    ctx.beginPath(); ctx.ellipse(dx, dy + 8, 130, 28, 0, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(dx, dy + 8, 130 * nestScale, 28 * nestScale, 0, 0, TAU); ctx.fill();
     ctx.restore();
     this.straw = this.straw || Array.from({ length: 42 }, (_, i) => ({
       a: i / 42 * TAU, r: 150 + Math.sin(i * 3.1) * 20, sp: .34 + (i % 5) * .09, tone: i % 3 }));
@@ -268,7 +275,7 @@ export default {
     G.hero.gear = { ...(G.save.equip || {}) };
     // Bề ngang nhân vật ≈ 1.87×S. Cỡ cố định 200 làm nó thò sang cả bảng
     // trang bị bên phải, nên tính theo đúng khoảng trống còn lại.
-    G.hero.draw(ctx, dx, dy - 26, PORTRAIT ? 132 : clamp(((PX - 12) - (LX + 274)) / 2.35, 92, 200), 1);
+    G.hero.draw(ctx, dx, dy - 30, PORTRAIT ? 170 : clamp(((PX - 12) - (LX + 274)) / 2.35, 92, 200), 1);
     ring(true);
     if (this.evolveT > 1.2)
       strokeText(ctx, t('newStage'), dx, dy - 250,
@@ -365,7 +372,18 @@ export default {
 
   drawCraft(G, ctx) {
     const S = G.save;
-    RECIPES.forEach((r, i) => {
+    // Lọc theo ô trang bị: người chơi đang tìm mũ thì chỉ nhìn thấy mũ, thay
+    // vì phải quét một bức tường 16 công thức chen kín hai cột.
+    SLOTS.forEach((sl) => {
+      const h = this.hits.find(x => x.id === 'cf_' + sl.id); if (!h) return;
+      const on = this.craftSlot === sl.id;
+      textBtn(ctx, h.x, h.y, h.w, h.h, tx(sl, 'name'), {
+        press: h.press, hover: h.hover, font: FONT.ui(14, 800),
+        colour: on ? '#8b5fd6' : '#454a60', dark: on ? '#3b2263' : '#282c3b',
+        lite: on ? '#cfa8ff' : '#757b91',
+      });
+    });
+    RECIPES.filter(r => r.slot === this.craftSlot).forEach((r) => {
       const h = this.hits.find(x => x.id === 'cr_' + r.id); if (!h) return;
       const owned = !!S.crafted?.[r.id];
       const ok = owned || canCraft(S, r);

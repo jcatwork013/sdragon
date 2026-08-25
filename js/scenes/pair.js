@@ -45,9 +45,11 @@ export default {
     this.hints = 2; this.hintPair = null; this.shuffleT = 0;
     this.pendingClear = false; this.shuffleQueued = false;
 
-    // Cỡ bàn lớn dần theo màn, nhưng chặn trần để không thành bài tập trí nhớ
-    // dài lê thê — vui nằm ở nhịp lật nhanh, không ở số lượng thẻ.
-    const pairs = clamp(6 + Math.floor((L.index || 1) / 3), 6, G.portrait ? 10 : 12);
+    // Màn Nối Cặp phải có đủ "thịt": 6–10 cặp cũ chỉ vài nhịp là hết. Mỗi
+    // lần chế độ này quay lại tăng hai cặp, tới 18 cặp (bàn 6×6) trên iPhone;
+    // ô vẫn lớn hơn vùng chạm tối thiểu nên dày mà không khó bấm.
+    const pairOrdinal = Math.floor(G.levelIndex / 15) * 2 + ((L.index || 1) >= 14 ? 1 : 0);
+    const pairs = clamp(12 + pairOrdinal * 2, 12, 18);
     // Chọn số cột sao cho lưới ĐẦY, không lẻ hàng cuối — lấy cặp ước gần tỉ lệ
     // 4:3 nhất. Lưới lẻ một thẻ nhìn như bị lỗi chứ không ra thiết kế.
     const n = pairs * 2;
@@ -400,10 +402,15 @@ export default {
     }
     if (this.lock > 0) {
       this.lock -= dt;
-      if (this.lock <= 0) {
-        if (this.pendingClear) { this.pendingClear = false; this.startBravo(G, t('pairCleared')); return; }
-        if (this.shuffleQueued) this.reshuffle(G);
-      }
+      if (this.lock <= 0 && this.shuffleQueued) this.reshuffle(G);
+    }
+
+    // Chờ hai thẻ cuối bay hết rồi mới dựng bảng quy đổi lượt thừa. Trước đây
+    // Bravo xuất hiện khi cặp cuối còn lơ lửng, khiến bàn trông như chỉ có 2 ô.
+    if (this.pendingClear && this.lock <= 0 && this.cards.every(k => k.gone >= .98)) {
+      this.pendingClear = false;
+      this.startBravo(G, t('pairCleared'));
+      return;
     }
 
     this.timeLeft = Math.max(0, this.timeLeft - dt);

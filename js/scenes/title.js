@@ -479,7 +479,7 @@ export default {
       else if (h.id === 'lang')
         roundBtn(ctx, h.x + h.w / 2, h.y + h.h / 2, h.w / 2, (c, s) => icon.globe(c, s), { press: h.press, hover: h.hover });
       else
-        roundBtn(ctx, h.x + h.w / 2, h.y + h.h / 2, h.w / 2, (c, s) => icon.note(c, s, !G.audio.muted), { press: h.press, hover: h.hover });
+        roundBtn(ctx, h.x + h.w / 2, h.y + h.h / 2, h.w / 2, (c, s) => icon.speaker(c, s, !G.audio.muted), { press: h.press, hover: h.hover });
     }
     strokeText(ctx, getLang().toUpperCase(), G.W - (G.portrait ? 144 : 126), G.portrait ? 112 : 92,
       { font: FONT.ui(G.portrait ? 18 : 14, 800), fill: '#fff', stroke: '#2b1740', lw: 3, baseline: 'middle' });

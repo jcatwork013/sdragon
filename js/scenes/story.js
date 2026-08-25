@@ -18,7 +18,7 @@ export default {
   enter(G, arg) {
     this.act = arg?.act;
     this.after = arg?.after || (() => G.go('map'));
-    this.t = 0; this.line = 0; this.chars = 0; this.done = false;
+    this.t = 0; this.line = 0; this.lineT = 0; this.chars = 0; this.done = false;
     setTimeout(() => this.emote(), 0);   // biểu cảm mở hồi, sau khi hero đã dựng
     this.picked = null;              // id lựa chọn người chơi đã chọn
     this._choices = G.save.choices || {};
@@ -68,7 +68,7 @@ export default {
   choose(G, id) {
     const A = this.act, out = A.choice.outcome[id];
     this.picked = id;
-    this.line = 0; this.chars = 0;
+    this.line = 0; this.lineT = 0; this.chars = 0;
     G.save.choices = G.save.choices || {};
     G.save.choices[A.choice.key] = id;
     G.save.gold = Math.max(0, G.save.gold + (out.gold || 0));
@@ -82,7 +82,10 @@ export default {
     if (this.awaitingChoice) return;          // phải chọn xong mới đi tiếp
     const full = this.lines[this.line] || '';
     if (this.chars < full.length) { this.chars = full.length; return; }   // bấm lần 1: hiện hết câu
-    if (this.line < this.lines.length - 1) { this.line++; this.chars = 0; G.sfx('select'); this.emote(); }
+    if (this.line < this.lines.length - 1) {
+      this.line++; this.lineT = 0; this.chars = 0;
+      G.sfx('select'); this.emote();
+    }
     else this.finish(G);
   },
   finish(G) {
@@ -98,6 +101,7 @@ export default {
 
   update(G, dt) {
     this.t += dt;
+    this.lineT += dt;
     this.hero.update(dt);
     const full = this.lines[this.line] || '';
     if (this.chars < full.length) this.chars = Math.min(full.length, this.chars + CPS * dt);
@@ -119,7 +123,11 @@ export default {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(Math.sin(T * sp) * amp);
-    ctx.translate(0, -Math.abs(Math.sin(T * sp * .5)) * s * (low ? .01 : .035));
+    const hop = Math.abs(Math.sin(T * sp * .5));
+    ctx.translate(0, -hop * s * (low ? .01 : .035));
+    // Squash & stretch rất nhẹ giúp nhân vật trông như đang thở/nhún thay vì
+    // chỉ là một hình phẳng bị xoay qua lại.
+    ctx.scale(1 + hop * (low ? .006 : .018), 1 - hop * (low ? .008 : .025));
     this.hero.draw(ctx, 0, 0, s, face);
     ctx.restore();
   },
@@ -145,9 +153,19 @@ export default {
     // Nhân vật thời tiết — mặt trời / mây / trăng CÓ MẶT, lúc lắc và đổi biểu
     // cảm theo tông của hồi. Vẽ sau bầu trời và trước cảnh vật để nó ở trên
     // trời chứ không đè lên đồi núi.
+    // Một nhịp camera/parallax thật nhẹ. Phóng lớn một chút để chuyển động không
+    // hở mép canvas, đồng thời giữ chữ và nút hoàn toàn đứng yên, dễ đọc/bấm.
+    ctx.save();
+    const camScale = 1.016 + Math.sin(T * .32) * .0025;
+    const camX = Math.sin(T * .23) * 4.5;
+    const camY = Math.cos(T * .19) * 3;
+    ctx.translate(W / 2 + camX, H * .43 + camY);
+    ctx.scale(camScale, camScale);
+    ctx.translate(-W / 2, -H * .43);
     drawWeather(ctx, W, H, T, A.weather || A.mood);
-
     PAINT[A.scene]?.call(this, G, ctx, W, H, T);
+    drawEmotionCue(ctx, W, H, T, A.scene, A.mood, this.lineT);
+    ctx.restore();
 
     // bụi sáng lơ lửng — tông theo cảm xúc
     const moteCol = A.mood === 'urgent' ? '#ffd08a' : A.mood === 'sad' ? '#cfc4b0'
@@ -162,10 +180,27 @@ export default {
     // ── khung chữ ───────────────────────────────────────────────────────────
     const portrait = H > W, wait = this.awaitingChoice;
     const bx = portrait ? 40 : 120;
-    const by = portrait ? H - (wait ? 448 : 256) : H - 236;
+    // Chừa khoảng cách có chủ ý giữa khung truyện và cụm nút: 62–68px ở màn
+    // hình dọc, thay vì gần như chạm nhau như bản cũ.
+    const by = portrait ? H - (wait ? 500 : 316) : H - 276;
     const bw = portrait ? W - 80 : W - 240, bh = portrait ? 160 : 150;
+    const panelIn = ease.outBack(clamp(this.lineT / .48, 0, 1));
+    const panelScale = .965 + panelIn * .035;
+    const panelY = (1 - panelIn) * 24 + Math.sin(T * 1.45) * 1.4;
+    ctx.save();
+    ctx.translate(bx + bw / 2, by + bh / 2 + panelY);
+    ctx.scale(panelScale, panelScale);
+    ctx.translate(-(bx + bw / 2), -(by + bh / 2));
+    ctx.save();
+    ctx.shadowColor = 'rgba(123,83,255,.45)';
+    ctx.shadowBlur = 22;
     glassPanel(ctx, bx, by, bw, bh, 20, { top: 'rgba(18,10,34,.90)', bot: 'rgba(8,4,20,.95)' });
-    strokeText(ctx, fill(tx(A, 'title')), bx + 26, by + 34,
+    ctx.restore();
+
+    // Hai ngôi sao nhỏ nhấp nháy như một bảng truyện hoạt hình.
+    panelSparkle(ctx, bx + bw - 27, by + 28, 5 + Math.sin(T * 3.2) * 1.2, T);
+    panelSparkle(ctx, bx + bw - 49, by + 41, 2.8 + Math.sin(T * 4.1 + 1) * .7, -T);
+    strokeText(ctx, fill(tx(A, 'title')), bx + 26, by + 34 + Math.sin(T * 1.8) * .7,
       { font: FONT.disp(24), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, align: 'left', baseline: 'middle' });
 
     const full = this.lines[this.line] || '';
@@ -179,8 +214,13 @@ export default {
     // chấm tiến độ câu
     for (let i = 0; i < this.lines.length; i++) {
       ctx.fillStyle = i <= this.line ? '#ffe066' : 'rgba(255,255,255,.25)';
-      ctx.beginPath(); ctx.arc(bx + bw - 24 - (this.lines.length - 1 - i) * 16, by + bh - 20, 4.5, 0, TAU); ctx.fill();
+      const active = i === this.line ? Math.sin(T * 4) * 1.5 : 0;
+      ctx.beginPath();
+      ctx.arc(bx + bw - 24 - (this.lines.length - 1 - i) * 16, by + bh - 20 - active,
+              i === this.line ? 5.2 : 4.5, 0, TAU);
+      ctx.fill();
     }
+    ctx.restore();
 
     // ── nút lựa chọn ───────────────────────────────────────────────────────
     for (const h of this.hits) if (h.id.startsWith('opt')) h.hidden = !wait;
@@ -243,6 +283,63 @@ const bug = (ctx, x, y, s, col, legs = true) => {
   ctx.quadraticCurveTo(x + s * 1.9, y - s * 1.3, x + s * 2.3, y - s * 1.0); ctx.stroke();
 };
 
+/** Ngôi sao trang trí trên khung truyện — nhỏ, sáng và có nhịp quay riêng. */
+function panelSparkle(ctx, x, y, r, T) {
+  ctx.save();
+  ctx.translate(x, y); ctx.rotate(T * .35);
+  ctx.fillStyle = '#fff4a8';
+  ctx.shadowColor = '#ffd84d'; ctx.shadowBlur = 10;
+  ctx.beginPath();
+  for (let i = 0; i < 8; i++) {
+    const a = -Math.PI / 2 + i * Math.PI / 4;
+    const rr = i % 2 ? r * .28 : r;
+    const x2 = Math.cos(a) * rr, y2 = Math.sin(a) * rr;
+    if (!i) ctx.moveTo(x2, y2); else ctx.lineTo(x2, y2);
+  }
+  ctx.closePath(); ctx.fill();
+  ctx.restore();
+}
+
+// Vị trí điểm diễn xuất của từng tranh. Bong bóng bật vào lại khi đổi câu,
+// khiến cảnh có phản ứng với nhịp kể mà không che nhân vật hay nội dung.
+const STORY_FOCUS = {
+  egg: [.48, .31], raid: [.38, .49], road: [.27, .48], marsh: [.35, .49],
+  fire: [.41, .49], well: [.35, .49], newgrass: [.41, .50],
+};
+function drawEmotionCue(ctx, W, H, T, scene, mood, lineT) {
+  const pos = STORY_FOCUS[scene];
+  if (!pos) return;
+  const p = ease.outBack(clamp(lineT / .52, 0, 1));
+  if (p <= 0) return;
+  const label = mood === 'sad' || mood === 'solemn' ? '…'
+              : mood === 'urgent' || mood === 'climax' ? '!'
+              : mood === 'hope' ? '✦' : '♪';
+  const r = Math.min(W, H) * .038;
+  ctx.save();
+  ctx.globalAlpha = clamp(lineT * 4, 0, 1) * (.90 + Math.sin(T * 3.2) * .08);
+  ctx.translate(pos[0] * W, pos[1] * H + Math.sin(T * 2.1) * 5);
+  ctx.scale(p, p);
+
+  // Hai bọt nhỏ tạo dáng bong bóng suy nghĩ, rồi đến ô cảm xúc chính.
+  ctx.fillStyle = 'rgba(255,250,226,.94)';
+  ctx.strokeStyle = 'rgba(80,49,25,.78)'; ctx.lineWidth = Math.max(2, r * .09);
+  for (const [ox, oy, rr] of [[-r * .72, r * .72, r * .18], [-r * .45, r * .42, r * .27]]) {
+    ctx.beginPath(); ctx.arc(ox, oy, rr, 0, TAU); ctx.fill(); ctx.stroke();
+  }
+  ctx.beginPath(); ctx.ellipse(0, 0, r * 1.05, r * .84, -.08, 0, TAU); ctx.fill(); ctx.stroke();
+  strokeText(ctx, label, 0, mood === 'sad' ? -r * .10 : 0,
+    { font: FONT.disp(r * 1.06), fill: mood === 'urgent' || mood === 'climax' ? '#ff704d' : '#8a5c24',
+      stroke: '#fff4c9', lw: 3, baseline: 'middle', shadow: 'rgba(0,0,0,.15)', sy: 2 });
+  if (mood === 'sad') {
+    // Giọt mồ hôi/giọt buồn nảy cạnh bong bóng — rõ nét nhưng không bi lụy.
+    ctx.fillStyle = '#69c8f2';
+    ctx.beginPath();
+    ctx.moveTo(r * .88, r * .48); ctx.quadraticCurveTo(r * 1.25, r * .88, r * .88, r * 1.13);
+    ctx.quadraticCurveTo(r * .53, r * .90, r * .88, r * .48); ctx.fill();
+  }
+  ctx.restore();
+}
+
 const PAINT = {
   egg(G, ctx, W, H, T) {
     ctx.fillStyle = 'rgba(255,246,214,.35)';
@@ -267,7 +364,12 @@ const PAINT = {
     // đàn kiến nối đuôi
     for (let i = 0; i < 12; i++) {
       const x = ((T * 26 + i * 96) % (W + 200)) - 100;
-      bug(ctx, x, H * .58 + Math.sin(i * 1.7) * 8, 13, 'rgba(40,20,10,.85)');
+      const step = Math.abs(Math.sin(T * 7 + i * 1.4));
+      bug(ctx, x, H * .58 + Math.sin(i * 1.7) * 8 - step * 3.5, 13, 'rgba(40,20,10,.85)');
+      if (i % 3 === 0) {
+        ctx.save(); ctx.globalAlpha = .16 + step * .10; ctx.fillStyle = '#ead49c';
+        ctx.beginPath(); ctx.arc(x - 17, H * .592, 3 + step * 2, 0, TAU); ctx.fill(); ctx.restore();
+      }
     }
     // kho hạt trống
     ctx.fillStyle = 'rgba(50,34,16,.9)';

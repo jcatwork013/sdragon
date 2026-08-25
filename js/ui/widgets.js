@@ -369,6 +369,28 @@ export const icon = {
       ctx.beginPath(); ctx.moveTo(-s * .3, -s * .3); ctx.lineTo(s * .32, s * .3); ctx.stroke();
     }
   },
+  speaker(ctx, s, on = true) {
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    const col = on ? C.iceRim : 'rgba(112,116,138,.85)';
+    // thân loa + màng loa
+    poly(ctx, [[-s * .34, -s * .13], [-s * .15, -s * .13], [s * .08, -s * .34],
+               [s * .08, s * .34], [-s * .15, s * .13], [-s * .34, s * .13]]);
+    ctx.fillStyle = col; ctx.fill();
+    ctx.strokeStyle = on ? '#2678b8' : '#53586b'; ctx.lineWidth = s * .055; ctx.stroke();
+    if (on) {
+      ctx.strokeStyle = C.iceRim; ctx.lineWidth = s * .07;
+      ctx.beginPath(); ctx.arc(s * .07, 0, s * .22, -Math.PI * .36, Math.PI * .36); ctx.stroke();
+      ctx.beginPath(); ctx.arc(s * .07, 0, s * .36, -Math.PI * .34, Math.PI * .34); ctx.stroke();
+    } else {
+      // gạch chéo đủ dày để nhìn rõ ở kích thước nút 52–68px.
+      ctx.strokeStyle = C.red; ctx.lineWidth = s * .105;
+      ctx.beginPath(); ctx.moveTo(-s * .34, -s * .34); ctx.lineTo(s * .36, s * .36); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,.62)'; ctx.lineWidth = s * .035;
+      ctx.beginPath(); ctx.moveTo(-s * .30, -s * .34); ctx.lineTo(s * .36, s * .32); ctx.stroke();
+    }
+    ctx.restore();
+  },
   globe(ctx, s) {
     const r = s * .3;
     ctx.beginPath(); ctx.arc(0, 0, r, 0, TAU);

@@ -6,7 +6,9 @@ export class FX {
   constructor() { this.parts = []; this.texts = []; this.rings = []; this.beams = []; this.shakeAmt = 0; this.t = 0; }
   get shakeX() { return this.shakeAmt ? (Math.random() - .5) * this.shakeAmt : 0; }
   get shakeY() { return this.shakeAmt ? (Math.random() - .5) * this.shakeAmt : 0; }
-  shake(a) { this.shakeAmt = Math.min(26, this.shakeAmt + a); }
+  // Các đại combo cần một cú va đập thật sự. 42 vẫn nằm trong vùng nền vẽ dư
+  // 40px của main.js (sai số ngẫu nhiên chỉ ±21), nên rung mạnh mà không hở mép.
+  shake(a) { this.shakeAmt = Math.min(42, this.shakeAmt + a); }
   clear() { this.parts.length = this.texts.length = this.rings.length = this.beams.length = 0; this.shakeAmt = 0; }
 
   /** Mảnh vỡ đá quý — đa giác nhỏ xoay tít + tia sáng. */

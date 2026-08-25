@@ -86,7 +86,7 @@ function run(name, frames, file, setup) {
     rctx.setTransform(1, 0, 0, 1, 0, 0);
     rctx.fillStyle = '#0b0716'; rctx.fillRect(0, 0, W, H);
     G.scene?.draw?.(G, rctx);
-    if (G.scene?.name !== 'play') G.fx.draw(rctx);
+    if (!['play', 'shoot', 'pair', 'duel'].includes(G.scene?.name)) G.fx.draw(rctx);
     if (G.quipBox) G.drawQuip();       // lớp toàn cục, vòng vẽ thật lo phần này
     if (G.modal) G.drawModal();
     fs.writeFileSync(out(file), real.toBuffer('image/png'));
@@ -138,8 +138,12 @@ run('7d · Câu xà lơ', 30, 'sc7d_quip.png', () => { G.startLevel(2, true);
   G.sess.sessMin = 0; G.quipBox = null; G.quip(); });
 run('29 · Ghép Đôi',  50, 'sc29_pair.png', () => { G.save.unlocked=20; G.startLevel(6, true);
   const s2=G.scene, pair=s2.findAvailablePair();
+  if (s2.cards.length < 24) throw new Error(`Bàn Nối Cặp quá thưa: ${s2.cards.length} thẻ`);
   if (pair) { s2.selected=pair.a; s2.hintPair={...pair,t:100}; s2.linkFx={points:pair.path,t:0,dur:100,col:'#73e9ff'}; }
   for (let i=0;i<8;i++) s2.cards[i].seed=i; });
+run('29b · Nối Cặp dày', 20, 'sc29b_pair_dense.png', () => { G.startLevel(13, true);
+  if (G.scene.cards.length !== 28) throw new Error(`Màn 14 cần 28 thẻ, nhận ${G.scene.cards.length}`);
+});
 run('7e · Nổi nộ', 14, 'sc7e_fury.png', () => { G.startLevel(2, true);
   const s2=G.scene; s2.score=2400; s2.rage=.94; s2.hot=6; s2.addRage(G, .1); });
 run('9 · Tạm dừng',     20, 'sc9_pause.png', () => { G.startLevel(3); G.scene.togglePause(G); });
@@ -153,6 +157,32 @@ run('13 · Bắn Đá',       90, 'sc13_shoot.png', () => { G.save.unlocked=24; 
 run('14 · Bắn Đá đang bay', 30, 'sc14_shootfly.png', () => {
   const s = G.scene; s.aim = -Math.PI/2 - 0.35;
   s.board.fire(s.board.W/2, 470, s.aim);
+});
+run('14b · Bắn liên tục ×3', 12, 'sc14b_shoot_triple.png', () => {
+  G.startLevel(3, true);
+  const s = G.scene;
+  for (const a of [-2.02, -Math.PI / 2, -1.12])
+    if (!s.fireAt(G, a)) throw new Error('Không bắn liên tục được 3 viên');
+  if (s.board.inFlight !== 3 || s.fireAt(G, -1.4))
+    throw new Error(`Giới hạn viên đang bay sai: ${s.board.inFlight}`);
+});
+run('14c · Ăn thêm lượt', 4, 'sc14c_shoot_food.png', () => {
+  G.startLevel(3, true);
+  const s = G.scene, beforeShots = s.shotsLeft, beforeFood = G.save.food;
+  if (!s.feedShots(G) || s.shotsLeft !== beforeShots + 5 || G.save.food !== beforeFood - 1)
+    throw new Error('Ăn thức ăn không cộng đúng 5 lượt bắn');
+});
+run('13b · Bắn Đá ×21',  10, 'sc13b_shoot_x21.png', () => {
+  // Màn 4 không có thiên địch: phép kiểm chỉ đo đúng điểm combo, không lẫn
+  // thưởng +900 khi một đòn trong chuỗi hạ gục địch.
+  G.startLevel(3, true);
+  const s = G.scene, mults = [2, 3, 5, 8, 13, 21];
+  for (let i = 0; i < mults.length; i++) {
+    const dropped = i > 2 ? 2 : 0, before = s.score;
+    s.board.on.settle({ popped: 4, dropped, x: s.board.W * .55, y: s.board.R * 5, type: i % 4 });
+    const want = (4 * 38 + dropped * 82) * mults[i];
+    if (s.score - before !== want) throw new Error(`Combo bậc ${i + 1}: cần +${want}, nhận +${s.score - before}`);
+  }
 });
 
 run('20 · Đánh địch',  70, 'sc20_battle.png', () => { G.save.unlocked=20; G.startLevel(16, true); });
@@ -198,6 +228,11 @@ run('28c · Tủ đồ', 20, 'sc28c_bag.png', () => { G.save.gold=1240;
   G.save.owned={ [gearOf('helm',2).id]:1, [gearOf('helm',3).id]:1, [gearOf('helm',4).id]:1 };
   G.save.equip={helm:gearOf('helm',3).id};
   G.go('shop', { after(){}, mode:'bag' }); });
+run('28d · Khăn bậc 4', 40, 'sc28d_scarf.png', () => { G.save.gold=14200;
+  const scarf = gearOf('scarf', 4);
+  G.save.owned={ [scarf.id]:1 };
+  G.save.equip={helm:null, scarf:scarf.id, armor:null, weapon:null};
+  G.go('shop', { after(){} }); G.scene.slot='scarf'; G.scene.build(G); });
 run('30 · Mở chương', 40, 'sc30_chapter.png', () => { G.save.unlocked=20;
   G.go('chapter', { ep: EPS[1], after(){} }); });
 run('31 · Chuyển vùng ①', 40, 'sc31a_region.png', () => { G.go('region', { done: REG[0], next: REG[1], after(){} }); });

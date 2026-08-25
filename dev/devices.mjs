@@ -49,7 +49,7 @@ for (const [name, dw, dh, scene] of DEVICES) {
   x.fillStyle='#0b0716'; x.fillRect(0,0,G.CW,G.CH);
   x.save(); x.translate(G.OX, G.OY);
   G.scene.draw(G, x);
-  if (G.scene.name !== 'play') G.fx.draw(x);
+  if (!['play', 'shoot', 'pair', 'duel'].includes(G.scene.name)) G.fx.draw(x);
   x.restore();
   // khung đỏ = mép DẢI GIAO DIỆN, để thấy rõ phần nền phủ thêm
   x.strokeStyle='rgba(255,60,60,.85)'; x.lineWidth=3;

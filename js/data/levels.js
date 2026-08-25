@@ -19,12 +19,19 @@
  * (chỉ dạy cơ chế), tới chương 3 nó mới thành mối đe doạ thật với người chơi chậm.
  */
 const PER_MOVE = 748;
-/** Bắn Đá kiếm ít điểm hơn hẳn mỗi lần bấm — đo bằng dev/balance-shoot.mjs. */
+/**
+ * Ngân sách MỤC TIÊU mỗi phát Bắn Đá. Điểm thô được cố ý đặt thấp hơn mốc
+ * này, nên phải giữ chuỗi ×2→×21 mới thắng; mô phỏng dev/balance-shoot.mjs
+ * sau thay đổi combo cho tỉ lệ qua màn trung bình khoảng 80% ở độ giỏi 0,75.
+ */
 const PER_SHOT = 252;
 /** Bắn Đá dễ về đích hơn Ghép Đá ở cùng độ sâu → cộng thêm chừng này vào ratio. */
 const SHOOT_BUMP = 0.09;
-/** Số cặp của một màn Ghép Đôi — PHẢI khớp với js/scenes/pair.js. */
-const pairsFor = (n) => Math.max(6, Math.min(12, 6 + Math.floor(n / 3)));
+/** Số cặp của một màn Nối Cặp — PHẢI khớp với js/scenes/pair.js. */
+const pairsFor = (n, epOffset = 0) => {
+  const ordinal = Math.floor(epOffset / 15) * 2 + (n >= 14 ? 1 : 0);
+  return Math.max(12, Math.min(18, 12 + ordinal * 2));
+};
 
 /**
  * Đội hình thiên địch. 4 màn đầu KHÔNG có địch để người chơi làm quen luật,
@@ -75,15 +82,16 @@ function makeLevels(ep, baseMoves, colours, epBump = 0, vitScale = 1, epOffset =
       // ── MỤC TIÊU ĐIỂM: mỗi chế độ một thang, KHÔNG dùng chung ─────────
       // Trước đây cả ba chế độ xài chung công thức của Ghép Đá rồi nhân 0,86
       // cho Bắn Đá, còn Ghép Đôi thì bê nguyên. Đo bằng dev/balance-shoot.mjs:
-      // Bắn Đá chỉ kiếm ~240 điểm/phát nên mục tiêu chung làm tỉ lệ qua màn tụt
-      // còn 14%; Ghép Đôi thì mục tiêu còn CAO HƠN điểm tối đa lý thuyết của
-      // bàn — tức là không cách nào thắng. Nay tách hẳn ba thang:
+      // Điểm thô Bắn Đá cố ý thấp hơn mục tiêu/phát; chuỗi ×2→×21 là phần bắt
+      // buộc để bứt qua đích. Ghép Đôi thì mục tiêu cũ còn CAO HƠN điểm tối đa
+      // lý thuyết của bàn — tức là không cách nào thắng. Nay tách hẳn ba thang:
       //   · Ghép Đá  — 700 điểm/lượt (5 màu), 6 màu nhân 0,78
-      //   · Bắn Đá   — 240 điểm/phát, tính theo SỐ PHÁT chứ không theo lượt
+      //   · Bắn Đá   — ngân sách 252 điểm/phát, tính theo SỐ PHÁT; điểm thật
+      //                 phụ thuộc người chơi giữ được chuỗi nhân bao lâu
       //   · Ghép Đôi — suy từ chính luật tính điểm của nó: mỗi cặp 320 điểm,
       //     nhân chuỗi tăng dần; lấy mốc "lật hết bàn, chuỗi vừa phải".
       target: mode === 'shoot' ? Math.round(PER_SHOT * shots * (ratio + SHOOT_BUMP) * wave / 50) * 50
-            : mode === 'pair'  ? Math.round(320 * pairsFor(n) * 1.05 * (1 + i * 0.015) / 50) * 50
+            : mode === 'pair'  ? Math.round(320 * pairsFor(n, epOffset) * 1.05 * (1 + i * 0.015) / 50) * 50
             : Math.round(PER_MOVE * moves * ratio * colourScale * wave / 50) * 50,
       moves,
       colours,

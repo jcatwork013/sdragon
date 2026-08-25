@@ -84,6 +84,8 @@ export class Chiptune {
     this.tickMs = 25;
     this.songBus = null;        // bus riêng của bài đang phát, để tắt là dứt hẳn
     this._pending = null;
+    this._recovering = null;
+    this._needsRecovery = false;
   }
 
   /** Phải gọi trong một user-gesture (click/tap) — chính sách autoplay của trình duyệt. */
@@ -92,8 +94,8 @@ export class Chiptune {
       // iOS có thêm trạng thái `interrupted` khi khoá máy, nhận cuộc gọi hoặc
       // kéo Control Center. Mỗi gesture mới đều phải thử đánh thức lại, không
       // chỉ lần khởi tạo đầu tiên.
-      if (this.ctx.state !== 'running')
-        this.ctx.resume?.()?.then?.(() => this.resync()).catch?.(() => {});
+      if (this.ctx.state === 'closed') return this._recreate();
+      if (this.ctx.state !== 'running' || this._needsRecovery) this.recover();
       return this.ready;
     }
     const AC = window.AudioContext || window.webkitAudioContext;
@@ -108,8 +110,8 @@ export class Chiptune {
     this.comp.threshold.value = -14; this.comp.knee.value = 22;
     this.comp.ratio.value = 5; this.comp.attack.value = 0.004; this.comp.release.value = 0.16;
 
-    this.musicBus = this.ctx.createGain(); this.musicBus.gain.value = this.musicVol;
-    this.sfxBus   = this.ctx.createGain(); this.sfxBus.gain.value   = this.sfxVol;
+    this.musicBus = this.ctx.createGain(); this.musicBus.gain.value = this.muted ? 0 : this.musicVol;
+    this.sfxBus   = this.ctx.createGain(); this.sfxBus.gain.value   = this.muted ? 0 : this.sfxVol;
 
     // Delay kiểu "echo hang động" — làm nhạc chip đỡ khô
     this.delay = this.ctx.createDelay(1.0); this.delay.delayTime.value = 0.24;
@@ -128,16 +130,7 @@ export class Chiptune {
       p50: pulseWave(this.ctx, 0.5),
     };
     this.noise = noiseBuffer(this.ctx);
-    // Tab ẩn → trình duyệt bóp setInterval xuống ~1 lần/giây. Ngủ hẳn
-    // AudioContext rồi bắt nhịp lại lúc quay về, thay vì để nhạc trôi lệch.
-    if (!this._visHook && typeof document !== 'undefined' && document.addEventListener) {
-      this._visHook = () => {
-        if (!this.ctx) return;
-        if (document.hidden) this.ctx.suspend?.();
-        else this.ctx.resume?.()?.then?.(() => this.resync()).catch?.(() => {});
-      };
-      document.addEventListener('visibilitychange', this._visHook);
-    }
+    this._installRecoveryHooks();
 
     this.ready = true;
     if (this._pending) { const s = this._pending; this._pending = null; this.play(s); }
@@ -145,7 +138,70 @@ export class Chiptune {
   }
 
   /** Kéo mốc lên lịch về hiện tại sau khi ngủ dậy — không bù nốt đã lỡ. */
-  resync() { if (this.ctx) this.nextTime = Math.max(this.nextTime, this.ctx.currentTime + 0.06); }
+  resync() { if (this.ctx) this.nextTime = this.ctx.currentTime + 0.06; }
+
+  /**
+   * iOS có thể trả AudioContext về `running` sau cuộc gọi nhưng đường âm thanh
+   * vẫn chưa nối lại. Một chu kỳ suspend → resume ngắn buộc WKWebView gắn lại
+   * AVAudioSession; sau đó dựng lại timer để không còn interval "sống giả".
+   */
+  recover({ cycle = false } = {}) {
+    if (!this.ctx) return Promise.resolve(!!this.init());
+    if (this.ctx.state === 'closed') return Promise.resolve(!!this._recreate());
+    if (this._recovering) return this._recovering;
+    const ctx = this.ctx;
+    const mustCycle = cycle || this._needsRecovery;
+    this._recovering = (async () => {
+      try {
+        if (mustCycle && ctx.state === 'running') await ctx.suspend?.();
+        if (ctx.state !== 'running') await ctx.resume?.();
+        if (ctx.state !== 'running') return false;
+        this._needsRecovery = false;
+        this.resync();
+        if (this.song) {
+          if (this.timer) clearInterval(this.timer);
+          this.timer = setInterval(() => this._sched(), this.tickMs);
+          this._sched();
+        }
+        return true;
+      } catch {
+        this._needsRecovery = true;
+        return false;
+      } finally {
+        this._recovering = null;
+      }
+    })();
+    return this._recovering;
+  }
+
+  _suspendForInterruption() {
+    this._needsRecovery = true;
+    this.ctx?.suspend?.().catch?.(() => {});
+  }
+
+  _installRecoveryHooks() {
+    if (this._recoveryHooks || typeof window === 'undefined') return;
+    this._recoveryHooks = true;
+    this._visHook = () => document.hidden ? this._suspendForInterruption() : this.recover({ cycle: true });
+    document.addEventListener?.('visibilitychange', this._visHook);
+    // WKWebView không phải cuộc gọi nào cũng phát visibilitychange. Native iOS
+    // gửi hai event cricko:* bên dưới; focus/pageshow là lưới an toàn cho web.
+    window.addEventListener('focus', () => { if (!document.hidden) this.recover(); });
+    window.addEventListener('pageshow', () => { if (!document.hidden) this.recover({ cycle: this._needsRecovery }); });
+    document.addEventListener?.('resume', () => this.recover({ cycle: true }));
+    window.addEventListener('cricko:suspend', () => this._suspendForInterruption());
+    window.addEventListener('cricko:resume', () => this.recover({ cycle: true }));
+  }
+
+  /** Context bị iOS đóng hẳn: dựng lại graph, rồi phát tiếp đúng bài hiện tại. */
+  _recreate() {
+    const song = this.song || this._pending;
+    if (this.timer) clearInterval(this.timer);
+    try { this.songBus?.disconnect(); this.musicBus?.disconnect(); this.sfxBus?.disconnect(); } catch { /* context đã đóng */ }
+    this.ctx = null; this.ready = false; this.timer = null; this.song = null;
+    this.songBus = null; this._recovering = null; this._pending = song;
+    return this.init();
+  }
 
   setMusicVol(v) { this.musicVol = v; if (this.musicBus) this.musicBus.gain.value = this.muted ? 0 : v; }
   setSfxVol(v)   { this.sfxVol = v;   if (this.sfxBus)   this.sfxBus.gain.value   = this.muted ? 0 : v; }

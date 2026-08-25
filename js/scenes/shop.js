@@ -10,7 +10,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, textBtn, card, glassPanel, roundBtn, icon, frostCard, pillLabel, C, FONT } from '../ui/widgets.js';
+import { Hit, textBtn, card, glassPanel, roundBtn, icon, frostCard, pillLabel, pillTag, C, FONT } from '../ui/widgets.js';
 import { SLOTS, shopStock, eventNow, recipeById, gearBonus, sellPrice, canEquip } from '../data/gear.js';
 import { STAGES } from '../data/characters.js';
 import { BREEDS, stageFor } from '../data/characters.js';
@@ -41,9 +41,9 @@ export default {
     this.portrait = H > W;
     this.PX = this.portrait ? 18 : Math.max(300, W * .30);
     this.PW = this.portrait ? W - 36 : Math.min(W - this.PX - 24, 640);
-    const modeY = this.portrait ? 500 : 34;
-    const tabsY = this.portrait ? 558 : 92;
-    const itemY = this.portrait ? 622 : 156;
+    const modeY = this.portrait ? 540 : 34;
+    const tabsY = this.portrait ? 592 : 92;
+    const itemY = this.portrait ? 648 : 156;
     const tabGap = this.portrait ? 8 : 8;
     const tabW = this.portrait ? (this.PW - tabGap * (SLOTS.length - 1)) / SLOTS.length : 108;
     this.hits = [
@@ -183,9 +183,9 @@ export default {
     // trên nền sáng nên đọc rất mệt. Nay có nền chuyển sắc + vệt sáng sau lưng,
     // và bảng chỉ số nền tối chữ sáng. Màu sân khấu ĐỔI THEO CHUỖI THẮNG đấu
     // trường: thắng càng nhiều, sân càng rực.
-    const cx = this.portrait ? W / 2 : W * .16, cy = this.portrait ? 282 : H * .56;
+    const cx = this.portrait ? W / 2 : W * .16, cy = this.portrait ? 292 : H * .56;
     const px0 = this.portrait ? 18 : 24, py0 = this.portrait ? 88 : 96;
-    const pw0 = this.portrait ? W - 36 : this.PX - 56, ph0 = this.portrait ? 392 : H - 200;
+    const pw0 = this.portrait ? W - 36 : this.PX - 56, ph0 = this.portrait ? 438 : H - 200;
     const heroCx = this.portrait ? cx : cx + 26, heroCy = this.portrait ? cy : cy + 20;
     const streak = S.duelStreak || 0;
     const sk = streak >= 6 ? 3 : streak >= 4 ? 2 : streak >= 2 ? 1 : 0;
@@ -219,14 +219,16 @@ export default {
     ctx.restore();
 
     G.hero.gear = { ...this.preview };
-    G.hero.draw(ctx, heroCx, heroCy, this.portrait ? 138 : 120, 1);
+    // Cửa hàng là phòng thử đồ: ưu tiên nhân vật lớn, đủ nhìn khăn/mũ/giáp,
+    // không dùng cùng cỡ nhỏ của bản đồ hành trình.
+    G.hero.draw(ctx, heroCx, heroCy, this.portrait ? 174 : 132, 1);
 
     // chuỗi thắng đấu trường
     if (streak >= 2)
       pillLabel(ctx, heroCx, py0 + 26, t('duelStreak', { n: streak }), SKY.glow, '#1a0f30');
 
     const bon = gearBonus(S);
-    const cardY = this.portrait ? 348 : H - 236, cardH = 118;
+    const cardY = this.portrait ? 402 : H - 236, cardH = this.portrait ? 108 : 118;
     const cardX = this.portrait ? 40 : 40, cardW = this.portrait ? W - 80 : this.PX - 88;
     roundRect(ctx, cardX, cardY, cardW, cardH, 16);
     ctx.fillStyle = 'rgba(10,6,20,.82)'; ctx.fill();
@@ -235,13 +237,13 @@ export default {
       { font: FONT.disp(24), fill: SKY.name, stroke: '#12081f', lw: 6, baseline: 'middle' });
     const rows = [[t('st_hp'), bon.hp], [t('st_atk'), bon.atk], [t('st_crit'), bon.crit + '%']];
     rows.forEach(([k, v], i) => {
-      const yy = cardY + 54 + i * 22;
+      const yy = cardY + 50 + i * 20;
       strokeText(ctx, k, cardX + 20, yy, { font: FONT.ui(13, 700), fill: '#cfc0f0', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
       strokeText(ctx, '+' + v, cardX + cardW - 20, yy, { font: FONT.disp(16), fill: '#8ef08a', stroke: '#0d2a12', lw: 3, align: 'right', baseline: 'middle' });
     });
 
     if (this.portrait)
-      glassPanel(ctx, this.PX, 488, this.PW, H - 584, 22,
+      glassPanel(ctx, this.PX, 528, this.PW, H - 624, 22,
         { top: 'rgba(25,15,48,.90)', bot: 'rgba(10,6,24,.95)', rim: 'rgba(190,160,255,.40)' });
 
     // ── thẻ chế độ: Cửa hàng / Tủ đồ ────────────────────────────────────

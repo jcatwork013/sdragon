@@ -158,6 +158,9 @@ export class BubbleBoard {
     this.W = this.cols * this.R * 2;
     this.rowH = this.R * Math.sqrt(3);
     this.deathY = o.deathY ?? this.R * 2 * 8.6;
+    // Bắn Đá có thể cho nhiều viên bay cùng lúc; các nơi dùng BubbleBoard cũ
+    // vẫn mặc định một viên để không đổi hành vi ngoài ý muốn.
+    this.maxInFlight = Math.max(1, o.maxInFlight ?? 1);
     this.on = {};
     this.reset(o.startRows ?? 5);
   }
@@ -175,7 +178,7 @@ export class BubbleBoard {
     this.shots = 0;
     this.falling = [];
     this.popping = [];
-    this.shot = null;
+    this.projectiles = [];
     this.t = 0;
     for (let r = 0; r < startRows; r++)
       for (let c = 0; c < this.rowCols(r); c++)
@@ -208,13 +211,16 @@ export class BubbleBoard {
 
   /** Bắn: `ang` radian, 0 = sang phải, -PI/2 = thẳng lên. */
   fire(x, y, ang, speed = 900) {
-    if (this.shot) return false;
-    this.shot = { x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, type: this.next[0], trail: [] };
+    if (!this.canFire) return false;
+    this.projectiles.push({ x, y, vx: Math.cos(ang) * speed, vy: Math.sin(ang) * speed, type: this.next[0], trail: [] });
     this.next = [this.next[1], this.pickColour()];
     this.shots++;
     return true;
   }
-  swapNext() { if (!this.shot) this.next = [this.next[1], this.next[0]]; }
+  get shot() { return this.projectiles[0] || null; }
+  get inFlight() { return this.projectiles.length; }
+  get canFire() { return this.projectiles.length < this.maxInFlight; }
+  swapNext() { this.next = [this.next[1], this.next[0]]; }
 
   update(dt) {
     this.t += dt;
@@ -233,11 +239,12 @@ export class BubbleBoard {
         const g = this.get(r, c);
         if (g && g.born < 1) g.born = Math.min(1, g.born + dt * 5);
       }
-    if (this.shot) this._stepShot(dt);
+    // Duyệt snapshot: một viên có thể đáp và bị bỏ khỏi mảng ngay trong bước.
+    for (const s of [...this.projectiles]) this._stepShot(s, dt);
   }
 
-  _stepShot(dt) {
-    const s = this.shot, R = this.R;
+  _stepShot(s, dt) {
+    const R = this.R;
     const steps = Math.max(1, Math.ceil(Math.hypot(s.vx, s.vy) * dt / (R * .5)));
     const h = dt / steps;
     for (let i = 0; i < steps; i++) {
@@ -267,7 +274,8 @@ export class BubbleBoard {
         const anchored = r === 0 || this.neighbours(r, c).some(([rr, cc]) => this.get(rr, cc));
         if (anchored && d < bestD) { bestD = d; best = [r, c]; }
       }
-    this.shot = null;
+    const si = this.projectiles.indexOf(s);
+    if (si >= 0) this.projectiles.splice(si, 1);
     if (!best) { this.on.settle?.({ popped: 0, dropped: 0 }); return; }
 
     const [r, c] = best;
@@ -365,12 +373,12 @@ export class BubbleBoard {
     for (const p of this.popping) {
       drawOrb(ctx, p.type, p.x, p.y, D, 1 - p.k, 1 + p.k * .8);
     }
-    if (this.shot) {
-      if (perf.wantShimmer) for (let i = 0; i < this.shot.trail.length; i++) {
-        const [tx, ty] = this.shot.trail[i];
-        drawOrb(ctx, this.shot.type, tx, ty, D, (i / this.shot.trail.length) * .28, .8);
+    for (const shot of this.projectiles) {
+      if (perf.wantShimmer) for (let i = 0; i < shot.trail.length; i++) {
+        const [tx, ty] = shot.trail[i];
+        drawOrb(ctx, shot.type, tx, ty, D, (i / shot.trail.length) * .28, .8);
       }
-      drawOrb(ctx, this.shot.type, this.shot.x, this.shot.y, D, 1, 1);
+      drawOrb(ctx, shot.type, shot.x, shot.y, D, 1, 1);
     }
     ctx.restore();
   }

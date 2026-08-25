@@ -10,6 +10,12 @@ const NODE_DX = 148, NODE_R = 36;
 const nodeX = (i) => 170 + i * NODE_DX;
 const nodeY = (i) => 400 + Math.sin(i * .78) * 118 + Math.sin(i * .31) * 34;
 
+const modeMeta = (lv) => lv?.mode === 'shoot'
+  ? { name: t('modeShoot'), col: '#ffd23f', dark: '#6b4300', glyph: '●' }
+  : lv?.mode === 'pair'
+    ? { name: t('pairMode'), col: '#c0a0ff', dark: '#3b2263', glyph: '◇' }
+    : { name: t('modeMatch'), col: '#8ef08a', dark: '#1d6b24', glyph: '◆' };
+
 /**
  * Lấy mẫu điểm + hướng tiếp tuyến dọc đường mòn.
  *
@@ -41,25 +47,27 @@ export default {
   name: 'map',
   enter(G) {
     this.t = 0;
-    this.mapY = G.portrait ? 360 : 0;
+    // Chừa đúng một vùng HUD ở đầu màn hình. 350px đủ để mỗi cụm có khoảng
+    // thở thật sự, nhưng vẫn giữ tuyến đường và nhân vật trong tầm mắt.
+    this.mapY = G.portrait ? 350 : 0;
     this.scroll = 0; this.scrollV = 0; this.drag = null; this.moved = 0;
     this.maxScroll = Math.max(0, nodeX(ALL_LEVELS.length - 1) + 220 - G.W);
     this.bubble = null; this.toast = null; this.toastT = 0;
     // hoa · nấm · đá · gốc cây rải dọc lối đi — sinh cố định theo hạt nên
     // không nhấp nháy mỗi khung hình
     const R = mulberry32(90210);
-    this.deco = Array.from({ length: 120 }, (_, i) => ({
+    this.deco = Array.from({ length: 76 }, (_, i) => ({
       x: i * 78 + R() * 60, dy: (R() - .5) * 150, k: (R() * 4) | 0, s: .7 + R() * .7, ph: R() * TAU,
     }));
-    this.flies = Array.from({ length: 14 }, () => ({ x: R() * 3000, y: R() * 300 + 200, ph: R() * TAU, s: .6 + R() * .6 }));
+    this.flies = Array.from({ length: 8 }, () => ({ x: R() * 3000, y: R() * 300 + 200, ph: R() * TAU, s: .6 + R() * .6 }));
     // bướm bay dọc lối đi — chuyển động lớn, bắt mắt hơn đom đóm ban ngày
-    this.flutters = Array.from({ length: 9 }, () => ({
+    this.flutters = Array.from({ length: 6 }, () => ({
       x: R() * 6600, y: R() * 260 + 180, ph: R() * TAU, s: .7 + R() * .6,
       col: ['#ffd76b', '#ff9ec4', '#a8e0ff', '#c9a8ff'][(R() * 4) | 0],
     }));
     this.samples = trailSamples(ALL_LEVELS.length);
     // cỏ tiền cảnh: dải sát mép dưới, trôi nhanh hơn nền → có chiều sâu
-    this.fg = Array.from({ length: 90 }, () => ({ x: R() * 7200, h: 26 + R() * 46, ph: R() * TAU, s: .6 + R() * .8 }));
+    this.fg = Array.from({ length: 58 }, () => ({ x: R() * 7200, h: 26 + R() * 46, ph: R() * TAU, s: .6 + R() * .8 }));
     this.scroll = clamp(nodeX(G.save.unlocked - 1) - G.W * .45, 0, this.maxScroll);
     this.wander = { x: 0, to: 0, wait: 1.0, face: 1 };   // dế đi lăng xăng quanh nút
 
@@ -82,24 +90,24 @@ export default {
       }
     }
     if (seen !== epNow.id) { G.save.mapEp = epNow.id; G.persist(); }
-    const navGap = G.portrait ? 12 : 14;
-    const navW = G.portrait ? Math.floor((G.W - 32 - navGap * 2) / 3) : 190;
-    const navX = i => G.portrait ? 16 + i * (navW + navGap) : [24, 228, 414][i];
-    const toolsY = G.portrait ? 170 : 26;
-    const toolsX = i => G.portrait ? G.W / 2 - 125 + i * 66 : G.W - 284 + i * 66;
+    const navGap = G.portrait ? 16 : 14;
+    const navW = G.portrait ? Math.floor((G.W - 40 - navGap * 2) / 3) : 190;
+    const navX = i => G.portrait ? 20 + i * (navW + navGap) : [24, 228, 414][i];
+    const toolsY = G.portrait ? 166 : 26;
+    const toolsX = i => G.portrait ? G.W / 2 - 134 + i * 70 : G.W - 284 + i * 66;
     this.hits = [
-      new Hit('nest', navX(0), G.H - (G.portrait ? 106 : 92), navW, G.portrait ? 72 : 60, { act: () => G.go('nest') }),
+      new Hit('nest', navX(0), G.H - (G.portrait ? 118 : 92), navW, G.portrait ? 76 : 60, { act: () => G.go('nest') }),
       // Đấu trường cũng là đi đánh nhau → cũng tốn sức, chặn ngay ở cửa.
-      new Hit('arena', navX(1), G.H - (G.portrait ? 106 : 92), navW, G.portrait ? 72 : 60, { act: () => {
+      new Hit('arena', navX(1), G.H - (G.portrait ? 118 : 92), navW, G.portrait ? 76 : 60, { act: () => {
         if (!G.fedEnough(G.FED_COST_ARENA)) return;
         G.sfx('button'); G.spendFed(G.FED_COST_ARENA);
         G.go('duel', { after: () => G.go('map') });
       } }),
-      new Hit('shop', navX(2), G.H - (G.portrait ? 106 : 92), navW, G.portrait ? 72 : 60, { act: () => { G.sfx('button'); G.go('shop', { after: () => G.go('map') }); } }),
-      new Hit('world', toolsX(0), toolsY, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('world', { after: () => G.go('map') }); } }),
-      new Hit('help', toolsX(1), toolsY, 52, 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'map'); } }),
-      new Hit('lang', toolsX(2), toolsY, 52, 52, { circle: true, act: () => G.askLang() }),
-      new Hit('music', toolsX(3), toolsY, 52, 52, { circle: true, act: () => G.toggleMute() }),
+      new Hit('shop', navX(2), G.H - (G.portrait ? 118 : 92), navW, G.portrait ? 76 : 60, { act: () => { G.sfx('button'); G.go('shop', { after: () => G.go('map') }); } }),
+      new Hit('world', toolsX(0), toolsY, G.portrait ? 58 : 52, G.portrait ? 58 : 52, { circle: true, act: () => { G.sfx('button'); G.go('world', { after: () => G.go('map') }); } }),
+      new Hit('help', toolsX(1), toolsY, G.portrait ? 58 : 52, G.portrait ? 58 : 52, { circle: true, act: () => { G.sfx('button'); G.go('help', 'map'); } }),
+      new Hit('lang', toolsX(2), toolsY, G.portrait ? 58 : 52, G.portrait ? 58 : 52, { circle: true, act: () => G.askLang() }),
+      new Hit('music', toolsX(3), toolsY, G.portrait ? 58 : 52, G.portrait ? 58 : 52, { circle: true, act: () => G.toggleMute() }),
     ];
     const ep0 = EPISODES[0];
     G.world.setTheme({ sky: ep0.sky, hill: ep0.hill, mount: ep0.mount, biome: ep0.biome });
@@ -495,7 +503,7 @@ export default {
       ctx.restore();
 
       // dế đứng cạnh màn đang mở (vẽ ngoài phép biến đổi của nút)
-      if (cur) G.hero.draw(ctx, x + 6 + this.wander.x, y + NODE_R + 52, 72, this.wander.face);
+      if (cur) G.hero.draw(ctx, x + 6 + this.wander.x, y + NODE_R + 58, G.portrait ? 86 : 76, this.wander.face);
     }
 
     // ── đom đóm bay lượn ────────────────────────────────────────────────
@@ -513,28 +521,58 @@ export default {
     ctx.restore();
     ctx.restore();
 
-    // thanh trên: tài nguyên
-    const resY = G.portrait ? 98 : 22;
-    const resW = G.portrait ? (W - 60) / 2 : 148;
+    // ── HUD HÀNH TRÌNH ─────────────────────────────────────────────────
+    // Ba tầng rõ ràng: tiêu đề → tài nguyên/công cụ → nhiệm vụ kế tiếp.
+    // Không còn năm khối UI rời nhau chen giữa bầu trời như bản cũ.
+    const resY = G.portrait ? 86 : 22;
+    const resH = G.portrait ? 58 : 56;
+    const resW = G.portrait ? (W - 56) / 2 : 148;
     const res = (x, ic, val) => {
-      ctx.save(); glassPanel(ctx, x, resY, resW, 56, 16); ctx.restore();
-      ctx.save(); ctx.translate(x + 32, resY + 28); ic(ctx, 36); ctx.restore();
-      strokeText(ctx, String(val), x + resW - 16, resY + 29, { font: FONT.disp(24), fill: '#fff', stroke: '#1a0f30', lw: 5, align: 'right', baseline: 'middle' });
+      ctx.save(); glassPanel(ctx, x, resY, resW, resH, 17); ctx.restore();
+      ctx.save(); ctx.translate(x + 32, resY + resH / 2); ic(ctx, G.portrait ? 35 : 32); ctx.restore();
+      strokeText(ctx, String(val), x + resW - 18, resY + resH / 2 + 1,
+        { font: FONT.disp(G.portrait ? 26 : 23), fill: '#fff', stroke: '#1a0f30', lw: 5,
+          align: 'right', baseline: 'middle' });
     };
-    res(24, icon.pouch, G.save.gold);
+    res(G.portrait ? 20 : 24, icon.pouch, G.save.gold);
     res(G.portrait ? 36 + resW : 186, icon.leaf, G.save.food);
 
-    // ── ĐỘ NO ───────────────────────────────────────────────────────────
-    // Đặt ngay cạnh túi tiền để người chơi thấy trước khi bấm vào màn, chứ
-    // không phải bấm rồi mới bị đuổi về.
+    if (G.portrait)
+      glassPanel(ctx, W / 2 - 150, 156, 300, 76, 24,
+        { top: 'rgba(30,20,58,.80)', bot: 'rgba(12,8,28,.88)', rim: 'rgba(190,160,255,.32)' });
+
+    // ── THẺ NHIỆM VỤ KẾ TIẾP + ĐỘ NO ───────────────────────────────────
     {
-      // Xuống hàng dưới hai túi tiền — để cùng hàng thì nó chen vào tiêu đề.
-      const fx2 = 24, fy2 = G.portrait ? 236 : 86, fw2 = G.portrait ? W - 48 : 324, fh2 = 44;
+      const curLv = ALL_LEVELS[clamp((G.save.unlocked || 1) - 1, 0, ALL_LEVELS.length - 1)];
+      const mm = modeMeta(curLv);
+      const fx2 = G.portrait ? 18 : 24, fy2 = G.portrait ? 248 : 86;
+      const fw2 = G.portrait ? W - 36 : 360, fh2 = G.portrait ? 96 : 52;
       const v = clamp((G.save.fed ?? 100) / 100, 0, 1);
       const low = v <= .25;
-      ctx.save(); glassPanel(ctx, fx2, fy2, fw2, fh2, 16); ctx.restore();
-      const bx2 = fx2 + (G.portrait ? 128 : 78), by2 = fy2 + 13;
-      const bw2 = fw2 - (G.portrait ? 142 : 92), bh2 = 18;
+      ctx.save(); glassPanel(ctx, fx2, fy2, fw2, fh2, 18,
+        { top: 'rgba(27,17,50,.94)', bot: 'rgba(10,6,24,.96)', rim: rgba(mm.col, .52) }); ctx.restore();
+
+      const infoW = G.portrait ? 0 : 92;
+      const bx2 = G.portrait ? fx2 + 18 : fx2 + infoW + 18;
+      const by2 = G.portrait ? fy2 + 46 : fy2 + 14;
+      const bw2 = G.portrait ? fw2 - 36 : fw2 - infoW - 32;
+      const bh2 = G.portrait ? 17 : 16;
+      if (G.portrait) {
+        strokeText(ctx, `${t('level')} ${curLv.index} · ${mm.name}`, fx2 + 18, fy2 + 25,
+          { font: FONT.disp(18), fill: mm.col, stroke: mm.dark, lw: 4,
+            align: 'left', baseline: 'middle' });
+        strokeText(ctx, `${t('fed')} ${Math.round(v * 100)}%`, fx2 + fw2 - 18, fy2 + 25,
+          { font: FONT.disp(16), fill: low ? '#ff9aa8' : '#fff', stroke: '#1a0f30', lw: 4,
+            align: 'right', baseline: 'middle' });
+      } else {
+        strokeText(ctx, `${mm.glyph}  ${t('level')} ${curLv.index}`, fx2 + 16, fy2 + 20,
+          { font: FONT.ui(12, 800), fill: mm.col, stroke: mm.dark, lw: 3,
+            align: 'left', baseline: 'middle' });
+        strokeText(ctx, mm.name, fx2 + 16, fy2 + 43,
+          { font: FONT.disp(18), fill: '#fff', stroke: mm.dark, lw: 4,
+            align: 'left', baseline: 'middle' });
+      }
+
       roundRect(ctx, bx2, by2, bw2, bh2, bh2 / 2);
       ctx.fillStyle = 'rgba(10,6,20,.7)'; ctx.fill();
       ctx.save(); roundRect(ctx, bx2 + 2, by2 + 2, bw2 - 4, bh2 - 4, (bh2 - 4) / 2); ctx.clip();
@@ -545,8 +583,10 @@ export default {
       ctx.restore();
       ctx.strokeStyle = low ? `rgba(255,90,110,${.6 + .4 * Math.sin(this.t * 6)})` : 'rgba(255,255,255,.35)';
       ctx.lineWidth = 2; roundRect(ctx, bx2, by2, bw2, bh2, bh2 / 2); ctx.stroke();
-      strokeText(ctx, `${t('fed')} ${Math.round(v * 100)}%`, fx2 + 16, fy2 + fh2 / 2,
-        { font: FONT.ui(13, 800), fill: low ? '#ff9aa8' : '#e6dcff', stroke: null, lw: 0, align: 'left', baseline: 'middle', shadow: null });
+      if (!G.portrait)
+        strokeText(ctx, `${t('fed')} ${Math.round(v * 100)}%`, bx2, fy2 + 42,
+          { font: FONT.ui(12, 800), fill: low ? '#ff9aa8' : '#e6dcff', stroke: null,
+            lw: 0, align: 'left', baseline: 'middle', shadow: null });
       // Chưa đầy sức thì LUÔN hiện đồng hồ đếm ngược — kể cả khi còn thức ăn.
       // Bắt người chơi ngồi chờ mà không nói chờ đến bao giờ là ức chế vô duyên;
       // mà giấu luôn cả lúc còn nửa thanh thì họ không biết đường tính trước.
@@ -555,12 +595,26 @@ export default {
         const wait = G.fedWaitMs(short ? G.FED_COST : G.FED_MAX);
         let msg = short ? t('restIn', { t: G.fedClock(wait) }) : t('restFull', { t: G.fedClock(wait) });
         if (short && (G.save.food || 0) > 0) msg += ' · ' + t('orFeed');
-        strokeText(ctx, msg, fx2 + 4, fy2 + fh2 + 16,
-          { font: FONT.ui(13, 800), fill: short ? '#ff9aa8' : '#cfc0f0',
-            stroke: short ? '#3a0010' : '#241640', lw: 3, align: 'left', baseline: 'middle' });
+        // Đồng hồ có một hàng riêng trên điện thoại để không còn bị nén/cắt.
+        const msgX = G.portrait ? fx2 + fw2 / 2 : bx2 + 92;
+        const msgY = G.portrait ? fy2 + 79 : fy2 + 43;
+        ctx.save();
+        ctx.beginPath();
+        if (G.portrait) ctx.rect(fx2 + 14, fy2 + 66, fw2 - 28, 25);
+        else ctx.rect(bx2 + 86, fy2 + 31, bw2 - 86, 25);
+        ctx.clip();
+        strokeText(ctx, msg, msgX, msgY,
+          { font: FONT.ui(G.portrait ? 13 : 11, 800), fill: short ? '#ff9aa8' : '#cfc0f0',
+            stroke: null, lw: 0, align: G.portrait ? 'center' : 'left', baseline: 'middle', shadow: null });
+        ctx.restore();
+      } else if (G.portrait) {
+        strokeText(ctx, t('journeyReady'), fx2 + fw2 / 2, fy2 + 79,
+          { font: FONT.ui(13, 800), fill: '#b9f5bd', stroke: null,
+            lw: 0, baseline: 'middle', shadow: null });
       }
     }
-    strokeText(ctx, t('mapTitle'), W / 2, 50, { font: FONT.disp(G.portrait ? 38 : 34), fill: '#fff', stroke: '#3a1d6e', lw: 7, baseline: 'middle' });
+    strokeText(ctx, t('mapTitle'), W / 2, G.portrait ? 45 : 44,
+      { font: FONT.disp(G.portrait ? 38 : 34), fill: '#fff', stroke: '#3a1d6e', lw: 7, baseline: 'middle' });
 
     // ── BIỂN "VÙNG ĐẤT MỚI" khi vừa mở khoá ──────────────────────────────
     if (this.pan && this.pan.banner > 0) {
@@ -581,17 +635,27 @@ export default {
       ctx.restore();
     }
 
+    // Thanh điều hướng chân màn hình là một cụm duy nhất. Nền chung giúp ba
+    // điểm đến đọc như các game mode của "trại", thay vì ba nút khổng lồ rời.
+    if (G.portrait)
+      glassPanel(ctx, 12, H - 132, W - 24, 108, 26,
+        { top: 'rgba(28,18,54,.92)', bot: 'rgba(10,6,24,.97)', rim: 'rgba(190,160,255,.34)' });
     for (const h of this.hits) {
       if (h.id === 'nest') textBtn(ctx, h.x, h.y, h.w, h.h, t('nest'),
-        { press: h.press, hover: h.hover, colour: '#8b5fd6', dark: '#3b2263', lite: '#cfa8ff', font: FONT.disp(24) });
+        { press: h.press, hover: h.hover, colour: '#8b5fd6', dark: '#3b2263', lite: '#cfa8ff', font: FONT.disp(G.portrait ? 22 : 24) });
       else if (h.id === 'arena') textBtn(ctx, h.x, h.y, h.w, h.h, t('duelArena'),
-        { press: h.press, hover: h.hover, colour: '#e8384f', dark: '#8c0f22', lite: '#ff9aa8', font: FONT.disp(22) });
+        { press: h.press, hover: h.hover, colour: '#e8384f', dark: '#8c0f22', lite: '#ff9aa8', font: FONT.disp(G.portrait ? 21 : 22) });
       else if (h.id === 'shop') textBtn(ctx, h.x, h.y, h.w, h.h, t('shop'),
-        { press: h.press, hover: h.hover, colour: '#f5a51e', dark: '#a34a05', lite: '#ffe08a', font: FONT.disp(22) });
-      else if (h.id === 'world') roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.map(c, s), { press: h.press, hover: h.hover });
-      else if (h.id === 'help') roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.help(c, s), { press: h.press, hover: h.hover });
-      else if (h.id === 'lang') roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.globe(c, s), { press: h.press, hover: h.hover });
-      else roundBtn(ctx, h.x + 26, h.y + 26, 26, (c, s) => icon.note(c, s, !G.audio.muted), { press: h.press, hover: h.hover });
+        { press: h.press, hover: h.hover, colour: '#f5a51e', dark: '#a34a05', lite: '#ffe08a', font: FONT.disp(G.portrait ? 21 : 22) });
+      else {
+        const rr = G.portrait ? 29 : 26;
+        const cx = h.x + rr, cy = h.y + rr;
+        const draw = h.id === 'world' ? (c, s) => icon.map(c, s)
+          : h.id === 'help' ? (c, s) => icon.help(c, s)
+          : h.id === 'lang' ? (c, s) => icon.globe(c, s)
+          : (c, s) => icon.speaker(c, s, !G.audio.muted);
+        roundBtn(ctx, cx, cy, rr, draw, { press: h.press, hover: h.hover });
+      }
     }
 
     // bong bóng khi chọc dế
@@ -627,10 +691,10 @@ export default {
     // Nhãn này trước đây hiện THƯỜNG TRỰC ở góc, ai nhìn cũng tưởng phải chờ
     // tới tuần sau mới chơi tiếp — trong khi cả 45 màn đang mở sẵn. Nay chỉ
     // hiện khi người chơi đã đi tới màn cuối cùng thật sự.
-    if (G.save.unlocked >= ALL_LEVELS.length)
+    if (!G.portrait && G.save.unlocked >= ALL_LEVELS.length)
       strokeText(ctx, t('comingSoon'), W - 26, H - 34,
         { font: FONT.ui(15, 600), fill: 'rgba(255,255,255,.7)', stroke: 'rgba(0,0,0,.5)', lw: 3, align: 'right', baseline: 'middle' });
-    else
+    else if (!G.portrait)
       // Còn màn để đi thì cho biết đang ở đâu trong hành trình.
       strokeText(ctx, t('mapProgress', { n: G.save.unlocked, m: ALL_LEVELS.length }), W - 26, H - 34,
         { font: FONT.ui(15, 700), fill: 'rgba(255,255,255,.62)', stroke: 'rgba(0,0,0,.5)', lw: 3, align: 'right', baseline: 'middle' });

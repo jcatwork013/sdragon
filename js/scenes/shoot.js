@@ -14,6 +14,13 @@ import { playLayout, bleed } from '../core/layout.js';
 
 let ENEMY_Y = 46;                         // tính lại theo mép trên khung bắn
 const LAND_COLS = 10, MOBILE_COLS = 7;
+// Chuỗi Fibonacci: một phát nổ mở chuỗi ở ×2, bắn nổ liên tục sẽ leo dần tới
+// ×21. Sau ×21, chuỗi vẫn được giữ nhưng hệ số không tăng thêm để điểm không
+// tràn số và bảng xếp hạng còn so sánh được.
+const COMBO_MULT = [2, 3, 5, 8, 13, 21];
+const comboMult = chain => COMBO_MULT[clamp(chain - 1, 0, COMBO_MULT.length - 1)];
+const MAX_IN_FLIGHT = 3;
+const FOOD_SHOTS = 5;
 let COLS = LAND_COLS;
 let R = 24, FW = 524, FH = 524, DEATH_Y = 418, BOARD_ROWS = 13;
 
@@ -25,19 +32,23 @@ function relayout(W, H, hasFoes = false) {
   PORTRAIT = H > W;
   COLS = PORTRAIT ? MOBILE_COLS : LAND_COLS;
   if (PORTRAIT) {
-    R = clamp(Math.floor((W - 76) / (COLS * 2)), 20, 40);
-    FW = COLS * R * 2 + 44;
+    // Chỉ chừa 8–12 đơn vị logic ở hai mép. Khung cũ dùng 44px đệm trong +
+    // 18px lề ngoài nên bóng bị nhỏ dù canvas đã phủ kín điện thoại.
+    const frame = 16;
+    R = clamp(Math.floor((W - 32) / (COLS * 2)), 20, 44);
+    FW = COLS * R * 2 + frame;
     FX_ = Math.round((W - FW) / 2);
     // Bỏ ô Dế trang trí ở chế độ dọc và kéo vùng bắn lên sát thanh tiêu đề.
-    FY_ = H < 1400 ? (hasFoes ? 150 : 82) : (hasFoes ? 188 : 112);
+    FY_ = H < 1400 ? (hasFoes ? 140 : 74) : (hasFoes ? 162 : 88);
     ENEMY_Y = FY_ - 48;
-    BX = FX_ + 22; BY = FY_ + 14;
-    CARDX = -9999; HUDX = 24; HUDW = W - 48; COMPACT = true;
+    BX = FX_ + frame / 2; BY = FY_ + frame / 2;
+    CARDX = -9999; HUDX = 12; HUDW = W - 24; COMPACT = true;
     // Khung bắn dọc ăn trọn khoảng giữa tiêu đề và HUD. Trước đây FH = FW nên
     // khung luôn vuông, bỏ phí gần 1/4 màn hình iPhone thành một bãi cỏ trống.
     HUDY = H - 34 - 16 - 154;
-    FH = Math.max(FW, HUDY - FY_ - 14);
-    DEATH_Y = FH - 106;
+    FH = Math.max(FW, HUDY - FY_ - 8);
+    // Giữ bệ phóng cách đáy khung 38px dù đệm trên giảm từ 14 xuống 8.
+    DEATH_Y = FH - 100;
     // Lưới logic cũng phải cao theo khung mới; nếu chỉ kéo hình nền thì những
     // hàng ở nửa dưới không thể nhận bóng và phần mở rộng sẽ là diện tích giả.
     BOARD_ROWS = Math.max(13, Math.ceil((DEATH_Y - R) / (R * Math.sqrt(3))) + 1);
@@ -46,19 +57,19 @@ function relayout(W, H, hasFoes = false) {
   }
   // Bán kính bóng tính theo chỗ trống thật (giống bàn Ghép Đá), không đóng đinh
   // 22/24 nữa — trên điện thoại ngang, khung bắn cũ chỉ ăn 2/3 chiều cao.
-  const compact = W < 1240;
+  const compact = W < 1240, frame = 28;
   const chrome = (compact ? 0 : 268) + 78 + 14 + 18 + (compact ? 286 : 306) + 40;
-  const byW = Math.floor((W - chrome - 44) / (COLS * 2));
-  const byH = Math.floor((684 - 78 - 44) / (COLS * 2));
+  const byW = Math.floor((W - chrome - frame) / (COLS * 2));
+  const byH = Math.floor((684 - 78 - frame) / (COLS * 2));
   R = clamp(Math.min(byW, byH), 17, 30);
-  FW = COLS * R * 2 + 44; FH = FW;
-  DEATH_Y = FH - 106;
+  FW = COLS * R * 2 + frame; FH = FW;
+  DEATH_Y = FH - 98;
   BOARD_ROWS = 13;
   const L = playLayout(W, FW, FH);
   FX_ = L.boardX;
   FY_ = Math.round(78 + (684 - 78 - FH) / 2);
   ENEMY_Y = Math.max(42, FY_ - 48);
-  BX = FX_ + 14 + 8; BY = FY_ + 14;
+  BX = FX_ + frame / 2; BY = FY_ + frame / 2;
   CARDX = L.cardX; HUDX = L.hudX; HUDW = L.hudW; COMPACT = L.compact;
   HUDY = 78;
   LAUNCH = { x: BX + COLS * R, y: BY + DEATH_Y + 54 };
@@ -83,7 +94,7 @@ export default {
     this.praise = ''; this.praiseT = 0;
     this.shownScore = 0; this.warnT = 0;
     this.hitGoal = false; this.goalT = 0;
-    this.chain = 0;
+    this.chain = 0; this.comboMult = 0; this.comboT = 0; this.comboPeak = 0;
     this.bubble = null; this.saidOnce = new Set();
 
     // ── THIÊN ĐỊCH cũng xuất hiện ở chế độ Bắn Đá ──────────────────────
@@ -107,7 +118,7 @@ export default {
     this.pushEvery = L.pushEvery ?? 10;
     this.board = new BubbleBoard({
       cols: COLS, rows: BOARD_ROWS, radius: R, colours: L.shootColours ?? 4,
-      startRows: L.startRows ?? 3, deathY: DEATH_Y,
+      startRows: L.startRows ?? 3, deathY: DEATH_Y, maxInFlight: MAX_IN_FLIGHT,
     });
     this.wire(G);
 
@@ -120,6 +131,9 @@ export default {
       new Hit('restart', HUDX + HUDW * .25 - 28, HUDY + 366, 56, 56, { circle: true, act: () => G.startLevel(G.levelIndex) }),
       new Hit('resume', HUDX + HUDW * .68 - 28, HUDY + 366, 56, 56, { circle: true, act: () => this.togglePause(G) }),
       new Hit('swap', LAUNCH.x + 74, LAUNCH.y - 26, 52, 52, { circle: true, act: () => { this.board.swapNext(); G.sfx('select'); } }),
+      new Hit('feedShots', HUDX + (PORTRAIT ? 16 : 18), HUDY + (PORTRAIT ? 106 : 318),
+        PORTRAIT ? HUDW - 32 : HUDW - 36, PORTRAIT ? 40 : 44,
+        { act: () => this.feedShots(G) }),
       new Hit('quit', G.W / 2 - 110, G.H / 2 + 6, 220, 54,
         { act: () => { G.sfx('button'); G.go('map'); }, hidden: true }),
       new Hit('quit', G.W / 2 - 110, G.H / 2 + 6, 220, 54, { act: () => { G.sfx('button'); G.go('map'); }, hidden: true }),
@@ -147,21 +161,47 @@ export default {
     b.on.stick  = (x, y) => { G.sfx('swap'); G.fx.ring(BX + x, BY + y, '#ffffff', 6, 34, .22, 4); };
     b.on.pushed = () => { G.sfx('warn'); G.fx.shake(7); };
     b.on.settle = (e) => {
-      if (!e.popped) { this.chain = 0; this.checkEnd(G); return; }
+      if (!e.popped) {
+        this.chain = 0; this.comboMult = 0; this.comboT = 0;
+        this.checkEnd(G); return;
+      }
       this.chain++;
-      const mult = 1 + (this.chain - 1) * .35;
-      const gained = Math.round((e.popped * 70 + e.dropped * 150) * mult);
+      const tier = Math.min(this.chain, COMBO_MULT.length);
+      const mult = comboMult(this.chain);
+      // Hạ điểm nền gần một nửa: nếu bỏ hệ số combo thì không đủ sức chạm mục
+      // tiêu. Phát nổ đầu ×2 xấp xỉ điểm cũ; từ phát liên tiếp thứ hai trở đi
+      // người chơi mới thật sự bứt lên.
+      const gained = Math.round((e.popped * 38 + e.dropped * 82) * mult);
       this.score += gained;
-      this.gold += Math.round((e.popped * 1.1 + e.dropped * 2.8) * mult);
+      // Combo ×21 chỉ nhân ĐIỂM. Vàng và sát thương giữ đường tăng cũ để không
+      // phá kinh tế/chỉ số thiên địch của toàn bộ chiến dịch.
+      const rewardMult = 1 + (tier - 1) * .35;
+      this.gold += Math.round((e.popped * 1.1 + e.dropped * 2.8) * rewardMult);
+      this.comboMult = mult; this.comboT = 1.05; this.comboPeak = Math.max(this.comboPeak, mult);
+      G.sess.combo = Math.max(G.sess.combo || 0, this.chain);
 
       const px = BX + (e.x ?? 0), py = BY + (e.y ?? 0);
-      for (const p of b.popping) G.fx.burst(BX + p.x, BY + p.y, ORB[p.type], 9, .9);
-      G.fx.float(px, py, '+' + gained, { size: 26 + Math.min(e.popped, 8) * 2, fill: '#fff6c4', stroke: '#6b3a00' });
-      G.fx.ring(px, py, ORB[e.type].lite, 10, 70 + e.popped * 8, .4, 6);
+      const power = .78 + tier * .15;
+      for (const p of b.popping)
+        G.fx.burst(BX + p.x, BY + p.y, ORB[p.type], 8 + tier * 2, power);
+      G.fx.float(px, py + R * .35, '+' + gained,
+        { size: 26 + Math.min(e.popped, 8) * 2 + tier * 2, fill: '#fff6c4', stroke: '#6b3a00', max: 1.15 });
+      G.fx.float(px, py - R * .35, `×${mult}`,
+        { size: 28 + tier * 5, fill: tier >= 5 ? '#fff2a6' : '#ffc3ff', stroke: tier >= 5 ? '#a43100' : '#52106e', vy: -96, max: 1.2 });
+      G.fx.ring(px, py, ORB[e.type].lite, 10, 76 + e.popped * 9 + tier * 12, .38 + tier * .035, 6 + tier);
+      if (tier >= 2) G.fx.ring(px, py, '#ffffff', R * .4, 92 + tier * 26, .32 + tier * .045, 4 + tier);
+      if (tier >= 3) {
+        G.fx.beam(px, py, true, Math.min(FW * .48, 170 + tier * 30), ORB[e.type].lite);
+        G.fx.beam(px, py, false, Math.min(FH * .34, 130 + tier * 24), '#ffffff');
+      }
+      if (tier >= 4) {
+        G.fx.sparkle(px, py, tier >= 6 ? '#ffe066' : '#fff2ff', 18 + tier * 5);
+        G.fx.smoke(px, py + R * .4, 3 + tier, tier >= 6 ? '#ff9a5c' : ORB[e.type].lite);
+      }
       // ── đánh vào thiên địch ────────────────────────────────────────
       const foe = this.enemies.find(e => e.alive);
       if (foe) {
-        const dealt = foe.damage(Math.round((e.popped * 18 + e.dropped * 30) * mult));
+        const dealt = foe.damage(Math.round((e.popped * 18 + e.dropped * 30) * rewardMult));
         const fx0 = FX_ + FW * ((this.enemies.indexOf(foe) + .5) / this.enemies.length);
         G.fx.float(fx0, ENEMY_Y - 12, '-' + dealt, { size: 24, fill: '#ffd0d0', stroke: '#5c0010', vy: -60 });
         if (!foe.alive) {
@@ -171,14 +211,17 @@ export default {
           this.score += 900; this.gold += 60;
         } else this.say(G, 'foeHit');
       }
-      G.sfx('match', Math.min(this.chain - 1, 6));
-      G.fx.shake(2 + e.popped * .6 + e.dropped * .8);
+      G.sfx('match', tier - 1);
+      if (tier >= 2) G.sfx('combo', tier);
+      if (tier >= 5) G.sfx('bomb');
+      G.fx.shake(4 + tier * 4 + e.popped * .65 + e.dropped * .9);
+      if (tier >= 4) G.hero.chirpBurst(.32 + tier * .08);
 
       if (e.dropped >= 3 || e.popped >= 6) {
         const p = t('praise');
         this.praise = p[clamp((e.dropped >= 6 ? 4 : e.dropped >= 3 ? 3 : 2) - 1, 0, p.length - 1)];
         this.praiseT = 1.2;
-        G.sfx('combo', 3); G.hero.react('happy', .9); this.say(G, 'combo');
+        G.hero.react('happy', .9); this.say(G, 'combo');
       }
       if (!this.hitGoal && this.score >= G.level.target) {
         this.hitGoal = true; this.goalT = 1.6;
@@ -200,8 +243,30 @@ export default {
   /** Bày nút QUA MÀN NGAY khi đã đủ điểm. */
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT ? 102 : 518), HUDW - 32, PORTRAIT ? 44 : 52,
+    const feed = this.hits.find(h => h.id === 'feedShots');
+    if (PORTRAIT && feed) feed.w = (HUDW - 42) / 2;
+    this.hits.push(new Hit('finishNow', PORTRAIT ? HUDX + 26 + (HUDW - 42) / 2 : HUDX + 16,
+      HUDY + (PORTRAIT ? 106 : 518), PORTRAIT ? (HUDW - 42) / 2 : HUDW - 32, PORTRAIT ? 40 : 52,
       { act: () => this.startBravo(G, t('outOfShots')) }));
+  },
+
+  /** Đổi một phần thức ăn lấy thêm đá, ngay trong trận. */
+  feedShots(G) {
+    if (this.over || this.paused || this.bravo) return false;
+    if ((G.save.food || 0) <= 0) {
+      G.sfx('invalid');
+      G.fx.float(HUDX + HUDW / 2, HUDY + 92, t('foodEmpty'),
+        { size: 20, fill: '#ff9aa8', stroke: '#5c0010', max: 1.1 });
+      return false;
+    }
+    G.save.food--;
+    this.shotsLeft += FOOD_SHOTS;
+    G.persist();
+    G.sfx('levelup'); G.hero.react('eat', 1.2);
+    G.fx.float(HUDX + HUDW / 2, HUDY + 92, t('shotsAdded', { n: FOOD_SHOTS }),
+      { size: 24, fill: '#8ef08a', stroke: '#17451c', max: 1.25 });
+    G.fx.sparkle(HUDX + HUDW / 2, HUDY + 116, '#8ef08a', 12);
+    return true;
   },
 
   /**
@@ -274,7 +339,8 @@ export default {
     if (this.board.lowestY >= DEATH_Y) return this.finish(G, false, t('breached'));
     const won = this.score >= G.level.target;
     if (this.timeLeft <= 0) return won ? this.startBravo(G, t('outOfTime')) : this.finish(G, false, t('outOfTime'));
-    if (this.shotsLeft <= 0 && !this.board.shot)
+    // Còn thức ăn thì giữ trận mở để người chơi chủ động đổi lấy thêm lượt.
+    if (this.shotsLeft <= 0 && !this.board.shot && (G.save.food || 0) <= 0)
       return won ? this.startBravo(G, t('outOfShots')) : this.finish(G, false, t('outOfShots'));
   },
 
@@ -325,6 +391,7 @@ export default {
     G.hero.update(dt);
     this.shownScore = lerp(this.shownScore, this.score, 1 - Math.pow(.001, dt));
     if (this.praiseT > 0) this.praiseT -= dt;
+    if (this.comboT > 0) this.comboT -= dt;
     if (this.bubble) { this.bubble.t += dt; if (this.bubble.t >= this.bubble.dur) this.bubble = null; }
     if (this.goalT > 0) this.goalT -= dt;
     if (this.raidFx) { this.raidFx.t += dt; if (this.raidFx.t >= this.raidFx.dur) this.raidFx = null; }
@@ -405,7 +472,7 @@ export default {
     this.aim = a;
   },
   /** Rê chuột/kéo tay là mũi tên ngắm bám theo ngay — không cần giữ nút. */
-  hover(G, x, y) { if (!this.over && !this.paused && !this.board.shot) this._aimAt(x, y); },
+  hover(G, x, y) { if (!this.over && !this.paused && this.board.canFire) this._aimAt(x, y); },
   down(G, x, y) { if (!this.over && !this.paused) this._aimAt(x, y); },
   move(G, x, y) { if (!this.over && !this.paused) this._aimAt(x, y); },
   /**
@@ -413,7 +480,7 @@ export default {
    * (dev/balance-shoot.mjs) gọi trực tiếp được mà không phải giả lập toạ độ chuột.
    */
   fireAt(G, ang) {
-    if (this.over || this.paused || this.board.shot || this.shotsLeft <= 0) return false;
+    if (this.over || this.paused || !this.board.canFire || this.shotsLeft <= 0) return false;
     this.aim = ang;
     if (!this.board.fire(LAUNCH.x - BX, LAUNCH.y - BY, this.aim)) return false;
     this.shotsLeft--;
@@ -512,8 +579,9 @@ export default {
 
     if (this.bravo) this.drawBravo(G, ctx);
     G.fx.draw(ctx);
+    this.drawComboBurst(ctx);
     if (this.raidFx) this.drawPredatorRaid(G, ctx);
-    if (this.praiseT > 0) {
+    if (this.praiseT > 0 && this.comboT <= 0) {
       const k = 1 - this.praiseT / 1.2;
       ctx.save();
       ctx.translate(FX_ + FW / 2, FY_ + FH * .34);
@@ -556,9 +624,51 @@ export default {
     if (this.over) this.drawOver(G, ctx);
   },
 
+  /**
+   * Hệ số combo nổi giữa chiến trường trong đúng một nhịp. Cấp càng cao càng
+   * to, sáng và nảy mạnh; HUD bên dưới vẫn giữ hệ số sau khi chữ lớn tan đi.
+   */
+  drawComboBurst(ctx) {
+    if (this.comboT <= 0 || !this.comboMult) return;
+    const tier = Math.min(this.chain, COMBO_MULT.length);
+    const age = 1 - clamp(this.comboT / 1.05, 0, 1);
+    const appear = ease.outBack(clamp(age / .18, 0, 1));
+    const alpha = this.comboT < .28 ? this.comboT / .28 : 1;
+    const cx = FX_ + FW / 2, cy = FY_ + Math.min(FH * .40, 340);
+    const glowR = 82 + tier * 18;
+
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.globalCompositeOperation = 'lighter';
+    const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowR);
+    glow.addColorStop(0, tier >= 5 ? 'rgba(255,224,90,.34)' : 'rgba(255,140,255,.27)');
+    glow.addColorStop(.55, tier >= 5 ? 'rgba(255,90,45,.13)' : 'rgba(150,90,255,.12)');
+    glow.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(cx, cy, glowR, 0, TAU); ctx.fill();
+    ctx.restore();
+
+    ctx.save(); ctx.globalAlpha = alpha;
+    ctx.translate(cx, cy);
+    const pulse = 1 + Math.sin(age * Math.PI * 3) * .035 * tier;
+    ctx.scale(appear * pulse, appear * pulse);
+    const title = this.praiseT > 0 && this.praise ? this.praise : t('combo');
+    strokeText(ctx, String(title).toUpperCase(), 0, -39 - tier,
+      { font: FONT.disp(20 + tier * 1.4), fill: '#ffffff', stroke: '#391052', lw: 6, baseline: 'middle' });
+    strokeText(ctx, `×${this.comboMult}`, 0, 10,
+      { font: FONT.disp(58 + tier * 6), fill: tier >= 5 ? '#ffe066' : '#ffc8ff',
+        stroke: tier >= 5 ? '#9c2600' : '#55106f', lw: 11 + tier, baseline: 'middle' });
+    if (tier < COMBO_MULT.length)
+      strokeText(ctx, `› ×${COMBO_MULT[tier]}`, 0, 62 + tier * 2,
+        { font: FONT.ui(15, 800), fill: '#fff', stroke: '#391052', lw: 4, baseline: 'middle' });
+    ctx.restore();
+  },
+
+  comboHudLabel() {
+    return this.comboMult ? `${t('combo')}  ×${this.comboMult}` : '×2 › 3 › 5 › 8 › 13 › 21';
+  },
+
   /** Đường ngắm chấm chấm, có tính một lần nảy tường. */
   drawAim(ctx) {
-    if (this.board.shot || this.over) return;
+    if (!this.board.canFire || this.over) return;
     let x = LAUNCH.x, y = LAUNCH.y;
     let vx = Math.cos(this.aim), vy = Math.sin(this.aim);
     const L = BX, Rr = BX + this.board.W;
@@ -790,7 +900,8 @@ export default {
     const st3 = L.star[2], starsNow = this.score >= L.target * L.star[2] ? 3
       : this.score >= L.target * L.star[1] ? 2 : this.score >= L.target ? 1 : 0;
     const sbx = x + 18, sby = y + 89, sbw = w - 36, sbh = 42;
-    statBar(ctx, sbx, sby, sbw, sbh, this.score / (L.target * st3), (c, s) => icon.crown(c, s), { label: '' });
+    statBar(ctx, sbx, sby, sbw, sbh, this.score / (L.target * st3), (c, s) => icon.crown(c, s),
+      { label: this.comboHudLabel(), fillA: this.comboMult >= 13 ? '#ff7a55' : C.barA, fillB: this.comboMult >= 13 ? '#ff3157' : C.barB });
     const trackX = sbx + sbh - 4, trackW = sbw - sbh + 4;
     L.star.forEach((mul, i) => {
       const px = trackX + trackW * (mul / st3) - (i === 2 ? 10 : 0), on = starsNow > i;
@@ -852,6 +963,13 @@ export default {
         (c, s) => id === 'restart' ? icon.restart(c, s) : (this.paused ? icon.play(c, s) : icon.pause(c, s)),
         { press: h2.press, hover: h2.hover });
     }
+    const feed = this.hits.find(h2 => h2.id === 'feedShots');
+    if (feed && !feed.hidden) textBtn(ctx, feed.x, feed.y, feed.w, feed.h,
+      t('foodShots', { n: FOOD_SHOTS, food: G.save.food || 0 }),
+      { press: feed.press, hover: feed.hover,
+        colour: (G.save.food || 0) > 0 ? '#3fbf4a' : '#6b6f80',
+        dark: (G.save.food || 0) > 0 ? '#1d6b24' : '#363947',
+        lite: (G.save.food || 0) > 0 ? '#8ef08a' : '#aeb3c2', font: FONT.disp(17) });
     if (fin) {
       const puls = .5 + .5 * Math.sin(this.t * 4);
       ctx.save(); ctx.globalAlpha = .28 + .30 * puls;
@@ -871,12 +989,21 @@ export default {
       { font: FONT.disp(17), fill: this.timeLeft <= 15 ? '#d7193f' : '#33445f', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     strokeText(ctx, `●●● ${this.shotsLeft}`, x + w - 24, y + 24,
       { font: FONT.disp(17), fill: this.shotsLeft <= 5 ? '#d7193f' : '#60459a', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
-    statBar(ctx, x + 16, y + 42, w - 32, 30, this.score / (L.target * L.star[2]), (c, s) => icon.crown(c, s), { label: '' });
+    statBar(ctx, x + 16, y + 42, w - 32, 30, this.score / (L.target * L.star[2]), (c, s) => icon.crown(c, s),
+      { label: this.comboHudLabel(), fillA: this.comboMult >= 13 ? '#ff7a55' : C.barA, fillB: this.comboMult >= 13 ? '#ff3157' : C.barB });
     const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
     strokeText(ctx, `${t('hp')} ${Math.ceil(this.hp)}   ·   ${t('gold')} ${this.gold}   ·   ${t('goal')} ${L.target.toLocaleString()}${noun ? ' ' + tx(noun, 'vi') : ''}`,
       x + w / 2, y + 94,
       { font: FONT.ui(13, 800), fill: '#584b72', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     const fin = this.hits.find(h2 => h2.id === 'finishNow');
+    const feed = this.hits.find(h2 => h2.id === 'feedShots');
+    if (feed && !feed.hidden) textBtn(ctx, feed.x, feed.y, feed.w, feed.h,
+      t(fin ? 'foodShotsShort' : 'foodShots', { n: FOOD_SHOTS, food: G.save.food || 0 }),
+      { press: feed.press, hover: feed.hover,
+        colour: (G.save.food || 0) > 0 ? '#3fbf4a' : '#6b6f80',
+        dark: (G.save.food || 0) > 0 ? '#1d6b24' : '#363947',
+        lite: (G.save.food || 0) > 0 ? '#8ef08a' : '#aeb3c2',
+        font: FONT.disp(fin ? 14 : 17) });
     if (fin) textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
       { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
   },

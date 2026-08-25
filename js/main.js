@@ -561,7 +561,9 @@ function frame(now) {
   ctx.fillStyle = '#0b0716'; ctx.fillRect(-40, -40, CW + 80, CH + 80);
   ctx.translate(OX, OY);                              // vào hệ toạ độ của dải
   G.scene?.draw?.(G, ctx);
-  if (G.scene?.name !== 'play') G.fx.draw(ctx);      // màn chơi tự vẽ hạt đúng lớp
+  // Bốn màn gameplay tự vẽ FX ở đúng lớp (dưới HUD/modal). Đừng vẽ lại lần
+  // hai ở đây: vừa nhân đôi hạt, vừa làm máy yếu tụt FPS đúng lúc combo lớn.
+  if (!['play', 'shoot', 'pair', 'duel'].includes(G.scene?.name)) G.fx.draw(ctx);
   ctx.restore();
 
   // Overlay dùng cùng hệ toạ độ với scene. Trước đây thiếu OX/OY nên trên

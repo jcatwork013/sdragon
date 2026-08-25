@@ -1,6 +1,6 @@
 {
   "name": "cricko",
-  "version": "1.20.3",
+  "version": "1.20.7",
   "description": "CRICKO — Miền Cỏ Cháy · match-3 nuôi dế, Canvas 2D + Web Audio, không phụ thuộc thư viện ngoài",
   "private": true,
   "type": "module",

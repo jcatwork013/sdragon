@@ -15,6 +15,29 @@ const SPOTS = [
   [.90, .58], [.95, .34],
 ];
 
+/**
+ * Khung bố cục duy nhất cho giấy, mốc và thẻ thông tin. Bản cũ lấy SPOTS nhân
+ * thẳng với W/H nên các mốc ngoài cùng bị cắt bởi viền giấy trên iPhone dọc.
+ * Hàm này nén tuyến đường vào một "safe area" và dành hẳn chân màn hình cho UI.
+ */
+function worldLayout(W, H) {
+  const portrait = H > W * 1.08;
+  const x = portrait ? 24 : 26;
+  const y = portrait ? 82 : 76;
+  const bottom = portrait ? H - 250 : H - 100;
+  const w = W - x * 2, h = bottom - y;
+  const insetX = portrait ? Math.min(90, w * .13) : Math.min(82, w * .085);
+  const insetTop = portrait ? 128 : 58;
+  const insetBottom = portrait ? 138 : 150;
+  const point = ([fx, fy]) => {
+    const u = clamp((fx - .12) / .83, 0, 1);
+    const v = clamp((fy - .30) / .44, 0, 1);
+    return [x + insetX + u * (w - insetX * 2),
+            y + insetTop + v * (h - insetTop - insetBottom)];
+  };
+  return { portrait, x, y, w, h, bottom, point };
+}
+
 const REGION_ART = {
   r1:  { sky: ['#ffd69a', '#8fc6e8'], land: '#6fa454', glow: '#ffe66b' },
   r2:  { sky: ['#b9d4bd', '#527477'], land: '#476b51', glow: '#8fffd8' },
@@ -127,15 +150,15 @@ export default {
     this.sel = this.here;
     this.storyOpen = false;
     const R = mulberry32(4242);
-    this.deco = Array.from({ length: 54 }, () => ({
+    this.deco = Array.from({ length: 34 }, () => ({
       x: R(), y: .22 + R() * .72, s: .5 + R() * .9, k: (R() * 3) | 0, ph: R() * TAU,
     }));
-    this.clouds = Array.from({ length: 6 }, () => ({ x: R(), y: .10 + R() * .22, s: .6 + R() * .8, v: .004 + R() * .01 }));
-    this.flora = Array.from({ length: 82 }, (_, i) => ({
+    this.clouds = Array.from({ length: 4 }, () => ({ x: R(), y: .10 + R() * .22, s: .6 + R() * .8, v: .004 + R() * .01 }));
+    this.flora = Array.from({ length: 46 }, (_, i) => ({
       x: R(), y: .28 + R() * .61, s: .45 + R() * .85, ph: R() * TAU,
       col: ['#dc5d77', '#e9b83c', '#7d72bd', '#f3eee0'][i % 4],
     }));
-    this.wildlife = Array.from({ length: 15 }, (_, i) => ({
+    this.wildlife = Array.from({ length: 9 }, (_, i) => ({
       x: R(), y: .22 + R() * .56, s: .55 + R() * .8, ph: R() * TAU,
       v: .010 + R() * .018, kind: i % 4 === 0 ? 'bee' : 'butterfly',
       col: ['#e85284', '#7964cf', '#2cae91', '#e89d24'][i % 4],
@@ -175,10 +198,11 @@ export default {
       if (f.x > 1.08) { f.x = -.08; f.y = .22 + Math.random() * .56; }
     }
     // cập nhật vùng bấm theo cỡ màn hiện tại
+    const layout = worldLayout(G.W, G.H);
     REGIONS.forEach((r, i) => {
       const h = this.hits.find(x => x.id === 'rg' + i); if (!h) return;
-      const [fx, fy] = SPOTS[i];
-      h.x = fx * G.W - 42; h.y = fy * G.H - 42;
+      const [x, y] = layout.point(SPOTS[i]);
+      h.x = x - 42; h.y = y - 42;
     });
   },
   up() {},
@@ -190,31 +214,32 @@ export default {
 
   draw(G, ctx) {
     const { W, H } = G, T = this.t;
+    const layout = worldLayout(W, H);
 
     // ── nền: tấm bản đồ da thuộc ──────────────────────────────────────────
     const bg = ctx.createLinearGradient(0, 0, 0, H);
     bg.addColorStop(0, '#1a1230'); bg.addColorStop(1, '#0c0819');
     ctx.fillStyle = bg; ctx.fillRect(...bleed(G));
 
-    const M = 26;
+    const M = layout.x;
     ctx.save();
-    roundRect(ctx, M, 76, W - M * 2, H - 176, 22); ctx.clip();
-    const pg = ctx.createLinearGradient(0, 76, W, H - 100);
+    roundRect(ctx, layout.x, layout.y, layout.w, layout.h, 22); ctx.clip();
+    const pg = ctx.createLinearGradient(layout.x, layout.y, layout.x + layout.w, layout.bottom);
     pg.addColorStop(0, '#e8d5aa'); pg.addColorStop(.5, '#dcc596'); pg.addColorStop(1, '#c9ac78');
-    ctx.fillStyle = pg; ctx.fillRect(M, 76, W - M * 2, H - 176);
+    ctx.fillStyle = pg; ctx.fillRect(layout.x, layout.y, layout.w, layout.h);
 
     // biển ở dưới, đất ở trên — hai mảng lớn cho ra dáng bản đồ
     ctx.fillStyle = '#9fc4c9';
     ctx.beginPath();
-    ctx.moveTo(M, H - 100);
-    for (let x = M; x <= W - M; x += 40)
-      ctx.lineTo(x, H - 150 + Math.sin(x * .011 + 1.2) * 16);
-    ctx.lineTo(W - M, H - 100); ctx.closePath(); ctx.fill();
+    ctx.moveTo(layout.x, layout.bottom);
+    for (let x = layout.x; x <= layout.x + layout.w; x += 40)
+      ctx.lineTo(x, layout.bottom - 50 + Math.sin(x * .011 + 1.2) * 16);
+    ctx.lineTo(layout.x + layout.w, layout.bottom); ctx.closePath(); ctx.fill();
     // sóng biển kiểu bản đồ cổ
     ctx.strokeStyle = 'rgba(255,255,255,.45)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
     for (let r0 = 0; r0 < 3; r0++)
-      for (let x = M + 30 + (r0 % 2) * 34; x < W - M - 30; x += 68) {
-        const y = H - 132 + r0 * 17;
+      for (let x = layout.x + 30 + (r0 % 2) * 34; x < layout.x + layout.w - 30; x += 68) {
+        const y = layout.bottom - 32 + r0 * 17;
         ctx.beginPath();
         ctx.moveTo(x, y); ctx.quadraticCurveTo(x + 9, y - 6, x + 18, y);
         ctx.quadraticCurveTo(x + 27, y + 6, x + 36, y);
@@ -224,7 +249,7 @@ export default {
     // ── NƯỚC TRONG ĐẤT LIỀN ───────────────────────────────────────────
     // Có đất thì phải có nước. Bản đồ chỉ toàn đồi núi nhìn khô khốc, mà thêm
     // hồ với sông vào là mắt tự đọc ra "đây là một vùng có người ở".
-    const LX = M, LY = 76, LW = W - M * 2, LH = H - 176;
+    const LX = layout.x, LY = layout.y, LW = layout.w, LH = layout.h;
     const wx = (u) => LX + u * LW, wy = (v) => LY + v * LH;
 
     // sông: chảy từ góc trên-phải xuống hoà vào biển
@@ -267,7 +292,7 @@ export default {
     // dãy núi vẽ nét kiểu bản đồ cổ
     ctx.strokeStyle = 'rgba(90,70,40,.55)'; ctx.lineWidth = 2.4; ctx.lineCap = 'round';
     for (let i = 0; i < 22; i++) {
-      const x = M + 40 + i * ((W - M * 2 - 80) / 21), y = 150 + (i % 3) * 26 + Math.sin(i) * 14;
+      const x = LX + 40 + i * ((LW - 80) / 21), y = LY + 74 + (i % 3) * 26 + Math.sin(i) * 14;
       const w = 26 + (i % 4) * 6;
       ctx.beginPath();
       ctx.moveTo(x - w, y + 14); ctx.lineTo(x, y - 16); ctx.lineTo(x + w, y + 14);
@@ -275,8 +300,8 @@ export default {
     }
     // rừng cây
     for (const d of this.deco) {
-      const x = M + d.x * (W - M * 2), y = 76 + d.y * (H - 176);
-      if (y > H - 165) continue;
+      const x = LX + d.x * LW, y = LY + d.y * LH;
+      if (y > layout.bottom - 65) continue;
       ctx.save(); ctx.globalAlpha = .5;
       ctx.strokeStyle = 'rgba(70,90,50,.85)'; ctx.lineWidth = 2;
       if (d.k === 0) {
@@ -295,8 +320,8 @@ export default {
     // hoa dại tô điểm tấm bản đồ: nét nhỏ như mực màu, dày ở vùng đồng cỏ và
     // thưa gần biển để đường đi vẫn đọc rõ.
     for (let i = 0; i < this.flora.length; i++) {
-      const f = this.flora[i], x = M + f.x * (W - M * 2), y = 76 + f.y * (H - 176);
-      if (y > H - 158) continue;
+      const f = this.flora[i], x = LX + f.x * LW, y = LY + f.y * LH;
+      if (y > layout.bottom - 58) continue;
       ctx.save(); ctx.globalAlpha = .46;
       ctx.strokeStyle = '#66805a'; ctx.lineWidth = 1.2 * f.s;
       ctx.beginPath(); ctx.moveTo(x, y + 5 * f.s); ctx.lineTo(x, y - 3 * f.s); ctx.stroke();
@@ -311,7 +336,7 @@ export default {
     }
     // mây trôi
     for (const c of this.clouds) {
-      const x = M + c.x * (W - M * 2), y = 76 + c.y * (H - 176);
+      const x = LX + c.x * LW, y = LY + c.y * LH;
       ctx.save(); ctx.globalAlpha = .35; ctx.fillStyle = '#fff';
       for (const [dx, dy, r] of [[-1, 0, .9], [0, -.4, 1.2], [1, 0, .8]]) {
         ctx.beginPath(); ctx.arc(x + dx * 26 * c.s, y + dy * 14 * c.s, r * 18 * c.s, 0, TAU); ctx.fill();
@@ -322,7 +347,7 @@ export default {
     // ong và bướm bay xuyên các vùng: chuyển động rất chậm như hình vẽ trên
     // bản đồ sống dậy, không giống vật thể gameplay.
     for (const f of this.wildlife) {
-      const x = M + f.x * (W - M * 2), y = 76 + f.y * (H - 176) + Math.sin(T * 2.5 + f.ph) * 7;
+      const x = LX + f.x * LW, y = LY + f.y * LH + Math.sin(T * 2.5 + f.ph) * 7;
       const flap = .25 + .75 * Math.abs(Math.sin(T * 10 + f.ph));
       ctx.save(); ctx.translate(x, y); ctx.scale(f.s, f.s); ctx.globalAlpha = .76;
       if (f.kind === 'bee') {
@@ -348,7 +373,7 @@ export default {
     ctx.strokeStyle = 'rgba(110,80,40,.55)'; ctx.lineWidth = 5;
     ctx.setLineDash([11, 10]); ctx.lineDashOffset = -T * 18; ctx.lineCap = 'round';
     // đường mòn mượt: nối qua TRUNG ĐIỂM nên không bị gãy khúc hay vồng lên
-    const P = SPOTS.map(([fx, fy]) => [fx * W, fy * H]);
+    const P = SPOTS.map(layout.point);
     ctx.beginPath();
     ctx.moveTo(P[0][0], P[0][1]);
     for (let i = 1; i < P.length - 1; i++) {
@@ -366,8 +391,7 @@ export default {
 
     // ── các mảnh ─────────────────────────────────────────────────────────
     REGIONS.forEach((r, i) => {
-      const [fx, fy] = SPOTS[i];
-      const x = fx * W, y = fy * H;
+      const [x, y] = layout.point(SPOTS[i]);
       const on = this.sel === i;
       const pulse = r.open ? 1 + Math.sin(T * 3) * .04 : 1;
       ctx.save();
@@ -426,14 +450,15 @@ export default {
     // Chỉ dẫn tiến độ thật: lấy vùng chứa màn cao nhất đã mở, không mặc định
     // mảnh 1. Mũi ghim nảy nhẹ để nhìn thấy ngay cả trên vùng màu vàng.
     {
-      const [fx, fy] = SPOTS[this.here] || SPOTS[0];
+      const [spotX, spotY] = layout.point(SPOTS[this.here] || SPOTS[0]);
       const label = t('youAreHere');
       ctx.save();
       ctx.font = FONT.ui(12, 800);
-      const labelW = clamp(ctx.measureText(label).width + 28, 122, W - M * 2 - 16);
+      const labelW = clamp(ctx.measureText(label).width + 28, 122, layout.w - 16);
       ctx.restore();
-      const x = clamp(fx * W, M + labelW / 2 + 6, W - M - labelW / 2 - 6);
-      const y = fy * H - 58 - Math.abs(Math.sin(T * 3.4)) * 5;
+      const x = clamp(spotX, layout.x + labelW / 2 + 6,
+                      layout.x + layout.w - labelW / 2 - 6);
+      const y = spotY - 58 - Math.abs(Math.sin(T * 3.4)) * 5;
       ctx.save(); ctx.translate(x, y);
       ctx.shadowColor = 'rgba(50,25,0,.38)'; ctx.shadowBlur = 10; ctx.shadowOffsetY = 4;
       roundRect(ctx, -labelW / 2, -31, labelW, 27, 13.5); ctx.fillStyle = '#fff7d0'; ctx.fill();
@@ -447,7 +472,7 @@ export default {
 
     // ── la bàn hoa gió ở góc bản đồ ──────────────────────────────────────
     ctx.save();
-    ctx.translate(W - 92, 152);
+    ctx.translate(layout.x + layout.w - 64, layout.y + 68);
     ctx.globalAlpha = .8;
     ctx.strokeStyle = 'rgba(96,68,32,.8)'; ctx.lineWidth = 2.4;
     ctx.beginPath(); ctx.arc(0, 0, 30, 0, TAU); ctx.stroke();
@@ -467,68 +492,85 @@ export default {
 
     // viền tối quanh mép cho ra chất giấy cũ
     ctx.save();
-    roundRect(ctx, M, 76, W - M * 2, H - 176, 22); ctx.clip();
-    const vg = ctx.createRadialGradient(W / 2, (H - 100) / 2 + 40, H * .16, W / 2, (H - 100) / 2 + 40, W * .62);
+    roundRect(ctx, layout.x, layout.y, layout.w, layout.h, 22); ctx.clip();
+    const vg = ctx.createRadialGradient(W / 2, layout.y + layout.h * .48, layout.h * .16,
+                                        W / 2, layout.y + layout.h * .48, layout.w * .62);
     vg.addColorStop(0, 'rgba(60,40,14,0)'); vg.addColorStop(1, 'rgba(60,40,14,.42)');
-    ctx.fillStyle = vg; ctx.fillRect(M, 76, W - M * 2, H - 176);
+    ctx.fillStyle = vg; ctx.fillRect(layout.x, layout.y, layout.w, layout.h);
     ctx.restore();
-    roundRect(ctx, M, 76, W - M * 2, H - 176, 22);
+    roundRect(ctx, layout.x, layout.y, layout.w, layout.h, 22);
     ctx.strokeStyle = '#5d4218'; ctx.lineWidth = 5; ctx.stroke();
     ctx.strokeStyle = 'rgba(255,236,190,.45)'; ctx.lineWidth = 2;
-    roundRect(ctx, M + 5, 81, W - M * 2 - 10, H - 186, 18); ctx.stroke();
+    roundRect(ctx, layout.x + 5, layout.y + 5, layout.w - 10, layout.h - 10, 18); ctx.stroke();
 
     // ── cartouche tiêu đề ────────────────────────────────────────────────
     ctx.save();
-    ctx.font = FONT.disp(34);
-    const tw = ctx.measureText(t('world')).width + 96;
-    roundRect(ctx, W / 2 - tw / 2, 18, tw, 52, 14);
-    const cg = ctx.createLinearGradient(0, 18, 0, 70);
+    ctx.font = FONT.disp(30);
+    const tw = ctx.measureText(t('world')).width + 82;
+    roundRect(ctx, W / 2 - tw / 2, 20, tw, 48, 14);
+    const cg = ctx.createLinearGradient(0, 20, 0, 68);
     cg.addColorStop(0, '#e8d5aa'); cg.addColorStop(1, '#c9a86e');
     ctx.fillStyle = cg; ctx.fill();
     ctx.strokeStyle = '#5d4218'; ctx.lineWidth = 4; ctx.stroke();
     for (const sx of [-1, 1]) {                       // hai đầu cuộn giấy
       ctx.beginPath();
-      ctx.ellipse(W / 2 + sx * (tw / 2 + 8), 44, 10, 26, 0, 0, TAU);
+      ctx.ellipse(W / 2 + sx * (tw / 2 + 7), 44, 9, 24, 0, 0, TAU);
       ctx.fillStyle = '#b8934f'; ctx.fill();
       ctx.strokeStyle = '#5d4218'; ctx.lineWidth = 3; ctx.stroke();
     }
     ctx.restore();
     strokeText(ctx, t('world'), W / 2, 45,
-      { font: FONT.disp(30), fill: '#4a3210', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+      { font: FONT.disp(27), fill: '#4a3210', stroke: null, lw: 0, baseline: 'middle', shadow: null });
 
     const r = REGIONS[this.sel];
-    // Mảnh khoá cần chỗ cho hai dòng đồn thổi, nên khung cao hơn mảnh đã mở.
-    const pw = 560, px = W / 2 - pw / 2, ph = r.open ? 72 : 104, py = H - 168 - (r.open ? 0 : 32);
-    glassPanel(ctx, px, py, pw, ph, 18);
+    // Thẻ vùng nằm trong một chân UI riêng, không còn đè sát lên nút Quay lại.
+    // Bố cục trái → phải (huy hiệu, tên, tiến độ) đọc nhanh hơn hai dòng chữ
+    // căn giữa kéo ngang gần hết màn hình ở bản cũ.
+    const pw = Math.min(W - 64, layout.portrait ? 540 : 560);
+    const px = W / 2 - pw / 2, ph = layout.portrait ? 76 : 72;
+    const py = layout.portrait ? H - 224 : H - 168;
+    glassPanel(ctx, px, py, pw, ph, 18,
+      { top: 'rgba(28,18,52,.96)', bot: 'rgba(10,6,24,.98)', rim: rgba(r.hue, .68) });
+
+    const badgeX = px + 42, badgeY = py + ph / 2;
+    ctx.beginPath(); ctx.arc(badgeX, badgeY + 3, 27, 0, TAU);
+    ctx.fillStyle = 'rgba(5,3,14,.55)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(badgeX, badgeY, 27, 0, TAU);
+    const badge = ctx.createLinearGradient(0, badgeY - 27, 0, badgeY + 27);
+    badge.addColorStop(0, r.open ? shade(r.hue, .38) : '#777184');
+    badge.addColorStop(1, r.open ? shade(r.hue, -.28) : '#34313f');
+    ctx.fillStyle = badge; ctx.fill();
+    ctx.strokeStyle = r.open ? '#ffe066' : '#938aa6'; ctx.lineWidth = 2.5; ctx.stroke();
+    if (r.open)
+      strokeText(ctx, String(this.sel + 1), badgeX, badgeY + 1,
+        { font: FONT.disp(23), fill: '#fff', stroke: '#35210a', lw: 4, baseline: 'middle' });
+    else { ctx.save(); ctx.translate(badgeX, badgeY); icon.lock(ctx, 28); ctx.restore(); }
+
+    const textX = px + 80;
     if (r.open) {
       const eps = EPISODES.filter(e => r.episodes?.includes(e.id));
       const lv = ALL_LEVELS.filter(l => r.episodes?.includes(l.ep));
       const stars = lv.reduce((a, l) => a + (G.save.stars[l.id] || 0), 0);
-      strokeText(ctx, `${t('region', { n: this.sel + 1 })} · ${tx(r, 'name')}`, W / 2, py + 26,
-        { font: FONT.disp(22), fill: '#ffe066', stroke: '#3a1d6e', lw: 5, baseline: 'middle' });
+      strokeText(ctx, tx(r, 'name'), textX, py + 25,
+        { font: FONT.disp(21), fill: '#ffe066', stroke: '#3a1d6e', lw: 4,
+          align: 'left', baseline: 'middle' });
       strokeText(ctx, `${eps.length} ${t('episode').toLowerCase()} · ${lv.length} ${t('level').toLowerCase()} · ${stars}/${lv.length * 3} ★`,
-        W / 2, py + 52,
-        { font: FONT.ui(14, 700), fill: '#e6dcff', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+        textX, py + 51,
+        { font: FONT.ui(13, 700), fill: '#e6dcff', stroke: null, lw: 0,
+          align: 'left', baseline: 'middle', shadow: null });
     } else {
-      // Có tên và có chuyện — người chơi biết mình đang chờ cái gì.
-      strokeText(ctx, `${t('region', { n: this.sel + 1 })} · ${tx(r, 'name')}`, W / 2, py + 26,
-        { font: FONT.disp(22), fill: '#ffd8a8', stroke: '#3a1d00', lw: 5, baseline: 'middle' });
+      strokeText(ctx, `${this.sel + 1} · ${tx(r, 'name')}`, textX, py + 24,
+        { font: FONT.disp(20), fill: '#ffd8a8', stroke: '#3a1d00', lw: 4,
+          align: 'left', baseline: 'middle' });
       // mảnh ngay sau mảnh đang mở thì gắn nhãn "sắp tới" cho có cái mà ngóng
       const nextIdx = REGIONS.findIndex(x => !x.open);
       if (this.sel === nextIdx)
-        pillLabel(ctx, W / 2, py - 10, t('regionNext'), '#ffb648', '#4a2c00');
-      const words = tx(r, 'teaser').split(' ');
-      const lines = [];
-      ctx.font = FONT.ui(14, 600);
-      let line = '';
-      for (const wd of words) {
-        const test = line ? line + ' ' + wd : wd;
-        if (ctx.measureText(test).width > pw - 44 && line) { lines.push(line); line = wd; } else line = test;
-      }
-      if (line) lines.push(line);
-      lines.slice(0, 3).forEach((ln, i) =>
-        strokeText(ctx, ln, W / 2, py + 54 + i * 20,
-          { font: FONT.ui(14, 600), fill: '#e6dcff', stroke: null, lw: 0, baseline: 'middle', shadow: null }));
+        pillLabel(ctx, px + pw - 58, py + 19, t('regionNext'), '#ffb648', '#4a2c00');
+      ctx.font = FONT.ui(12, 600);
+      const teaser = wrap(ctx, tx(r, 'teaser'), pw - 108).slice(0, 1)[0] || '';
+      strokeText(ctx, teaser, textX, py + 51,
+        { font: FONT.ui(12, 600), fill: '#cfc5e3', stroke: null, lw: 0,
+          align: 'left', baseline: 'middle', shadow: null });
     }
 
     const cl = this.hits.find(h => h.id === 'close');

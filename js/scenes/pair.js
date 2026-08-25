@@ -91,18 +91,19 @@ export default {
       COMPACT = true; CARDX = -9999;
       FX_ = 8; FW = W - 16; FY_ = G.H < 1120 ? 92 : 118;
       const byW = (FW - 24) / (this.cols + 1);
-      const boardRoom = Math.min(660, G.H - FY_ - 258);
+      const targetHudY = G.H - 34 - 16 - 154;
+      const boardRoom = Math.min(660, targetHudY - FY_ - 18);
       const byH = (boardRoom - 24) / (this.rows + 1);
       this.cell = Math.min(byW, byH);
       FH = Math.round(this.cell * (this.rows + 1) + 24);
-      HUDX = 16; HUDW = W - 32; HUDY = FY_ + FH + 18;
+      HUDX = 24; HUDW = W - 48; HUDY = Math.max(FY_ + FH + 18, targetHudY);
       ensureGemSprites(this.cell * .70 * (G.dpr || 1.5));
       this.ox = FX_ + (FW - this.cell * this.cols) / 2;
       this.oy = FY_ + (FH - this.cell * this.rows) / 2;
       this.hits = [
         new Hit('pause', G.W - 78, 12, 52, 52, { circle: true, act: () => { this.paused = !this.paused; G.sfx('button'); } }),
         new Hit('quit', G.W - 140, 12, 52, 52, { circle: true, act: () => G.go('map') }),
-        new Hit('hint', HUDX + 18, HUDY + 112, HUDW - 36, 48, { act: () => this.showHint(G) }),
+        new Hit('hint', HUDX + 16, HUDY + 102, HUDW - 32, 44, { act: () => this.showHint(G) }),
       ];
       return;
     }
@@ -285,7 +286,7 @@ export default {
 
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT ? 108 : 474), HUDW - 32, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT ? 102 : 474), HUDW - 32, PORTRAIT ? 44 : 52,
       { act: () => this.startBravo(G, t('pairOutOfTries')) }));
   },
 
@@ -631,18 +632,18 @@ export default {
   },
 
   drawMobileHUD(G, ctx) {
-    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 172;
+    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 154;
     card(ctx, x, y, w, h, 22);
     const mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
-    strokeText(ctx, `${t('score')}  ${this.score.toLocaleString()}`, x + 24, y + 29,
+    strokeText(ctx, `${t('score')}  ${this.score.toLocaleString()}`, x + 24, y + 24,
       { font: FONT.disp(22), fill: '#f4801f', stroke: '#8c3d00', lw: 4, align: 'left', baseline: 'middle' });
-    strokeText(ctx, `◷ ${mm}:${String(ss).padStart(2, '0')}`, x + w * .63, y + 29,
+    strokeText(ctx, `◷ ${mm}:${String(ss).padStart(2, '0')}`, x + w * .63, y + 24,
       { font: FONT.disp(17), fill: this.timeLeft <= 15 ? '#d7193f' : '#33445f', stroke: null, lw: 0, baseline: 'middle', shadow: null });
-    strokeText(ctx, `${t('pairTries')} ${this.flipsLeft}`, x + w - 24, y + 29,
+    strokeText(ctx, `${t('pairTries')} ${this.flipsLeft}`, x + w - 24, y + 24,
       { font: FONT.disp(16), fill: this.flipsLeft <= 4 ? '#d7193f' : '#60459a', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
-    statBar(ctx, x + 18, y + 48, w - 36, 34, clamp(this.score / L.target, 0, 1), icon.crown,
+    statBar(ctx, x + 16, y + 42, w - 32, 30, clamp(this.score / L.target, 0, 1), icon.crown,
       { label: Math.round(clamp(this.score / L.target, 0, 1) * 100) + '%' });
-    strokeText(ctx, `${t('pairLeft', { n: this.left })}   ·   ${t('goal')}: ${L.target.toLocaleString()}`, x + w / 2, y + 101,
+    strokeText(ctx, `${t('pairLeft', { n: this.left })}   ·   ${t('goal')}: ${L.target.toLocaleString()}`, x + w / 2, y + 91,
       { font: FONT.ui(13, 800), fill: '#584b72', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     const hint = this.hits.find(h2 => h2.id === 'hint');
     const fin = this.hits.find(h2 => h2.id === 'finishNow');

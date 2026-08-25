@@ -13,7 +13,7 @@ import { Enemy, ATK, drawEnemyRaid } from '../game/enemy.js';
 import { playLayout, bleed } from '../core/layout.js';
 
 let ENEMY_Y = 46;                         // tính lại theo mép trên khung bắn
-const LAND_COLS = 10, MOBILE_COLS = 8;
+const LAND_COLS = 10, MOBILE_COLS = 7;
 let COLS = LAND_COLS;
 let R = 24, FW = 524, FH = 524, DEATH_Y = 418;
 
@@ -25,15 +25,15 @@ function relayout(W, H, hasFoes = false) {
   PORTRAIT = H > W;
   COLS = PORTRAIT ? MOBILE_COLS : LAND_COLS;
   if (PORTRAIT) {
-    R = clamp(Math.floor((W - 76) / (COLS * 2)), 20, 35);
+    R = clamp(Math.floor((W - 76) / (COLS * 2)), 20, 40);
     FW = COLS * R * 2 + 44; FH = FW; DEATH_Y = FH - 106;
     FX_ = Math.round((W - FW) / 2);
     // Bỏ ô Dế trang trí ở chế độ dọc và kéo vùng bắn lên sát thanh tiêu đề.
     FY_ = H < 1400 ? (hasFoes ? 150 : 82) : (hasFoes ? 188 : 112);
     ENEMY_Y = FY_ - 48;
     BX = FX_ + 22; BY = FY_ + 14;
-    CARDX = -9999; HUDX = 16; HUDW = W - 32; COMPACT = true;
-    HUDY = FY_ + FH + 18;
+    CARDX = -9999; HUDX = 24; HUDW = W - 48; COMPACT = true;
+    HUDY = Math.max(FY_ + FH + 18, H - 34 - 16 - 154);
     LAUNCH = { x: BX + COLS * R, y: BY + DEATH_Y + 54 };
     return;
   }
@@ -192,7 +192,7 @@ export default {
   /** Bày nút QUA MÀN NGAY khi đã đủ điểm. */
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT ? 112 : 518), HUDW - 32, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT ? 102 : 518), HUDW - 32, PORTRAIT ? 44 : 52,
       { act: () => this.startBravo(G, t('outOfShots')) }));
   },
 
@@ -526,8 +526,11 @@ export default {
       ctx.restore();
     }
 
-    // Máy hẹp: khung thoại đè đáy khung bắn (dưới khung không còn chỗ).
-    if (this.bubble) drawBubble(ctx, this.bubble, COMPACT ? FX_ + 20 : CARDX, COMPACT ? FW - 40 : 340, COMPACT ? FY_ + FH - 104 : 536);
+    // Portrait có dải phụ đề riêng ngay trên HUD: tuyệt đối không che bóng bắn.
+    if (this.bubble) drawBubble(ctx, this.bubble,
+      PORTRAIT ? HUDX : COMPACT ? FX_ + 20 : CARDX,
+      PORTRAIT ? HUDW : COMPACT ? FW - 40 : 340,
+      PORTRAIT ? HUDY - 70 : COMPACT ? FY_ + FH - 104 : 536);
     const p = this.hits.find(h => h.id === 'pause');
     if (p) roundBtn(ctx, p.x + 26, p.y + 26, 26, (c, s) => icon.pause(c, s), { press: p.press, hover: p.hover });
     const ex = this.hits.find(h => h.id === 'exit');
@@ -850,19 +853,19 @@ export default {
   },
 
   drawMobileHUD(G, ctx) {
-    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 172;
+    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 154;
     card(ctx, x, y, w, h, 22);
     const mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
-    strokeText(ctx, `${t('score')}  ${Math.round(this.shownScore).toLocaleString()}`, x + 24, y + 28,
+    strokeText(ctx, `${t('score')}  ${Math.round(this.shownScore).toLocaleString()}`, x + 24, y + 24,
       { font: FONT.disp(22), fill: '#f4801f', stroke: '#8c3d00', lw: 4, align: 'left', baseline: 'middle' });
-    strokeText(ctx, `◷ ${mm}:${String(ss).padStart(2, '0')}`, x + w * .63, y + 28,
+    strokeText(ctx, `◷ ${mm}:${String(ss).padStart(2, '0')}`, x + w * .63, y + 24,
       { font: FONT.disp(17), fill: this.timeLeft <= 15 ? '#d7193f' : '#33445f', stroke: null, lw: 0, baseline: 'middle', shadow: null });
-    strokeText(ctx, `●●● ${this.shotsLeft}`, x + w - 24, y + 28,
+    strokeText(ctx, `●●● ${this.shotsLeft}`, x + w - 24, y + 24,
       { font: FONT.disp(17), fill: this.shotsLeft <= 5 ? '#d7193f' : '#60459a', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
-    statBar(ctx, x + 18, y + 48, w - 36, 34, this.score / (L.target * L.star[2]), (c, s) => icon.crown(c, s), { label: '' });
+    statBar(ctx, x + 16, y + 42, w - 32, 30, this.score / (L.target * L.star[2]), (c, s) => icon.crown(c, s), { label: '' });
     const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
     strokeText(ctx, `${t('hp')} ${Math.ceil(this.hp)}   ·   ${t('gold')} ${this.gold}   ·   ${t('goal')} ${L.target.toLocaleString()}${noun ? ' ' + tx(noun, 'vi') : ''}`,
-      x + w / 2, y + 105,
+      x + w / 2, y + 94,
       { font: FONT.ui(13, 800), fill: '#584b72', stroke: null, lw: 0, baseline: 'middle', shadow: null });
     const fin = this.hits.find(h2 => h2.id === 'finishNow');
     if (fin) textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
@@ -994,7 +997,7 @@ function drawBubble(ctx, b, x, w, y) {
   ctx.save();
   ctx.globalAlpha = fade;
   ctx.translate(x + w / 2, y); const e = ease.outBack(k); ctx.scale(e, e); ctx.translate(-(x + w / 2), -y);
-  ctx.font = FONT.ui(15, 600);
+  ctx.font = FONT.ui(PORTRAIT ? 13 : 15, 600);
   const lines = [];
   let line = '';
   for (const word of String(text).split(' ')) {
@@ -1002,15 +1005,16 @@ function drawBubble(ctx, b, x, w, y) {
     if (ctx.measureText(test).width > w - 34 && line) { lines.push(line); line = word; } else line = test;
   }
   if (line) lines.push(line);
-  const h = 44 + lines.length * 21;
+  if (PORTRAIT && lines.length > 2) lines.length = 2;
+  const h = PORTRAIT ? 60 : 44 + lines.length * 21;
   roundRect(ctx, x, y, w, h, 16);
   ctx.fillStyle = 'rgba(14,8,26,.93)'; ctx.fill();
   ctx.strokeStyle = sp.col; ctx.lineWidth = 2.5; ctx.stroke();
-  strokeText(ctx, tx(sp, 'name'), x + 16, y + 20,
-    { font: FONT.disp(17), fill: sp.col, stroke: sp.ink, lw: 4, align: 'left', baseline: 'middle' });
-  ctx.font = FONT.ui(15, 600); ctx.fillStyle = '#efe8ff';
+  strokeText(ctx, tx(sp, 'name'), x + (PORTRAIT ? 14 : 16), y + (PORTRAIT ? 15 : 20),
+    { font: FONT.disp(PORTRAIT ? 14 : 17), fill: sp.col, stroke: sp.ink, lw: PORTRAIT ? 3 : 4, align: 'left', baseline: 'middle' });
+  ctx.font = FONT.ui(PORTRAIT ? 13 : 15, 600); ctx.fillStyle = '#efe8ff';
   ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-  lines.forEach((ln, i) => ctx.fillText(ln, x + 16, y + 44 + i * 21));
+  lines.forEach((ln, i) => ctx.fillText(ln, x + (PORTRAIT ? 14 : 16), y + (PORTRAIT ? 34 + i * 17 : 44 + i * 21)));
   ctx.restore();
 }
 

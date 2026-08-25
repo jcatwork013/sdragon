@@ -18,8 +18,9 @@ import { hand } from './help.js';
 // Game khoá NGANG, mà bàn 8×8 là hình VUÔNG → chiều cao khoá cỡ ô ở 72, bề
 // ngang thừa ra cả mảng trống. Đổi sang 9×7 (nằm ngang như màn hình): cùng số ô
 // (63 so với 64) nhưng ô to hơn 1/3 và bàn lấp được khoảng giữa.
-const LAND_COLS = 9, MOBILE_COLS = 7, ROWS = 7;
+const LAND_COLS = 9, MOBILE_COLS = 6, LAND_ROWS = 7, MOBILE_ROWS = 6;
 let COLS = LAND_COLS;
+let ROWS = LAND_ROWS;
 // Ô gem nhỏ lại trên màn hẹp → bàn cờ thấp hơn, chừa chỗ cho khung thoại
 // mà không phải đè lên hàng gem cuối.
 let CELL = 62;
@@ -37,27 +38,31 @@ let PORTRAIT = false, SKILLY = 176, HUDY = 78;
 function relayout(W, H, dpr = 1.5, hasFoes = false) {
   PORTRAIT = H > W;
   COLS = PORTRAIT ? MOBILE_COLS : LAND_COLS;
+  ROWS = PORTRAIT ? MOBILE_ROWS : LAND_ROWS;
   if (PORTRAIT) {
     // Một cột duy nhất theo nhịp đọc của ngón cái: nhân vật/địch → bàn cờ →
     // kỹ năng → điểm. Bàn gần kín ngang nhưng vẫn có lề 16px để không sát mép.
-    const byW = Math.floor((W - 32 - 28) / COLS);
+    const frame = 16;
+    const byW = Math.floor((W - 16 - frame) / COLS);
     // Không dựng thẻ nhân vật trang trí trong ván dọc. Màn không có thiên địch
     // đưa bàn lên ngay dưới thanh tiêu đề; màn có địch vẫn chừa đúng một hàng.
     const top = H < 1400 ? (hasFoes ? 154 : 82) : (hasFoes ? 188 : 112);
     // HUD mobile chỉ còn một dải tóm tắt. Phần lớn chiều cao được trả lại cho
     // bàn chơi; 7 cột giúp mỗi viên đạt khoảng 50 CSS px trên iPhone.
-    const reserve = 318;
-    const byH = Math.floor((H - top - reserve - 28) / ROWS);
-    CELL = clamp(Math.min(byW, byH), 46, 82);
+    const hudY = H - 34 - 16 - 154;
+    // Bàn + thanh kỹ năng phải nằm trọn phía trên HUD ghim đáy. Lưới 6×6 cho
+    // viên lớn, dễ chạm và không để hàng cuối bị phụ đề cốt truyện che khuất.
+    const byH = Math.floor((hudY - top - 126) / ROWS);
+    CELL = clamp(Math.min(byW, byH), 46, 100);
     ensureGemSprites(CELL * 1.02 * dpr);
-    FW = COLS * CELL + 28; FH = ROWS * CELL + 28;
+    FW = COLS * CELL + frame; FH = ROWS * CELL + frame;
     FX_ = Math.round((W - FW) / 2); FY_ = top;
-    BX = FX_ + 14; BY = FY_ + 14;
+    BX = FX_ + frame / 2; BY = FY_ + frame / 2;
     ENEMY_Y = FY_ - 50;
     CARDX = -9999; COMPACT = true;
-    SKILLY = FY_ + FH + 16;
+    SKILLY = FY_ + FH + 8;
     STRIPX = Math.round((W - 250) / 2);
-    HUDX = 16; HUDW = W - 32; HUDY = SKILLY + 80;
+    HUDX = 24; HUDW = W - 48; HUDY = Math.max(SKILLY + 94, hudY);
     return;
   }
   // Cỡ ô = min(vừa chiều cao, vừa bề ngang). Trước đây đóng đinh 62 nên trên
@@ -350,6 +355,33 @@ export default {
   },
   useHammer(G) {
     if (this.hammer <= 0 || this.board.phase !== 'idle' || this.over) { G.sfx('invalid'); return; }
+    if (PORTRAIT) {
+      // Mobile là nhịp một chạm: ưu tiên gõ thiên địch yếu nhất; nếu không có
+      // địch thì tự chọn viên đặc biệt mạnh nhất gần tâm. Dùng lại down() để
+      // hiệu ứng búa khổng lồ, rung, nổ và trừ lượt luôn giống thao tác tay.
+      this.hammerMode = true;
+      const alive = this.enemies.map((foe, i) => ({ foe, i })).filter(x => x.foe.alive)
+        .sort((a, b) => a.foe.ratio - b.foe.ratio);
+      if (alive.length) {
+        const i = alive[0].i, x = FX_ + FW * ((i + .5) / this.enemies.length);
+        this.down(G, x, ENEMY_Y);
+        return;
+      }
+      const cx = (COLS - 1) / 2, cy = (ROWS - 1) / 2;
+      let best = null, bestScore = -Infinity;
+      this.board.grid.forEach((cell, i) => {
+        if (!cell) return;
+        const power = cell.sp === SP.BOMB ? 500 : cell.sp === SP.CROSS ? 400
+          : (cell.sp === SP.LINE_H || cell.sp === SP.LINE_V) ? 300 : 0;
+        const score = power + (cell.token ? 80 : 0) - Math.hypot(cell.cx - cx, cell.cy - cy);
+        if (score > bestScore) { bestScore = score; best = i; }
+      });
+      if (best != null) {
+        const c = best % COLS, r = Math.floor(best / COLS);
+        this.down(G, BX + c * CELL + CELL / 2, BY + r * CELL + CELL / 2);
+      }
+      return;
+    }
     this.hammerMode = !this.hammerMode;
     G.sfx('select');
   },
@@ -381,7 +413,7 @@ export default {
    *  được đúng trạng thái này mà không phải chơi thật cho đủ điểm. */
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 12, HUDY + (PORTRAIT ? 120 : 494), HUDW - 24, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 12, HUDY + (PORTRAIT ? 104 : 494), HUDW - 24, PORTRAIT ? 42 : 52,
       { act: () => this.startBravo(G, t('outOfMoves')) }));
   },
 
@@ -1108,10 +1140,10 @@ export default {
 
   // ── BẢNG SCORE (bám sát artboard HUD) ────────────────────────────────────
   drawMobileHUD(G, ctx) {
-    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 182;
+    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 154;
     card(ctx, x, y, w, h, 22);
     const mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
-    const topY = y + 28;
+    const topY = y + 24;
     strokeText(ctx, `${t('score')}  ${Math.round(this.shownScore).toLocaleString()}`, x + 24, topY,
       { font: FONT.disp(22), fill: '#f4801f', stroke: '#8c3d00', lw: 4, align: 'left', baseline: 'middle' });
     strokeText(ctx, `◷ ${mm}:${String(ss).padStart(2, '0')}`, x + w * .63, topY,
@@ -1119,14 +1151,14 @@ export default {
     strokeText(ctx, `●●● ${this.movesLeft}`, x + w - 24, topY,
       { font: FONT.disp(17), fill: this.movesLeft <= 3 ? '#d7193f' : '#60459a', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
 
-    const st3 = L.star[2], sy = y + 48;
-    statBar(ctx, x + 18, sy, w - 36, 34, this.score / (L.target * st3), (c, s) => icon.crown(c, s), { label: '' });
+    const st3 = L.star[2], sy = y + 42;
+    statBar(ctx, x + 16, sy, w - 32, 30, this.score / (L.target * st3), (c, s) => icon.crown(c, s), { label: '' });
     const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
     strokeText(ctx, `${t('hp')} ${Math.ceil(this.hp)}   ·   ${t('gold')} ${this.gold}   ·   ${t('goal')} ${L.target.toLocaleString()}${noun ? ' ' + tx(noun, 'vi') : ''}`,
-      x + w / 2, y + 102,
+      x + w / 2, y + 91,
       { font: FONT.ui(13, 800), fill: '#584b72', stroke: null, lw: 0, baseline: 'middle', shadow: null });
 
-    const rx = x + 18, ry = y + 122, rw = w - 36, rh = 34, on = this.fury > 0;
+    const rx = x + 16, ry = y + 108, rw = w - 32, rh = 28, on = this.fury > 0;
     roundRect(ctx, rx, ry, rw, rh, rh / 2); ctx.fillStyle = '#311925'; ctx.fill();
     ctx.save(); roundRect(ctx, rx + 2, ry + 2, rw - 4, rh - 4, (rh - 4) / 2); ctx.clip();
     const rg = ctx.createLinearGradient(rx, 0, rx + rw, 0);
@@ -1417,8 +1449,24 @@ export default {
     const fade = clamp((b.dur - b.t) / .4, 0, 1);
     const sp = speaker(b.beat.who);
     const text = fill(tx(b.beat, 'vi') || b.beat.vi);
-    // Máy hẹp không có thẻ nhân vật, mà bàn cờ nay cao gần chạm đáy → không còn
-    // chỗ dưới bàn. Đặt khung thoại NẰM ĐÈ đáy bàn cờ như phụ đề phim.
+    if (PORTRAIT) {
+      const x = HUDX, w = HUDW, y = HUDY - 70;
+      ctx.save(); ctx.globalAlpha = fade;
+      const e = ease.outBack(k); ctx.translate(x + w / 2, y); ctx.scale(e, e); ctx.translate(-(x + w / 2), -y);
+      ctx.font = FONT.ui(13, 600);
+      const lines = wrapLines(ctx, text, w - 28).slice(0, 2);
+      roundRect(ctx, x, y, w, 60, 15);
+      ctx.fillStyle = 'rgba(14,8,26,.92)'; ctx.fill();
+      ctx.strokeStyle = sp.col; ctx.lineWidth = 2.2; ctx.stroke();
+      strokeText(ctx, tx(sp, 'name'), x + 14, y + 15,
+        { font: FONT.disp(14), fill: sp.col, stroke: sp.ink, lw: 3, align: 'left', baseline: 'middle' });
+      ctx.font = FONT.ui(13, 600); ctx.fillStyle = '#efe8ff'; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      lines.forEach((ln, i) => ctx.fillText(ln, x + 14, y + 34 + i * 17));
+      ctx.restore();
+      return;
+    }
+    // Máy ngang hẹp vẫn dùng phụ đề ở đáy bàn; portrait có một dải riêng phía
+    // trên HUD nên không bao giờ che viên đá có thể chạm.
     const x = COMPACT ? FX_ + 20 : CARDX, w = COMPACT ? FW - 40 : 340;
     const y = COMPACT ? FY_ + FH - 104 : 536;
 

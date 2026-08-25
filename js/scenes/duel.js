@@ -19,6 +19,22 @@ const INTRO_DUR = 2.0;                       // màn VS mở trận
 const REVEAL_DUR = 0.78;                     // khoe chiêu
 const CLASH_HIT = 0.26, CLASH_DUR = 0.72;    // lao vào · chạm · dội ra
 
+/** Chữ trong card mobile luôn tự xuống dòng, không bao giờ chọc khỏi viền. */
+function wrapped(ctx, text, x, y, maxW, lineH, opts, maxLines = 3) {
+  ctx.save(); ctx.font = opts.font;
+  const words = String(text).split(/\s+/), lines = [];
+  let line = '';
+  for (const word of words) {
+    const test = line ? line + ' ' + word : word;
+    if (line && ctx.measureText(test).width > maxW) { lines.push(line); line = word; }
+    else line = test;
+  }
+  if (line) lines.push(line);
+  ctx.restore();
+  const shown = lines.slice(0, maxLines);
+  shown.forEach((ln, i) => strokeText(ctx, ln, x, y + (i - (shown.length - 1) / 2) * lineH, opts));
+}
+
 export default {
   name: 'duel',
 
@@ -63,10 +79,13 @@ export default {
     this.lungeMe = 0; this.lungeFoe = 0; this.flash = 0; this.ouch = null;
     this.history = [];                        // đòn địch đã ra, dùng để "đọc bài" nhẹ
 
+    const moveGap = PORTRAIT ? 10 : 15;
+    const moveW = PORTRAIT ? (G.W - 32 - moveGap * 2) / 3 : 190;
+    const moveX = PORTRAIT ? 16 : G.W / 2 - 300;
     this.hits = [
-      ...MOVES.map((m, i) => new Hit('mv' + i, G.W / 2 - 300 + i * 205, G.H - 132, 190, 78,
+      ...MOVES.map((m, i) => new Hit('mv' + i, moveX + i * (moveW + moveGap), G.H - (PORTRAIT ? 126 : 132), moveW, PORTRAIT ? 92 : 78,
         { act: () => this.play(G, m.id) })),
-      new Hit('flee', 28, PORTRAIT ? G.H - 310 : G.H - 84, 170, 56, { act: () => this.flee(G) }),
+      new Hit('flee', PORTRAIT ? 24 : 28, PORTRAIT ? G.H - 294 : G.H - 84, PORTRAIT ? 150 : 170, PORTRAIT ? 46 : 56, { act: () => this.flee(G) }),
     ];
     G.world.setTheme({ sky: ['#4a3560', '#2e2044', '#151024'], hill: '#39424a', mount: '#3b3450' });
     G.music('climax');
@@ -239,7 +258,8 @@ export default {
       G.persist();
       G.sfx('lose'); G.hero.react('hurt', 2); G.hero.setPose('ko');
     }
-    this.hits = [new Hit('done', G.W / 2 - 120, G.H - 116, 240, 64, { act: () => this.after() })];
+    const doneW = PORTRAIT ? G.W - 144 : 240;
+    this.hits = [new Hit('done', G.W / 2 - doneW / 2, G.H - (PORTRAIT ? 132 : 116), doneW, PORTRAIT ? 76 : 64, { act: () => this.after() })];
   },
 
   update(G, dt) {
@@ -352,11 +372,11 @@ export default {
       ctx.restore();
     }
 
-    G.hero.draw(ctx, meX, GY + DROP, PORTRAIT ? 142 : 178, 1);
+    G.hero.draw(ctx, meX, GY + DROP, PORTRAIT ? 160 : 178, 1);
     ctx.save();
     ctx.translate(foeX, GY + DROP - 60);
     ctx.scale(-1, 1);                       // quay mặt về phía người chơi
-    this.foeArt.draw(ctx, 0, 0, PORTRAIT ? 176 : 210);
+    this.foeArt.draw(ctx, 0, 0, PORTRAIT ? 192 : 210);
     ctx.restore();
 
     const barX = PORTRAIT ? 56 : 90, barW = PORTRAIT ? W - 112 : 420;
@@ -404,23 +424,26 @@ export default {
     // câu khích của địch
     if (this.round === 0 && !this.over) {
       ctx.save(); ctx.globalAlpha = .5 + .5 * Math.sin(this.t * 2);
-      strokeText(ctx, '“' + tx(this.foe.def, 'taunt') + '”', W / 2, PORTRAIT ? 316 : 196,
-        { font: FONT.ui(16, 600), fill: '#ffd0d8', stroke: '#3a0010', lw: 3, baseline: 'middle' });
+      wrapped(ctx, '“' + tx(this.foe.def, 'taunt') + '”', W / 2, PORTRAIT ? 316 : 196, PORTRAIT ? W - 72 : 620, 21,
+        { font: FONT.ui(16, 600), fill: '#ffd0d8', stroke: '#3a0010', lw: 3, baseline: 'middle' }, 2);
       ctx.restore();
     }
 
     // ── đòn đã ra ─────────────────────────────────────────────────────────
     if (this.phase === 'reveal' || this.phase === 'clash') {
       const k = clamp(this.phaseT / .34, 0, 1);
-      this.moveBadge(ctx, P.hx + 150, 202, this.pickMine, ease.outBack(k), '#8ef08a');
-      this.moveBadge(ctx, P.fx - 150, 202, this.phaseT > .3 ? this.pickFoe : null, ease.outBack(clamp((this.phaseT - .3) / .3, 0, 1)), '#ff9aa8');
+      const badgeY = PORTRAIT ? GY - 170 : 202;
+      this.moveBadge(ctx, PORTRAIT ? P.hx : P.hx + 150, badgeY, this.pickMine, ease.outBack(k), '#8ef08a');
+      this.moveBadge(ctx, PORTRAIT ? P.fx : P.fx - 150, badgeY, this.phaseT > .3 ? this.pickFoe : null, ease.outBack(clamp((this.phaseT - .3) / .3, 0, 1)), '#ff9aa8');
     }
 
     // ── VÒNG KHẮC CHẾ ────────────────────────────────────────────────────
     // "Chơi không hiểu đòn nào hơn đòn nào" là lỗi của màn hình, không phải của
     // người chơi. Vẽ thẳng vòng Húc ▸ Vụt ▸ Đỡ ▸ Húc ra đây, luôn hiện.
     if (!this.over) {
-      const ly = H - 240, RING = ['huc', 'vut', 'do', 'huc'];
+      if (PORTRAIT) glassPanel(ctx, 12, H - 318, W - 24, 300, 26,
+        { top: 'rgba(24,16,46,.78)', bot: 'rgba(9,6,22,.94)', rim: 'rgba(160,135,255,.42)' });
+      const ly = H - (PORTRAIT ? 224 : 240), RING = ['huc', 'vut', 'do', 'huc'];
       const names = RING.map(id => tx(MOVES.find(m => m.id === id), 'vi'));
       ctx.font = FONT.disp(18);
       const tw = names.map(nm => ctx.measureText(nm).width);
@@ -454,7 +477,7 @@ export default {
     }
 
     // ── thanh Gồng ────────────────────────────────────────────────────────
-    const cx = W / 2 - 150, cy = H - 196;
+    const cx = W / 2 - 150, cy = H - (PORTRAIT ? 180 : 196);
     roundRect(ctx, cx, cy, 300, 20, 10);
     ctx.fillStyle = 'rgba(10,6,20,.85)'; ctx.fill();
     ctx.strokeStyle = 'rgba(255,214,110,.6)'; ctx.lineWidth = 2; ctx.stroke();
@@ -484,16 +507,19 @@ export default {
           colour: on ? '#3f8fd0' : '#4a4f66', dark: on ? '#1c5f9e' : '#2b2f40', lite: on ? '#a8dcff' : '#7a8098',
         });
         const cyy = h.y + h.press * 4 + h.h / 2;
-        ctx.save(); ctx.translate(h.x + 46, cyy); ctx.globalAlpha = on ? 1 : .5;
-        moveIcon(ctx, m.id, 54); ctx.restore();
-        strokeText(ctx, tx(m, 'vi'), h.x + 118, cyy - 8,
-          { font: FONT.disp(24), fill: '#fff', stroke: '#12263e', lw: 5, baseline: 'middle', shadow: null });
-        strokeText(ctx, `[${i + 1}] · ${t('duelBeats')} > ${tx(MOVES.find(x => x.id === m.beats), 'vi')}`, h.x + 118, cyy + 16,
-          { font: FONT.ui(12, 700), fill: '#cfe6ff', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+        const ix = PORTRAIT ? h.x + 42 : h.x + 46;
+        const tx0 = PORTRAIT ? h.x + 112 : h.x + 118;
+        ctx.save(); ctx.translate(ix, cyy); ctx.globalAlpha = on ? 1 : .5;
+        moveIcon(ctx, m.id, PORTRAIT ? 58 : 54); ctx.restore();
+        strokeText(ctx, tx(m, 'vi'), tx0, cyy - 10,
+          { font: FONT.disp(PORTRAIT ? 25 : 24), fill: '#fff', stroke: '#12263e', lw: 5, baseline: 'middle', shadow: null });
+        const beatsName = tx(MOVES.find(x => x.id === m.beats), 'vi');
+        strokeText(ctx, PORTRAIT ? `${t('duelBeats')} › ${beatsName}` : `[${i + 1}] · ${t('duelBeats')} > ${beatsName}`, tx0, cyy + 17,
+          { font: FONT.ui(PORTRAIT ? 11 : 12, 700), fill: '#cfe6ff', stroke: null, lw: 0, baseline: 'middle', shadow: null });
       });
       const fl = this.hits.find(h => h.id === 'flee');
-      if (fl) textBtn(ctx, fl.x, fl.y, fl.w, fl.h, t('duelFlee'),
-        { press: fl.press, hover: fl.hover, colour: '#5b5f74', dark: '#33374a', lite: '#9aa0b6', font: FONT.disp(19) });
+      if (fl) textBtn(ctx, fl.x, fl.y, fl.w, fl.h, PORTRAIT ? t('duelFlee').replace(/\s*\(.*/, '') : t('duelFlee'),
+        { press: fl.press, hover: fl.hover, colour: '#5b5f74', dark: '#33374a', lite: '#9aa0b6', font: FONT.disp(PORTRAIT ? 17 : 19) });
     }
 
     // ── BONG BÓNG "UI DA" ────────────────────────────────────────────────
@@ -582,22 +608,27 @@ export default {
     sunburst(ctx, W * .74, H * .52, W * .30, -this.t, '#ff8fa0', 14, .16);
     ctx.restore();
 
-    // hai đấu sĩ lao ra từ hai mép
+    // Hai đấu sĩ giữ khoảng thở rõ ràng trên màn dọc: bản cũ dùng scale desktop
+    // nên đầu hai con chồng lên nhau ngay đúng khoảnh khắc VS.
+    const heroX = PORTRAIT ? W * .28 : W * .27;
+    const foeX = PORTRAIT ? W * .76 : W * .74;
+    const heroY = PORTRAIT ? H * .63 : H * .66;
+    const foeY = PORTRAIT ? H * .59 : H * .60;
     ctx.save();
     ctx.translate(-(1 - chK) * 340, 0);
-    G.hero.draw(ctx, W * .27, H * .66, 210, 1);
+    G.hero.draw(ctx, heroX, heroY, PORTRAIT ? 170 : 210, 1);
     ctx.restore();
     ctx.save();
     ctx.translate((1 - chK) * 340, 0);
-    ctx.translate(W * .74, H * .60); ctx.scale(-1, 1);
-    this.foeArt.draw(ctx, 0, 0, 250);
+    ctx.translate(foeX, foeY); ctx.scale(-1, 1);
+    this.foeArt.draw(ctx, 0, 0, PORTRAIT ? 195 : 250);
     ctx.restore();
 
     // tên hai bên
-    strokeText(ctx, tx(BREEDS.find(b => b.id === G.save.breed) || BREEDS[0], 'name'), W * .26, H * .20,
-      { font: FONT.disp(40), fill: '#fff', stroke: '#062a55', lw: 8, baseline: 'middle' });
-    strokeText(ctx, tx(this.foe.def, 'name'), W * .74, H * .20,
-      { font: FONT.disp(40), fill: '#fff', stroke: '#4a0512', lw: 8, baseline: 'middle' });
+    strokeText(ctx, tx(BREEDS.find(b => b.id === G.save.breed) || BREEDS[0], 'name'), PORTRAIT ? W * .22 : W * .26, H * .20,
+      { font: FONT.disp(PORTRAIT ? 34 : 40), fill: '#fff', stroke: '#062a55', lw: 8, baseline: 'middle' });
+    strokeText(ctx, tx(this.foe.def, 'name'), PORTRAIT ? W * .78 : W * .74, H * .20,
+      { font: FONT.disp(PORTRAIT ? 34 : 40), fill: '#fff', stroke: '#4a0512', lw: 8, baseline: 'middle' });
     // nhãn bậc — gặp con mạnh là biết ngay, và biết luôn là thưởng nặng tay hơn
     const RK = this.foe.rank || rankById('norm');
     if (RK.id !== 'norm') {
@@ -623,8 +654,8 @@ export default {
       strokeText(ctx, tip, W / 2, H * .70 + 22,
         { font: FONT.ui(15, 700), fill: '#ffe066', stroke: '#3a2000', lw: 3, baseline: 'middle' });
     }
-    strokeText(ctx, '“' + tx(this.foe.def, 'taunt') + '”', W / 2, H * .84,
-      { font: FONT.ui(17, 600), fill: 'rgba(255,255,255,.85)', stroke: 'rgba(0,0,0,.55)', lw: 4, baseline: 'middle' });
+    wrapped(ctx, '“' + tx(this.foe.def, 'taunt') + '”', W / 2, H * .84, W - 64, 24,
+      { font: FONT.ui(17, 600), fill: 'rgba(255,255,255,.9)', stroke: 'rgba(0,0,0,.62)', lw: 4, baseline: 'middle' }, 2);
 
     // chữ VS + vòng xung kích
     if (vsK > .01) {
@@ -686,59 +717,56 @@ export default {
     const { W, H } = G;
     const k = clamp(this.overT / .5, 0, 1);
     ctx.fillStyle = `rgba(8,4,18,${.75 * k})`; ctx.fillRect(...bleed(G));
+    const win = this.over.win, fled = this.over.fled;
+    const px = PORTRAIT ? 20 : W / 2 - 300, pw = PORTRAIT ? W - 40 : 600;
+    const py = PORTRAIT ? 88 : 92;
+    const ph = win ? (PORTRAIT ? 318 : 292) : fled ? (PORTRAIT ? 274 : 250) : (PORTRAIT ? 386 : 340);
     const s = ease.outBack(k);
     ctx.save();
-    ctx.translate(W / 2, H / 2 - 30); ctx.scale(s, s); ctx.translate(-W / 2, -(H / 2 - 30));
-    glassPanel(ctx, W / 2 - 300, 104, 600, 260, 28,
-      this.over.win ? { top: 'rgba(30,60,44,.95)', bot: 'rgba(12,26,20,.97)', rim: 'rgba(120,240,150,.5)' }
-                    : { top: 'rgba(60,20,36,.95)', bot: 'rgba(24,8,16,.97)', rim: 'rgba(240,90,120,.45)' });
-    strokeText(ctx, this.over.fled ? t('duelFled') : this.over.win ? t('duelWin') : t('duelLose'), W / 2, this.over.win ? 170 : 152,
-      { font: FONT.disp(46), fill: this.over.win ? '#8ef08a' : '#ff7a90', stroke: '#12060f', lw: 9, baseline: 'middle' });
-    if (this.over.win)
-      strokeText(ctx, `+${this.rewardGold} ${t('gold')}     +${this.rewardXp} EXP`, W / 2, 240,
-        { font: FONT.disp(26), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
+    ctx.translate(W / 2, py + ph / 2); ctx.scale(s, s); ctx.translate(-W / 2, -(py + ph / 2));
+    glassPanel(ctx, px, py, pw, ph, 30,
+      win ? { top: 'rgba(37,91,60,.97)', bot: 'rgba(10,34,25,.98)', rim: 'rgba(142,240,160,.72)' }
+          : { top: 'rgba(91,28,49,.97)', bot: 'rgba(35,9,20,.98)', rim: 'rgba(255,112,145,.62)' });
+    ctx.save(); roundRect(ctx, px + 7, py + 7, pw - 14, ph - 14, 23); ctx.clip();
+    sunburst(ctx, W / 2, py + 68, pw * .52, this.t * .12, win ? '#8ef08a' : '#ff7a90', 16, .08);
+    ctx.restore();
+    strokeText(ctx, fled ? t('duelFled') : win ? t('duelWin') : t('duelLose'), W / 2, py + 62,
+      { font: FONT.disp(PORTRAIT ? 52 : 46), fill: win ? '#8ef08a' : '#ff7a90', stroke: '#12060f', lw: 9, baseline: 'middle' });
+    if (win)
+      strokeText(ctx, `+${this.rewardGold} ${t('gold')}     +${this.rewardXp} EXP`, W / 2, py + 126,
+        { font: FONT.disp(PORTRAIT ? 29 : 26), fill: '#ffe066', stroke: '#4a2d00', lw: 5, baseline: 'middle' });
     else
-      strokeText(ctx, t('penalty', { g: this.penaltyGold || this.fleeGold || 0, x: 0 }), W / 2, 196,
+      strokeText(ctx, t('penalty', { g: this.penaltyGold || this.fleeGold || 0, x: 0 }), W / 2, py + 112,
         { font: FONT.disp(22), fill: '#ff9aa8', stroke: '#3a0008', lw: 5, baseline: 'middle' });
-    if (this.over.win && this.matsGot) {
+    if (win && this.matsGot) {
       const list = Object.entries(this.matsGot);
       const wRow = list.length * 96;
       list.forEach(([id, n], i) => {
         const m = MATS[id]; if (!m) return;
         const x = W / 2 - wRow / 2 + i * 96 + 48;
-        ctx.save(); ctx.translate(x - 18, 276); matIcon(ctx, id, 30, m.col); ctx.restore();
-        strokeText(ctx, '+' + n, x + 6, 276,
+        ctx.save(); ctx.translate(x - 18, py + 178); matIcon(ctx, id, 34, m.col); ctx.restore();
+        strokeText(ctx, '+' + n, x + 10, py + 178,
           { font: FONT.disp(20), fill: '#fff', stroke: '#1a0f30', lw: 4, baseline: 'middle' });
       });
     }
     // Thua thì trả về một thứ dùng được ở trận sau, chứ không chỉ trừ vàng.
-    if (!this.over.win && !this.over.fled) {
+    if (!win && !fled) {
       const D = this.foe.def;
-      const bx2 = W / 2 - 270, by2 = 222, bw3 = 540, bh2 = 76;
+      const bx2 = px + 24, by2 = py + 146, bw3 = pw - 48, bh2 = 126;
       roundRect(ctx, bx2, by2, bw3, bh2, 16);
       ctx.fillStyle = 'rgba(28,20,10,.92)'; ctx.fill();
       ctx.strokeStyle = 'rgba(255,214,110,.75)'; ctx.lineWidth = 2.5; ctx.stroke();
-      strokeText(ctx, `${this.lessonNew ? t('loreNew') : t('loreKnown')} · ${tx(D, 'trait')}`, bx2 + 18, by2 + 22,
-        { font: FONT.disp(17), fill: '#ffd23f', stroke: '#3a2000', lw: 4, align: 'left', baseline: 'middle' });
-      ctx.save();
-      ctx.font = FONT.ui(14, 600); ctx.fillStyle = '#efe4c8';
-      ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-      const words = String(tx(D, 'tell')).split(' ');
-      let ln = '', yy2 = by2 + 48;
-      for (const wd of words) {
-        const test = ln ? ln + ' ' + wd : wd;
-        if (ctx.measureText(test).width > bw3 - 36 && ln) { ctx.fillText(ln, bx2 + 18, yy2); yy2 += 19; ln = wd; }
-        else ln = test;
-      }
-      if (ln) ctx.fillText(ln, bx2 + 18, yy2);
-      ctx.restore();
+      strokeText(ctx, `${this.lessonNew ? t('loreNew') : t('loreKnown')} · ${tx(D, 'trait')}`, W / 2, by2 + 28,
+        { font: FONT.disp(18), fill: '#ffd23f', stroke: '#3a2000', lw: 4, baseline: 'middle' });
+      wrapped(ctx, tx(D, 'tell'), W / 2, by2 + 78, bw3 - 34, 21,
+        { font: FONT.ui(14, 600), fill: '#efe4c8', stroke: null, lw: 0, baseline: 'middle', shadow: null }, 3);
     }
-    strokeText(ctx, this.over.win ? t('duelTipWin') : t('duelTipLose'), W / 2, 330,
-      { font: FONT.ui(15, 600), fill: '#c9b8ff', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    wrapped(ctx, win ? t('duelTipWin') : t('duelTipLose'), W / 2, py + ph - 38, pw - 54, 21,
+      { font: FONT.ui(15, 600), fill: '#d8ceff', stroke: null, lw: 0, baseline: 'middle', shadow: null }, 2);
     ctx.restore();
     if (k >= 1) {
       const d = this.hits[0];
-      textBtn(ctx, d.x, d.y, d.w, d.h, t('gotIt'), { press: d.press, hover: d.hover, font: FONT.disp(26) });
+      textBtn(ctx, d.x, d.y, d.w, d.h, t('gotIt'), { press: d.press, hover: d.hover, font: FONT.disp(PORTRAIT ? 32 : 26) });
     }
   },
 };

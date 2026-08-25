@@ -112,8 +112,15 @@ run('6 · Màn chơi',     90, 'sc6_play.png',  () => { G.startLevel(3); });
 run('6d · Thẻ dế lớn', 24, 'sc6d_herocard.png', () => { G.save.xp = 12000; G.hero.xp = 12000; G.startLevel(6, true); });
 run('6b · Đủ 2 sao', 20, 'sc6b_stars.png', () => { G.startLevel(8, true); G.scene.score = Math.round(G.level.target * 1.45); });
 run('6c · Búa gõ đầu', 26, 'sc6c_bonk.png', () => { G.startLevel(8, true);
-  const sc = G.scene; sc.hammerMode = true;
-  const n = sc.enemies.length; if (n) sc.down(G, 384 + 540 * (0.5 / n), 82); });
+  const sc = G.scene;
+  if (PORTRAIT) {
+    const before = sc.hammer; sc.useHammer(G);
+    if (sc.hammer !== before - 1) throw new Error('Búa mobile chưa kích hoạt một chạm');
+  } else {
+    sc.hammerMode = true;
+    const n = sc.enemies.length; if (n) sc.down(G, 384 + 540 * (0.5 / n), 82);
+  }
+});
 run('7 · Đang combo',   40, 'sc7_combo.png', () => {
   const s = G.scene; s.score = 4820; s.gold = 213; s.movesLeft = 11; s.vitality = .58; s.breath = 1;
   s.praise = 'Xuất sắc!'; s.praiseT = 1.1;

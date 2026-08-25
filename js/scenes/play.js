@@ -18,7 +18,8 @@ import { hand } from './help.js';
 // Game khoá NGANG, mà bàn 8×8 là hình VUÔNG → chiều cao khoá cỡ ô ở 72, bề
 // ngang thừa ra cả mảng trống. Đổi sang 9×7 (nằm ngang như màn hình): cùng số ô
 // (63 so với 64) nhưng ô to hơn 1/3 và bàn lấp được khoảng giữa.
-const COLS = 9, ROWS = 7;
+const LAND_COLS = 9, MOBILE_COLS = 7, ROWS = 7;
+let COLS = LAND_COLS;
 // Ô gem nhỏ lại trên màn hẹp → bàn cờ thấp hơn, chừa chỗ cho khung thoại
 // mà không phải đè lên hàng gem cuối.
 let CELL = 62;
@@ -35,12 +36,17 @@ let CARDX = 24, STRIPX = 292, HUDX = 950, HUDW = 306, COMPACT = false;
 let PORTRAIT = false, SKILLY = 176, HUDY = 78;
 function relayout(W, H, dpr = 1.5, hasFoes = false) {
   PORTRAIT = H > W;
+  COLS = PORTRAIT ? MOBILE_COLS : LAND_COLS;
   if (PORTRAIT) {
     // Một cột duy nhất theo nhịp đọc của ngón cái: nhân vật/địch → bàn cờ →
     // kỹ năng → điểm. Bàn gần kín ngang nhưng vẫn có lề 16px để không sát mép.
     const byW = Math.floor((W - 32 - 28) / COLS);
-    const top = H < 1400 ? (hasFoes ? 154 : 128) : (hasFoes ? 238 : 188);
-    const reserve = H < 1400 ? 350 : 680;
+    // Không dựng thẻ nhân vật trang trí trong ván dọc. Màn không có thiên địch
+    // đưa bàn lên ngay dưới thanh tiêu đề; màn có địch vẫn chừa đúng một hàng.
+    const top = H < 1400 ? (hasFoes ? 154 : 82) : (hasFoes ? 188 : 112);
+    // HUD mobile chỉ còn một dải tóm tắt. Phần lớn chiều cao được trả lại cho
+    // bàn chơi; 7 cột giúp mỗi viên đạt khoảng 50 CSS px trên iPhone.
+    const reserve = 318;
     const byH = Math.floor((H - top - reserve - 28) / ROWS);
     CELL = clamp(Math.min(byW, byH), 46, 82);
     ensureGemSprites(CELL * 1.02 * dpr);
@@ -51,7 +57,7 @@ function relayout(W, H, dpr = 1.5, hasFoes = false) {
     CARDX = -9999; COMPACT = true;
     SKILLY = FY_ + FH + 16;
     STRIPX = Math.round((W - 250) / 2);
-    HUDX = 16; HUDW = W - 32; HUDY = SKILLY + 88;
+    HUDX = 16; HUDW = W - 32; HUDY = SKILLY + 80;
     return;
   }
   // Cỡ ô = min(vừa chiều cao, vừa bề ngang). Trước đây đóng đinh 62 nên trên
@@ -187,7 +193,7 @@ export default {
       new Hit('howto', G.W / 2 - 110, G.H / 2 + 78, 220, 54,
         { act: () => { G.sfx('button'); G.go('help', 'map'); }, hidden: true }),
     ];
-    if (PORTRAIT && G.H < 1250) {
+    if (PORTRAIT) {
       for (const id of ['restart', 'resume']) this.hits.find(h => h.id === id).hidden = true;
     }
     this.music = G.levelTrack();
@@ -375,7 +381,7 @@ export default {
    *  được đúng trạng thái này mà không phải chơi thật cho đủ điểm. */
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 12, HUDY + (PORTRAIT && G.H < 1250 ? 322 : 494), HUDW - 24, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 12, HUDY + (PORTRAIT ? 120 : 494), HUDW - 24, 52,
       { act: () => this.startBravo(G, t('outOfMoves')) }));
   },
 
@@ -891,7 +897,7 @@ export default {
     ctx.fillStyle = 'rgba(16,9,34,.20)'; ctx.fillRect(...bleed(G));
 
     if (!COMPACT) this.drawHeroCard(G, ctx);
-    else this.drawCompactHero(G, ctx);
+    else if (!PORTRAIT) this.drawCompactHero(G, ctx);
     this.drawSkills(G, ctx);
 
     this.drawEnemies(G, ctx);
@@ -1101,7 +1107,41 @@ export default {
   },
 
   // ── BẢNG SCORE (bám sát artboard HUD) ────────────────────────────────────
+  drawMobileHUD(G, ctx) {
+    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 182;
+    card(ctx, x, y, w, h, 22);
+    const mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
+    const topY = y + 28;
+    strokeText(ctx, `${t('score')}  ${Math.round(this.shownScore).toLocaleString()}`, x + 24, topY,
+      { font: FONT.disp(22), fill: '#f4801f', stroke: '#8c3d00', lw: 4, align: 'left', baseline: 'middle' });
+    strokeText(ctx, `◷ ${mm}:${String(ss).padStart(2, '0')}`, x + w * .63, topY,
+      { font: FONT.disp(17), fill: this.timeLeft <= 15 ? '#d7193f' : '#33445f', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    strokeText(ctx, `●●● ${this.movesLeft}`, x + w - 24, topY,
+      { font: FONT.disp(17), fill: this.movesLeft <= 3 ? '#d7193f' : '#60459a', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
+
+    const st3 = L.star[2], sy = y + 48;
+    statBar(ctx, x + 18, sy, w - 36, 34, this.score / (L.target * st3), (c, s) => icon.crown(c, s), { label: '' });
+    const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
+    strokeText(ctx, `${t('hp')} ${Math.ceil(this.hp)}   ·   ${t('gold')} ${this.gold}   ·   ${t('goal')} ${L.target.toLocaleString()}${noun ? ' ' + tx(noun, 'vi') : ''}`,
+      x + w / 2, y + 102,
+      { font: FONT.ui(13, 800), fill: '#584b72', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+
+    const rx = x + 18, ry = y + 122, rw = w - 36, rh = 34, on = this.fury > 0;
+    roundRect(ctx, rx, ry, rw, rh, rh / 2); ctx.fillStyle = '#311925'; ctx.fill();
+    ctx.save(); roundRect(ctx, rx + 2, ry + 2, rw - 4, rh - 4, (rh - 4) / 2); ctx.clip();
+    const rg = ctx.createLinearGradient(rx, 0, rx + rw, 0);
+    rg.addColorStop(0, on ? '#fff0a0' : '#ff8a32'); rg.addColorStop(1, '#e9164d');
+    ctx.fillStyle = rg; ctx.fillRect(rx + 2, ry + 2, (rw - 4) * (on ? 1 : this.rage), rh - 4); ctx.restore();
+    strokeText(ctx, on ? t('furyOnShort') : `${t('rage')} ${Math.round(this.rage * 100)}%`, x + w / 2, ry + rh / 2,
+      { font: FONT.ui(13, 800), fill: '#fff', stroke: '#661000', lw: 3, baseline: 'middle', shadow: null });
+
+    const fin = this.hits.find(h2 => h2.id === 'finishNow');
+    if (fin) textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
+      { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
+  },
+
   drawCompactHUD(G, ctx) {
+    if (PORTRAIT) { this.drawMobileHUD(G, ctx); return; }
     const L = G.level, x = HUDX, y = HUDY, w = HUDW;
     const short = PORTRAIT && G.H < 1250, h = short ? 376 : 476;
     card(ctx, x, y, w, h, 24);
@@ -1418,9 +1458,9 @@ export default {
     const sx = FX_ + FW * ((f.index + .5) / n), sy = ENEMY_Y - 2;
     // Bản rộng: chúng lao thẳng vào thẻ dế. Bản hẹp không có thẻ riêng nên cú
     // đột kích đáp vào mép bàn gần người chơi nhất, vẫn không che tâm bàn.
-    const compact = COMPACT ? this.compactHeroBox(G) : null;
-    const tx0 = compact ? compact.x + compact.w / 2 : CARDX + 134;
-    const ty0 = compact ? compact.y + compact.h * .58 : 122 + 214;
+    const compact = COMPACT && !PORTRAIT ? this.compactHeroBox(G) : null;
+    const tx0 = PORTRAIT ? FX_ + FW / 2 : compact ? compact.x + compact.w / 2 : CARDX + 134;
+    const ty0 = PORTRAIT ? FY_ + FH - 30 : compact ? compact.y + compact.h * .58 : 122 + 214;
     drawEnemyRaid(ctx, f, sx, sy, tx0, ty0);
   },
 

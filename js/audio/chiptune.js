@@ -88,7 +88,14 @@ export class Chiptune {
 
   /** Phải gọi trong một user-gesture (click/tap) — chính sách autoplay của trình duyệt. */
   init() {
-    if (this.ctx) { if (this.ctx.state === 'suspended') this.ctx.resume(); return this.ready; }
+    if (this.ctx) {
+      // iOS có thêm trạng thái `interrupted` khi khoá máy, nhận cuộc gọi hoặc
+      // kéo Control Center. Mỗi gesture mới đều phải thử đánh thức lại, không
+      // chỉ lần khởi tạo đầu tiên.
+      if (this.ctx.state !== 'running')
+        this.ctx.resume?.()?.then?.(() => this.resync()).catch?.(() => {});
+      return this.ready;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return false;
     this.ctx = new AC({ latencyHint: 'interactive' });
@@ -127,7 +134,7 @@ export class Chiptune {
       this._visHook = () => {
         if (!this.ctx) return;
         if (document.hidden) this.ctx.suspend?.();
-        else this.ctx.resume?.()?.then?.(() => this.resync());
+        else this.ctx.resume?.()?.then?.(() => this.resync()).catch?.(() => {});
       };
       document.addEventListener('visibilitychange', this._visHook);
     }

@@ -11,7 +11,7 @@
 // ╚══════════════════════════════════════════════════════════════════════════╝
 import { TAU, clamp, lerp, ease, rgba, shade, strokeText, roundRect, mulberry32 } from '../core/util.js';
 import { t, tx } from '../core/i18n.js';
-import { Hit, textBtn, glassPanel, statBar, roundBtn, icon, matIcon, frostCard, starBar, resultBanner, C, FONT , heroCardScene, heroFit } from '../ui/widgets.js';
+import { Hit, card, textBtn, glassPanel, statBar, roundBtn, icon, matIcon, frostCard, starBar, resultBanner, C, FONT , heroCardScene, heroFit } from '../ui/widgets.js';
 import { drawGem, GEMS, ensureGemSprites } from '../game/gems.js';
 import { MAT_LIST } from '../data/gear.js';
 import { BREEDS, STAGES, stageFor } from '../data/characters.js';
@@ -47,7 +47,7 @@ export default {
 
     // Cỡ bàn lớn dần theo màn, nhưng chặn trần để không thành bài tập trí nhớ
     // dài lê thê — vui nằm ở nhịp lật nhanh, không ở số lượng thẻ.
-    const pairs = clamp(6 + Math.floor((L.index || 1) / 3), 6, 12);
+    const pairs = clamp(6 + Math.floor((L.index || 1) / 3), 6, G.portrait ? 10 : 12);
     // Chọn số cột sao cho lưới ĐẦY, không lẻ hàng cuối — lấy cặp ước gần tỉ lệ
     // 4:3 nhất. Lưới lẻ một thẻ nhìn như bị lỗi chứ không ra thiết kế.
     const n = pairs * 2;
@@ -89,11 +89,12 @@ export default {
     PORTRAIT = G.H > W;
     if (PORTRAIT) {
       COMPACT = true; CARDX = -9999;
-      FX_ = 16; FW = W - 32; FY_ = G.H < 1120 ? 104 : 138;
-      const byW = (FW - 30) / (this.cols + 1);
-      const byH = (Math.min(590, G.H * .42) - 30) / (this.rows + 1);
+      FX_ = 8; FW = W - 16; FY_ = G.H < 1120 ? 92 : 118;
+      const byW = (FW - 24) / (this.cols + 1);
+      const boardRoom = Math.min(660, G.H - FY_ - 258);
+      const byH = (boardRoom - 24) / (this.rows + 1);
       this.cell = Math.min(byW, byH);
-      FH = Math.round(this.cell * (this.rows + 1) + 30);
+      FH = Math.round(this.cell * (this.rows + 1) + 24);
       HUDX = 16; HUDW = W - 32; HUDY = FY_ + FH + 18;
       ensureGemSprites(this.cell * .70 * (G.dpr || 1.5));
       this.ox = FX_ + (FW - this.cell * this.cols) / 2;
@@ -101,7 +102,7 @@ export default {
       this.hits = [
         new Hit('pause', G.W - 78, 12, 52, 52, { circle: true, act: () => { this.paused = !this.paused; G.sfx('button'); } }),
         new Hit('quit', G.W - 140, 12, 52, 52, { circle: true, act: () => G.go('map') }),
-        new Hit('hint', HUDX + 18, HUDY + 358, HUDW - 36, 50, { act: () => this.showHint(G) }),
+        new Hit('hint', HUDX + 18, HUDY + 112, HUDW - 36, 48, { act: () => this.showHint(G) }),
       ];
       return;
     }
@@ -284,7 +285,7 @@ export default {
 
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT && G.H < 1200 ? 358 : 474), HUDW - 32, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT ? 108 : 474), HUDW - 32, 52,
       { act: () => this.startBravo(G, t('pairOutOfTries')) }));
   },
 
@@ -576,6 +577,7 @@ export default {
   },
 
   drawHUD(G, ctx) {
+    if (PORTRAIT) { this.drawMobileHUD(G, ctx); return; }
     const { H } = G, L = G.level, x = HUDX, w = HUDW, y = HUDY;
     ctx.save();
     const panelH = PORTRAIT && G.H < 1200 ? Math.min(440, G.H - y - 62) : 470;
@@ -625,6 +627,35 @@ export default {
       roundBtn(ctx, h.x + 26, h.y + 26, 26,
         (c, s2) => id === 'quit' ? icon.exit(c, s2) : (this.paused ? icon.play(c, s2) : icon.pause(c, s2)),
         { press: h.press, hover: h.hover });
+    }
+  },
+
+  drawMobileHUD(G, ctx) {
+    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 172;
+    card(ctx, x, y, w, h, 22);
+    const mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
+    strokeText(ctx, `${t('score')}  ${this.score.toLocaleString()}`, x + 24, y + 29,
+      { font: FONT.disp(22), fill: '#f4801f', stroke: '#8c3d00', lw: 4, align: 'left', baseline: 'middle' });
+    strokeText(ctx, `◷ ${mm}:${String(ss).padStart(2, '0')}`, x + w * .63, y + 29,
+      { font: FONT.disp(17), fill: this.timeLeft <= 15 ? '#d7193f' : '#33445f', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    strokeText(ctx, `${t('pairTries')} ${this.flipsLeft}`, x + w - 24, y + 29,
+      { font: FONT.disp(16), fill: this.flipsLeft <= 4 ? '#d7193f' : '#60459a', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
+    statBar(ctx, x + 18, y + 48, w - 36, 34, clamp(this.score / L.target, 0, 1), icon.crown,
+      { label: Math.round(clamp(this.score / L.target, 0, 1) * 100) + '%' });
+    strokeText(ctx, `${t('pairLeft', { n: this.left })}   ·   ${t('goal')}: ${L.target.toLocaleString()}`, x + w / 2, y + 101,
+      { font: FONT.ui(13, 800), fill: '#584b72', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    const hint = this.hits.find(h2 => h2.id === 'hint');
+    const fin = this.hits.find(h2 => h2.id === 'finishNow');
+    if (fin) textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
+      { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
+    else if (hint) textBtn(ctx, hint.x, hint.y, hint.w, hint.h, t('pairHint', { n: this.hints }), {
+      press: hint.press, hover: hint.hover, colour: '#7560c8', dark: '#3e2d82', lite: '#b9a8ff', font: FONT.disp(18),
+    });
+    for (const id of ['pause', 'quit']) {
+      const b = this.hits.find(k => k.id === id); if (!b) continue;
+      roundBtn(ctx, b.x + 26, b.y + 26, 26,
+        (c, s2) => id === 'quit' ? icon.exit(c, s2) : (this.paused ? icon.play(c, s2) : icon.pause(c, s2)),
+        { press: b.press, hover: b.hover });
     }
   },
 

@@ -398,34 +398,56 @@ const pt = (e) => {
           (e.clientY - r.top) / r.height * CH - OY];
 };
 let activeHit = null, captured = null;
+let activePointer = null;
 // Có hộp thì chỉ hộp nhận chạm — không thì bấm xuyên qua trúng nút của scene.
 const hitsOf = () => (G.modal ? G.modal.hits : (G.scene?.hits || [])).filter(h => !h.hidden && !h.disabled);
-const hitAt = (x, y) => hitsOf().find(h => h.contains(x, y));
+const nearestHit = (list, x, y) => list.reduce((best, h) =>
+  !best || h.distance2(x, y) < best.distance2(x, y) ? h : best, null);
+const hitAt = (x, y) => {
+  const hits = hitsOf();
+  // Nếu vùng chạm 44pt của hai nút gần nhau có giao nhau, ưu tiên hình nút
+  // thật. Chỉ khi ngón nằm ngoài hình mới dùng phần đệm và chọn tâm gần nhất.
+  const exact = hits.filter(h => h.containsExact(x, y));
+  return nearestHit(exact.length ? exact : hits.filter(h => h.contains(x, y)), x, y);
+};
 
 function firstGesture() {
-  if (G.audio.ready) return;
-  G.audio.init();
-  if (!G.save.music) G.audio.toggleMute();
+  const wasReady = G.audio.ready;
+  G.audio.init();                            // gọi lại để resume AudioContext trên iOS
+  if (!wasReady && !G.save.music) G.audio.toggleMute();
 }
 
 canvas.addEventListener('pointerdown', (e) => {
   e.preventDefault();
-  firstGesture();
-  canvas.setPointerCapture?.(e.pointerId);
+  if (activePointer && activePointer.id !== e.pointerId) return;
+  try { canvas.setPointerCapture?.(e.pointerId); } catch { /* WKWebView cũ có thể ném lỗi */ }
   canvas.classList.add('grabbing');
   const [x, y] = pt(e);
+  G.mouse = [x, y];
+  activePointer = {
+    id: e.pointerId,
+    type: e.pointerType || 'mouse',
+    clientX: e.clientX,
+    clientY: e.clientY,
+    started: performance.now(),
+  };
   const qb = G.quipBox?.box;
   if (qb && x >= qb.x && x <= qb.x + qb.w && y >= qb.y && y <= qb.y + qb.h) {
     G.quipBox.held = true;
     captured = 'quip';
+    firstGesture();
     return;                                   // đè lên câu thì không lọt xuống màn
   }
   activeHit = hitAt(x, y);
   if (activeHit) { captured = 'hit'; activeHit.down = true; }
   else if (G.modal) { captured = 'modal'; }
   else { captured = 'scene'; G.scene?.down?.(G, x, y); }
+  // Khởi tạo âm thanh sau khi đã ghi nhận nút: Web Audio có chậm một nhịp trên
+  // iPhone đời cũ cũng không được làm mất trạng thái chạm.
+  firstGesture();
 });
 canvas.addEventListener('pointermove', (e) => {
+  if (activePointer && activePointer.id !== e.pointerId) return;
   const [x, y] = pt(e);
   G.mouse = [x, y];
   // hover: gọi ở MỌI lần di chuột, kể cả khi không giữ nút — dùng cho việc
@@ -434,21 +456,32 @@ canvas.addEventListener('pointermove', (e) => {
   if (captured === 'scene') G.scene?.move?.(G, x, y);
 });
 const endPointer = (e) => {
+  if (activePointer && activePointer.id !== e.pointerId) return;
   const [x, y] = pt(e);
   canvas.classList.remove('grabbing');
   if (captured === 'quip') {
     // Thả tay ra thì cho nó mờ đi nốt, không bắt đọc lại từ đầu.
     if (G.quipBox) { G.quipBox.held = false; G.quipBox.t = Math.max(G.quipBox.t, QUIP_LIFE - 1.2); }
-    captured = null; return;
+    captured = null; activePointer = null; return;
   }
   if (captured === 'hit' && activeHit) {
     activeHit.down = false;
-    if (activeHit.contains(x, y)) activeHit.act?.();
+    const touch = activePointer && activePointer.type !== 'mouse';
+    const drift = activePointer ? Math.hypot(e.clientX - activePointer.clientX, e.clientY - activePointer.clientY) : Infinity;
+    const held = activePointer ? performance.now() - activePointer.started : Infinity;
+    // Ngón tay thường xê 5–12 CSS px lúc nhấc. Cho phép tối đa 18 px và 1,2s;
+    // kéo dài/thật sự vẫn không thể vô tình kích hoạt nút.
+    if (activeHit.contains(x, y) || (touch && drift <= 18 && held <= 1200)) activeHit.act?.();
   } else if (captured === 'scene') G.scene?.up?.(G, x, y);
-  activeHit = null; captured = null;
+  activeHit = null; captured = null; activePointer = null;
 };
 canvas.addEventListener('pointerup', endPointer);
-canvas.addEventListener('pointercancel', () => { if (activeHit) activeHit.down = false; if (G.quipBox) G.quipBox.held = false; activeHit = null; captured = null; });
+canvas.addEventListener('pointercancel', (e) => {
+  if (activePointer && activePointer.id !== e.pointerId) return;
+  if (activeHit) activeHit.down = false;
+  if (G.quipBox) G.quipBox.held = false;
+  activeHit = null; captured = null; activePointer = null;
+});
 canvas.addEventListener('wheel', (e) => { e.preventDefault(); G.scene?.wheel?.(G, e.deltaY + e.deltaX); }, { passive: false });
 canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 window.addEventListener('keydown', (e) => {
@@ -531,8 +564,14 @@ function frame(now) {
   if (G.scene?.name !== 'play') G.fx.draw(ctx);      // màn chơi tự vẽ hạt đúng lớp
   ctx.restore();
 
-  if (G.quipBox) drawQuip();
-  if (G.modal) drawModal();
+  // Overlay dùng cùng hệ toạ độ với scene. Trước đây thiếu OX/OY nên trên
+  // iPhone có safe-area, hình modal nằm một chỗ còn hitbox nằm chỗ khác.
+  if (G.quipBox || G.modal) {
+    ctx.save(); ctx.translate(OX, OY);
+    if (G.quipBox) drawQuip();
+    if (G.modal) drawModal();
+    ctx.restore();
+  }
 
   if (showFps) {
     ctx.save();
@@ -552,9 +591,13 @@ function drawModal() {
   ctx.save();
   ctx.fillStyle = `rgba(8,4,18,${.66 * k})`;
   ctx.fillRect(-OX - 40, -OY - 40, CW + 80, CH + 80);
-  ctx.translate(M.x + M.w / 2, M.y + M.h / 2);
-  ctx.scale(.86 + .14 * k, .86 + .14 * k);
-  ctx.translate(-(M.x + M.w / 2), -(M.y + M.h / 2));
+  // Mobile: không scale hộp. Một modal đang phóng 86→100% có hình nút chuyển
+  // động nhưng hitbox đã ở vị trí cuối, gây cảm giác bấm trễ/sai.
+  if (!G.portrait) {
+    ctx.translate(M.x + M.w / 2, M.y + M.h / 2);
+    ctx.scale(.86 + .14 * k, .86 + .14 * k);
+    ctx.translate(-(M.x + M.w / 2), -(M.y + M.h / 2));
+  }
   glassPanel(ctx, M.x, M.y, M.w, M.h, 26);
 
   if (M.kind && M.kind !== 'lang') {                 // ── hộp chữ + nút ──

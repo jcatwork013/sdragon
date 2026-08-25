@@ -1,6 +1,6 @@
 // ── Service worker: chơi được hoàn toàn ngoại tuyến sau lần mở đầu ──────────
 // Đổi CACHE khi phát hành bản mới → bản cũ tự bị dọn.
-const CACHE = 'cricko-v1.20.0';
+const CACHE = 'cricko-v1.20.1';
 
 const SHELL = [
   './',

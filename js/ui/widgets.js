@@ -990,6 +990,11 @@ export function matIcon(ctx, id, s, col) {
 // ── nút có vùng bấm ─────────────────────────────────────────────────────────
 export class Hit {
   constructor(id, x, y, w, h, o = {}) { Object.assign(this, { id, x, y, w, h, ...o }); this.press = 0; this.hover = 0; }
+  containsExact(px, py) {
+    const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
+    if (this.circle) return Math.hypot(px - cx, py - cy) <= Math.max(this.w, this.h) / 2;
+    return px >= this.x && px <= this.x + this.w && py >= this.y && py <= this.y + this.h;
+  }
   contains(px, py) {
     // 68 logic ≈ 41–44 CSS px trên đa số iPhone: đủ dễ bấm bằng ngón cái dù
     // icon vẽ nhỏ hơn một chút. Chỉ mở rộng vùng chạm, không đổi bố cục.
@@ -998,6 +1003,10 @@ export class Hit {
     const cx = this.x + this.w / 2, cy = this.y + this.h / 2;
     if (this.circle) return Math.hypot(px - cx, py - cy) <= Math.max(w, h) / 2;
     return px >= cx - w / 2 && px <= cx + w / 2 && py >= cy - h / 2 && py <= cy + h / 2;
+  }
+  distance2(px, py) {
+    const dx = px - (this.x + this.w / 2), dy = py - (this.y + this.h / 2);
+    return dx * dx + dy * dy;
   }
   tick(dt, hovering, pressing) {
     this.hover = lerp(this.hover, hovering ? 1 : 0, 1 - Math.pow(.001, dt));

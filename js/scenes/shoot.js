@@ -13,7 +13,8 @@ import { Enemy, ATK, drawEnemyRaid } from '../game/enemy.js';
 import { playLayout, bleed } from '../core/layout.js';
 
 let ENEMY_Y = 46;                         // tính lại theo mép trên khung bắn
-const COLS = 10;
+const LAND_COLS = 10, MOBILE_COLS = 8;
+let COLS = LAND_COLS;
 let R = 24, FW = 524, FH = 524, DEATH_Y = 418;
 
 // Mốc bố cục tính lại theo bề ngang thiết bị — xem core/layout.js.
@@ -22,11 +23,13 @@ let LAUNCH = { x: 646, y: 608 };
 let PORTRAIT = false, HUDY = 78;
 function relayout(W, H, hasFoes = false) {
   PORTRAIT = H > W;
+  COLS = PORTRAIT ? MOBILE_COLS : LAND_COLS;
   if (PORTRAIT) {
-    R = clamp(Math.floor((W - 76) / (COLS * 2)), 17, 30);
+    R = clamp(Math.floor((W - 76) / (COLS * 2)), 20, 35);
     FW = COLS * R * 2 + 44; FH = FW; DEATH_Y = FH - 106;
     FX_ = Math.round((W - FW) / 2);
-    FY_ = H < 1400 ? (hasFoes ? 150 : 112) : (hasFoes ? 238 : 188);
+    // Bỏ ô Dế trang trí ở chế độ dọc và kéo vùng bắn lên sát thanh tiêu đề.
+    FY_ = H < 1400 ? (hasFoes ? 150 : 82) : (hasFoes ? 188 : 112);
     ENEMY_Y = FY_ - 48;
     BX = FX_ + 22; BY = FY_ + 14;
     CARDX = -9999; HUDX = 16; HUDW = W - 32; COMPACT = true;
@@ -114,7 +117,7 @@ export default {
       new Hit('quit', G.W / 2 - 110, G.H / 2 + 6, 220, 54, { act: () => { G.sfx('button'); G.go('map'); }, hidden: true }),
       new Hit('howto', G.W / 2 - 110, G.H / 2 + 78, 220, 54, { act: () => { G.sfx('button'); G.go('help', 'map'); }, hidden: true }),
     ];
-    if (PORTRAIT && G.H < 1250) {
+    if (PORTRAIT) {
       for (const id of ['restart', 'resume']) this.hits.find(h => h.id === id).hidden = true;
     }
     this.music = G.levelTrack();
@@ -189,7 +192,7 @@ export default {
   /** Bày nút QUA MÀN NGAY khi đã đủ điểm. */
   showFinishNow(G) {
     if (this.hits.some(h => h.id === 'finishNow')) return;
-    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT && G.H < 1250 ? 241 : 518), HUDW - 32, 52,
+    this.hits.push(new Hit('finishNow', HUDX + 16, HUDY + (PORTRAIT ? 112 : 518), HUDW - 32, 52,
       { act: () => this.startBravo(G, t('outOfShots')) }));
   },
 
@@ -428,7 +431,7 @@ export default {
     ctx.fillStyle = 'rgba(16,9,34,.20)'; ctx.fillRect(...bleed(G));
 
     if (!COMPACT) this.drawHeroCard(G, ctx);
-    else this.drawCompactHero(G, ctx);
+    else if (!PORTRAIT) this.drawCompactHero(G, ctx);
 
     this.drawEnemies(G, ctx);
 
@@ -634,9 +637,9 @@ export default {
     const f = this.raidFx, n = this.enemies.length;
     if (!f || !n) return;
     const sx = FX_ + FW * ((f.index + .5) / n), sy = ENEMY_Y - 4;
-    const compact = COMPACT ? this.compactHeroBox(G) : null;
-    const tx0 = compact ? compact.x + compact.w / 2 : CARDX + 134;
-    const ty0 = compact ? compact.y + compact.h * .58 : 122 + 214;
+    const compact = COMPACT && !PORTRAIT ? this.compactHeroBox(G) : null;
+    const tx0 = PORTRAIT ? FX_ + FW / 2 : compact ? compact.x + compact.w / 2 : CARDX + 134;
+    const ty0 = PORTRAIT ? FY_ + FH - 30 : compact ? compact.y + compact.h * .58 : 122 + 214;
     drawEnemyRaid(ctx, f, sx, sy, tx0, ty0);
   },
 
@@ -763,6 +766,7 @@ export default {
   },
 
   drawCompactHUD(G, ctx) {
+    if (PORTRAIT) { this.drawMobileHUD(G, ctx); return; }
     const L = G.level, x = HUDX, y = HUDY, w = HUDW;
     const short = PORTRAIT && G.H < 1250, h = short ? 300 : 438;
     card(ctx, x, y, w, h, 24);
@@ -843,6 +847,26 @@ export default {
       textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
         { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
     }
+  },
+
+  drawMobileHUD(G, ctx) {
+    const L = G.level, x = HUDX, y = HUDY, w = HUDW, h = 172;
+    card(ctx, x, y, w, h, 22);
+    const mm = Math.floor(this.timeLeft / 60), ss = Math.floor(this.timeLeft % 60);
+    strokeText(ctx, `${t('score')}  ${Math.round(this.shownScore).toLocaleString()}`, x + 24, y + 28,
+      { font: FONT.disp(22), fill: '#f4801f', stroke: '#8c3d00', lw: 4, align: 'left', baseline: 'middle' });
+    strokeText(ctx, `◷ ${mm}:${String(ss).padStart(2, '0')}`, x + w * .63, y + 28,
+      { font: FONT.disp(17), fill: this.timeLeft <= 15 ? '#d7193f' : '#33445f', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    strokeText(ctx, `●●● ${this.shotsLeft}`, x + w - 24, y + 28,
+      { font: FONT.disp(17), fill: this.shotsLeft <= 5 ? '#d7193f' : '#60459a', stroke: null, lw: 0, align: 'right', baseline: 'middle', shadow: null });
+    statBar(ctx, x + 18, y + 48, w - 36, 34, this.score / (L.target * L.star[2]), (c, s) => icon.crown(c, s), { label: '' });
+    const noun = GOAL_NOUN[G.episodeOf(G.levelIndex).id];
+    strokeText(ctx, `${t('hp')} ${Math.ceil(this.hp)}   ·   ${t('gold')} ${this.gold}   ·   ${t('goal')} ${L.target.toLocaleString()}${noun ? ' ' + tx(noun, 'vi') : ''}`,
+      x + w / 2, y + 105,
+      { font: FONT.ui(13, 800), fill: '#584b72', stroke: null, lw: 0, baseline: 'middle', shadow: null });
+    const fin = this.hits.find(h2 => h2.id === 'finishNow');
+    if (fin) textBtn(ctx, fin.x, fin.y, fin.w, fin.h, t('finishNow'),
+      { press: fin.press, hover: fin.hover, colour: '#3fbf4a', dark: '#1d6b24', lite: '#8ef08a', font: FONT.disp(20) });
   },
 
   // Bản cũ giữ lại để đối chiếu ảnh khi cân bằng giao diện.

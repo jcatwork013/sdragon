@@ -16,6 +16,13 @@ android/capacitor-cordova-android-plugins/
 # chứa đường dẫn Android SDK riêng của từng máy
 android/local.properties
 
+# ── iOS (Xcode/Capacitor) ────────────────────────────────────────────────
+ios/App/DerivedData/
+ios/App/App.xcodeproj/xcuserdata/
+ios/App/App.xcodeproj/project.xcworkspace/xcuserdata/
+ios/App/App.xcworkspace/xcuserdata/
+*.xcarchive
+
 *.apk
 *.aab
 *.keystore

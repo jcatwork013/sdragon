@@ -14,13 +14,13 @@ Chạy bằng **HTML5 Canvas + Web Audio**, **không dùng thư viện ngoài, k
 
 | File trong `dist/` | Nền tảng |
 |---|---|
-| `ios/Cricko-1.20.2-iOS.ipa` | **iPhone / iPad** — bản Development đã ký để cài trên thiết bị đã đăng ký |
-| `Cricko-1.20.2.apk` | **Android 7+** — chép vào máy, bật "cài từ nguồn không xác định" |
-| `Cricko Setup 1.20.2.exe` | **Windows** — bộ cài |
-| `Cricko 1.20.2.exe` | **Windows** — bản portable, chạy thẳng |
-| `Cricko-1.20.2-arm64.dmg` | **macOS** Apple Silicon |
-| `Cricko-1.20.2.dmg` | **macOS** Intel |
-| `Cricko-1.20.2.AppImage` | **Linux** x64 — chạy trực tiếp |
+| `ios/Cricko-1.20.3-iOS.ipa` | **iPhone / iPad** — bản Development đã ký để cài trên thiết bị đã đăng ký |
+| `Cricko-1.20.3.apk` | **Android 7+** — chép vào máy, bật "cài từ nguồn không xác định" |
+| `Cricko Setup 1.20.3.exe` | **Windows** — bộ cài |
+| `Cricko 1.20.3.exe` | **Windows** — bản portable, chạy thẳng |
+| `Cricko-1.20.3-arm64.dmg` | **macOS** Apple Silicon |
+| `Cricko-1.20.3.dmg` | **macOS** Intel |
+| `Cricko-1.20.3.AppImage` | **Linux** x64 — chạy trực tiếp |
 
 Dựng lại: `npm run ios:archive && npm run ios:export` (iOS) · `npm run apk` (Android) · `npm run build:mac` · `npm run build:win` · `npm run build:linux`.
 Đổi phiên bản: `npm run version -- 1.1.0` (tự đồng bộ package.json, package-lock, web cache, Android và iOS).

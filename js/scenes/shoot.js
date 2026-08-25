@@ -15,7 +15,7 @@ import { playLayout, bleed } from '../core/layout.js';
 let ENEMY_Y = 46;                         // tính lại theo mép trên khung bắn
 const LAND_COLS = 10, MOBILE_COLS = 7;
 let COLS = LAND_COLS;
-let R = 24, FW = 524, FH = 524, DEATH_Y = 418;
+let R = 24, FW = 524, FH = 524, DEATH_Y = 418, BOARD_ROWS = 13;
 
 // Mốc bố cục tính lại theo bề ngang thiết bị — xem core/layout.js.
 let FX_ = 384, FY_ = 122, BX = 406, BY = 136, CARDX = 24, HUDX = 950, HUDW = 306, COMPACT = false;
@@ -26,14 +26,21 @@ function relayout(W, H, hasFoes = false) {
   COLS = PORTRAIT ? MOBILE_COLS : LAND_COLS;
   if (PORTRAIT) {
     R = clamp(Math.floor((W - 76) / (COLS * 2)), 20, 40);
-    FW = COLS * R * 2 + 44; FH = FW; DEATH_Y = FH - 106;
+    FW = COLS * R * 2 + 44;
     FX_ = Math.round((W - FW) / 2);
     // Bỏ ô Dế trang trí ở chế độ dọc và kéo vùng bắn lên sát thanh tiêu đề.
     FY_ = H < 1400 ? (hasFoes ? 150 : 82) : (hasFoes ? 188 : 112);
     ENEMY_Y = FY_ - 48;
     BX = FX_ + 22; BY = FY_ + 14;
     CARDX = -9999; HUDX = 24; HUDW = W - 48; COMPACT = true;
-    HUDY = Math.max(FY_ + FH + 18, H - 34 - 16 - 154);
+    // Khung bắn dọc ăn trọn khoảng giữa tiêu đề và HUD. Trước đây FH = FW nên
+    // khung luôn vuông, bỏ phí gần 1/4 màn hình iPhone thành một bãi cỏ trống.
+    HUDY = H - 34 - 16 - 154;
+    FH = Math.max(FW, HUDY - FY_ - 14);
+    DEATH_Y = FH - 106;
+    // Lưới logic cũng phải cao theo khung mới; nếu chỉ kéo hình nền thì những
+    // hàng ở nửa dưới không thể nhận bóng và phần mở rộng sẽ là diện tích giả.
+    BOARD_ROWS = Math.max(13, Math.ceil((DEATH_Y - R) / (R * Math.sqrt(3))) + 1);
     LAUNCH = { x: BX + COLS * R, y: BY + DEATH_Y + 54 };
     return;
   }
@@ -46,6 +53,7 @@ function relayout(W, H, hasFoes = false) {
   R = clamp(Math.min(byW, byH), 17, 30);
   FW = COLS * R * 2 + 44; FH = FW;
   DEATH_Y = FH - 106;
+  BOARD_ROWS = 13;
   const L = playLayout(W, FW, FH);
   FX_ = L.boardX;
   FY_ = Math.round(78 + (684 - 78 - FH) / 2);
@@ -98,7 +106,7 @@ export default {
 
     this.pushEvery = L.pushEvery ?? 10;
     this.board = new BubbleBoard({
-      cols: COLS, rows: 13, radius: R, colours: L.shootColours ?? 4,
+      cols: COLS, rows: BOARD_ROWS, radius: R, colours: L.shootColours ?? 4,
       startRows: L.startRows ?? 3, deathY: DEATH_Y,
     });
     this.wire(G);
@@ -526,11 +534,12 @@ export default {
       ctx.restore();
     }
 
-    // Portrait có dải phụ đề riêng ngay trên HUD: tuyệt đối không che bóng bắn.
+    // Portrait đặt thoại lên HUD phụ trong vài giây. Khung bắn nay kéo sát HUD,
+    // nên để thoại ở mép dưới bàn sẽ che đúng bệ phóng và nút đổi bóng.
     if (this.bubble) drawBubble(ctx, this.bubble,
-      PORTRAIT ? HUDX : COMPACT ? FX_ + 20 : CARDX,
-      PORTRAIT ? HUDW : COMPACT ? FW - 40 : 340,
-      PORTRAIT ? HUDY - 70 : COMPACT ? FY_ + FH - 104 : 536);
+      PORTRAIT ? HUDX + 8 : COMPACT ? FX_ + 20 : CARDX,
+      PORTRAIT ? HUDW - 16 : COMPACT ? FW - 40 : 340,
+      PORTRAIT ? HUDY + 8 : COMPACT ? FY_ + FH - 104 : 536);
     const p = this.hits.find(h => h.id === 'pause');
     if (p) roundBtn(ctx, p.x + 26, p.y + 26, 26, (c, s) => icon.pause(c, s), { press: p.press, hover: p.hover });
     const ex = this.hits.find(h => h.id === 'exit');
